@@ -1,0 +1,62 @@
+[package]
+name = "llm-actors"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Pekko-rust actors wrapping nanogpt-rs"
+
+[features]
+default = []
+cuda    = ["nanogpt-rs/cuda"]
+
+[dependencies]
+nanogpt-rs        = { path = "../nanogpt-rs" }
+pekko-actor       = { workspace = true }
+candle-core       = { workspace = true }
+candle-nn         = { workspace = true }
+tokio             = { workspace = true }
+async-trait       = { workspace = true }
+tracing           = { workspace = true }
+anyhow            = { workspace = true }
+thiserror         = { workspace = true }
+serde             = { workspace = true }
+serde_json        = { workspace = true }
+rand              = { workspace = true }
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true }
+tokio              = { workspace = true }
+nanogpt-rs         = { path = "../nanogpt-rs" }
+candle-core        = { workspace = true }
+candle-nn          = { workspace = true }
+clap               = { workspace = true }
+
+[[example]]
+name = "model_actor_smoke"
+path = "examples/model_actor_smoke.rs"
+
+[[example]]
+name = "self_improve_round"
+path = "examples/self_improve_round.rs"
+required-features = []
+
+[[example]]
+name = "evolve_arithmetic"
+path = "examples/evolve_arithmetic.rs"
+required-features = []
+
+[[example]]
+name = "agentic_arithmetic"
+path = "examples/agentic_arithmetic.rs"
+required-features = []
+
+[[example]]
+name = "train_tool_use_arithmetic"
+path = "examples/train_tool_use_arithmetic.rs"
+required-features = []
+
+[[example]]
+name = "self_improve_tool_use"
+path = "examples/self_improve_tool_use.rs"
+required-features = []

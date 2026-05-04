@@ -1,0 +1,28 @@
+# Cargo build outputs
+/target/
+# Cargo.lock is committed (this workspace has runnable examples — pin versions for reproducibility)
+
+# Claude Code session metadata (per-machine)
+/.claude/
+
+# Trained checkpoints (regenerable, large)
+/checkpoints/
+
+# Corpus + intermediate data (regenerable from upstream dumps)
+/data/
+!/data/.gitkeep
+
+# Tokenizer artifacts (regenerable)
+*.safetensors
+*.cfg.json
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Logs
+*.log
+/logs/

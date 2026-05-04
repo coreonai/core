@@ -1,0 +1,43 @@
+[package]
+name = "nanogpt-rs"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Rust-native nanoGPT on Candle"
+
+[features]
+default = []
+cuda    = ["candle-core/cuda", "candle-nn/cuda"]
+
+[dependencies]
+candle-core         = { workspace = true }
+candle-nn           = { workspace = true }
+tokenizers          = { workspace = true }
+serde               = { workspace = true }
+serde_json          = { workspace = true }
+tracing             = { workspace = true }
+anyhow              = { workspace = true }
+thiserror           = { workspace = true }
+rand                = { workspace = true }
+indicatif           = { workspace = true }
+clap                = { workspace = true }
+
+[dev-dependencies]
+tokio               = { workspace = true }
+tracing-subscriber  = { workspace = true }
+quick-xml           = "0.36"
+regex               = "1"
+anyhow              = { workspace = true }
+
+[[example]]
+name = "train_shakespeare"
+path = "examples/train_shakespeare.rs"
+
+[[example]]
+name = "extract_kowiki"
+path = "examples/extract_kowiki.rs"
+
+[[example]]
+name = "train_kowiki"
+path = "examples/train_kowiki.rs"
