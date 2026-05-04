@@ -27,6 +27,7 @@ thiserror        = "2"
 rand             = "0.8"
 indicatif        = "0.17"
 clap             = { version = "4", features = ["derive"] }
+axum             = "0.8"
 
 # pekko-rust (separate workspace at ../AgenticAI/rust_pekko)
 pekko-actor = { path = "../AgenticAI/rust_pekko/pekko-actor" }

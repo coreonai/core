@@ -13,6 +13,7 @@ pub mod domain;
 pub mod evaluator_actor;
 pub mod evolution;
 pub mod generator_actor;
+pub mod inference_http;
 pub mod inference_server_actor;
 pub mod model_actor;
 pub mod supervisor;

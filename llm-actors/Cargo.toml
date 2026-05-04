@@ -23,6 +23,7 @@ thiserror         = { workspace = true }
 serde             = { workspace = true }
 serde_json        = { workspace = true }
 rand              = { workspace = true }
+axum              = { workspace = true }
 
 [dev-dependencies]
 tracing-subscriber = { workspace = true }
@@ -59,4 +60,9 @@ required-features = []
 [[example]]
 name = "self_improve_tool_use"
 path = "examples/self_improve_tool_use.rs"
+required-features = []
+
+[[example]]
+name = "serve_inference"
+path = "examples/serve_inference.rs"
 required-features = []

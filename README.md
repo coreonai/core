@@ -163,7 +163,39 @@ verified ones, and the trainer fine-tunes with EWC + replay mixing
 real Fisher EWC; LoRA r=8 gives perfect stability (Δ=0) at the cost of
 learning capacity.
 
-### 6. Korean Wikipedia training
+### 6. HTTP-fronted inference server
+
+```bash
+# Smoke (CPU, no checkpoint — pipeline only)
+cargo run -p llm-actors --example serve_inference --release -- --port 8080
+
+# Real serving (CUDA, after running example 7 to produce a checkpoint)
+cargo run -p llm-actors --example serve_inference --release --features cuda -- \
+    --port 8080 \
+    --checkpoint checkpoints/kowiki_50m_clean.safetensors \
+    --tokenizer data/kowiki/kowiki_bpe.json \
+    --arch llama-50m
+```
+
+```bash
+# Probe
+curl http://localhost:8080/health
+# → {"status":"ok"}
+
+# Inference
+curl -X POST http://localhost:8080/inference \
+     -H 'content-type: application/json' \
+     -d '{"prompt":"대한민국의 수도는 ","max_new_tokens":40,"temperature":0.8,"top_k":40}'
+# → {"request_id":null,"completion":"...","tokens":[...],"elapsed_ms":...}
+```
+
+`inference_http::serve()` wraps `InferenceServerActor` (transport-neutral)
+in axum routes. The same actor can be reached over an internal channel
+*or* over HTTP without duplicated sampling logic. Errors map to HTTP
+status codes (422 for malformed JSON, 408 for actor timeout, 500 for
+inference failure).
+
+### 7. Korean Wikipedia training
 
 Two-step pipeline:
 
@@ -251,8 +283,6 @@ This is engineering infrastructure, not a state-of-the-art model.
   Wikipedia at 50M params + 30K steps reaches `loss≈7.0` (vs `ln(16k)=9.68`
   baseline) but doesn't generate fluent prose. Both are dataset-/scale-limited,
   not infrastructure-limited.
-- **InferenceServerActor**: ships transport-neutral; an HTTP wrapper
-  (`axum`) is the next obvious add.
 - **Distillation**: `train_with_teacher` is implemented and unit-tested
   but not validated end-to-end on a real teacher/student pair.
 - **CUDA toolchain**: requires CUDA 12.5 (driver 555 limit). The cuda-12.9
