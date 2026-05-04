@@ -49,3 +49,7 @@ path = "examples/distill_kowiki.rs"
 [[example]]
 name = "compare_tokenizers"
 path = "examples/compare_tokenizers.rs"
+
+[[example]]
+name = "eval_kowiki"
+path = "examples/eval_kowiki.rs"

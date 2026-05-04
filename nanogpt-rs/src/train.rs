@@ -359,6 +359,12 @@ pub fn train_with_teacher(
             std::fs::create_dir_all(parent)?;
         }
         student_varmap.save(path)?;
+        // Save the student config alongside so `eval_kowiki` (and any
+        // other consumer) can rebuild the architecture without external
+        // hints. Mirrors what `train_from_full` does.
+        let cfg_path = path.with_extension("cfg.json");
+        let cfg_json = serde_json::to_string_pretty(student_cfg)?;
+        std::fs::write(cfg_path, cfg_json)?;
     }
 
     // Suppress unused-tensor warnings.

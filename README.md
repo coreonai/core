@@ -22,7 +22,74 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**~62 unit tests, 11 worked examples, 11 phases. CUDA 12.5 toolchain pinning required (driver 555).**
+**~63 unit tests, 12 worked examples, 11 phases. CUDA 12.5 toolchain pinning required (driver 555).**
+
+## Phase lineage
+
+```mermaid
+graph TD
+  P1["Phase 1<br/>nanogpt-rs (Candle)<br/>+ ModelActor<br/>+ Shakespeare smoke"]
+  P2["Phase 2<br/>self-improvement loop<br/>6 actors"]
+  P25["Phase 2.5<br/>priority replay<br/>+ RustCodeDomain"]
+  P3["Phase 3 ×7 turns<br/>12-axis NAS<br/>independently rediscovers Llama recipe"]
+  P4["Phase 4 ×11 turns<br/>tool-use + agentic loop<br/>+ EWC + LoRA + axum HTTP"]
+  P1E["Phase 1 epilogue<br/>real KoWiki 50M<br/>+ tokenizer A/B<br/>+ distillation eval"]
+  P1 --> P2 --> P25 --> P3 --> P4 --> P1E
+  classDef done fill:#cfc,stroke:#080
+  class P1,P2,P25,P3,P4,P1E done
+```
+
+## Data flow (Korean training pipeline)
+
+```mermaid
+graph LR
+  XML["KoWiki<br/>XML.bz2"]
+  Extract["extract_kowiki<br/>quick-xml + regex"]
+  Plain["kowiki_clean.txt<br/>~95 MB plaintext"]
+  BPE["BPE tokenizer<br/>train_bpe / from_hub"]
+  Tokens["20.8M token IDs"]
+  Train["train_kowiki<br/>nano_50m (RoPE+GQA+SwiGLU+RMSNorm+untied)"]
+  Ckpt["safetensors<br/>+ cfg.json"]
+  Eval["eval_kowiki<br/>held-out CE / perplexity"]
+  Distill["distill_kowiki<br/>50M → 12M student"]
+  XML --> Extract --> Plain --> BPE --> Tokens --> Train --> Ckpt
+  Ckpt --> Eval
+  Ckpt --> Distill --> Ckpt
+```
+
+## Agent architecture (Phase 4)
+
+```mermaid
+graph TB
+  subgraph Actors
+    Model["ModelActor<br/>owns VarMap + GPT<br/>ReloadCheckpoint"]
+    Agent["AgenticGeneratorActor<br/>multi-turn loop"]
+    Tools["ToolExecutorActor<br/>dispatch by name"]
+    Server["InferenceServerActor<br/>transport-neutral"]
+    Curator["CuratorActor<br/>priority replay"]
+    Trainer["TrainerActor<br/>continual fine-tune<br/>+ EWC + LoRA"]
+    Verifier["VerifierActor<br/>per-Domain check"]
+  end
+  subgraph HTTP
+    Axum["axum router<br/>POST /inference<br/>GET /health"]
+  end
+  subgraph Domains
+    Arith["ArithmeticTool<br/>(real eval)"]
+    Rust["RustCodeDomain<br/>(cargo build/run)"]
+    Korean["KoreanCompletionDomain<br/>(Hangul + sentence ending)"]
+  end
+  Agent --> Model
+  Agent -- "(name args)\\n parse" --> Tools
+  Tools -- "splice =result" --> Agent
+  Agent --> Verifier --> Curator --> Trainer --> Model
+  Server --> Model
+  Axum --> Server
+  Tools --> Arith
+  Tools --> Rust
+  Verifier --> Korean
+```
+
+
 
 ```
 [ Candle GPT ] ── [ pekko-rust actors ] ── [ NAS evolution ] ── [ tool-use agent loop ]
@@ -234,7 +301,37 @@ on diverse Korean (web, news, AI Hub) — produces more learnable subword
 units, so the same 50M-param model reaches a lower loss in the same step
 budget despite the higher uniform baseline.
 
-### 8. Knowledge distillation: 50M teacher → 12M student
+### 8. Held-out CE for any KoWiki checkpoint
+
+```bash
+cargo run -p nanogpt-rs --example eval_kowiki --features cuda --release -- \
+    --tokenizer data/kowiki/kowiki_bpe.json \
+    --data data/kowiki/kowiki_clean.txt \
+    --val-frac 0.05 --eval-batches 50 \
+    --checkpoints checkpoints/kowiki_50m_clean.safetensors \
+                  checkpoints/kowiki_distill_student.safetensors \
+                  checkpoints/kowiki_distill_baseline.safetensors
+```
+
+Loads each checkpoint (config from the sibling `.cfg.json`), slices the
+last `--val-frac` of the corpus as held-out, and reports mean CE and
+perplexity over `--eval-batches` random windows. The distilled-student's
+training loss carries a `T²·KL` term that inflates it relative to a
+from-scratch baseline's pure CE; eval on the same metric removes the
+mismatch. Sample run from this repo:
+
+| Checkpoint                        | val_loss | perplexity | params |
+|-----------------------------------|---------:|-----------:|-------:|
+| kowiki_50m_clean (teacher)        |   7.5062 |   1819     | 46.8M  |
+| kowiki_distill_student            | **7.6488** | **2098** |   12M  |
+| kowiki_distill_baseline           | **7.4610** | **1739** |   12M  |
+
+Honest finding: at this scale (4K-step student training, 7.5-loss
+teacher) the from-scratch baseline outperforms the distilled student
+by 0.19 nats. Distillation pays off when the teacher is meaningfully
+stronger; under-converged teachers don't carry useful soft labels.
+
+### 9. Knowledge distillation: 50M teacher → 12M student
 
 ```bash
 cargo run -p nanogpt-rs --example distill_kowiki --features cuda --release -- \
