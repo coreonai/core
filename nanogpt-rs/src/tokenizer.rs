@@ -26,6 +26,37 @@ impl Tokenizer {
         Ok(Tokenizer::Bpe(tk))
     }
 
+    /// Download a tokenizer file from a HuggingFace Hub repo (public-only)
+    /// and load it. Cached at `~/.cache/workllm/hf-tokenizers/{repo_safe}/{filename}`
+    /// so re-runs hit the local file. Shells out to `curl` to avoid pulling
+    /// in a full HTTP client crate — the dump is one tiny JSON file.
+    ///
+    /// Example:
+    ///     Tokenizer::from_hub("EleutherAI/polyglot-ko-1.3b", "tokenizer.json")
+    pub fn from_hub(repo: &str, filename: &str) -> Result<Self> {
+        let cache_root = dirs_cache().join("workllm").join("hf-tokenizers");
+        let safe_repo = repo.replace('/', "__");
+        let dest_dir = cache_root.join(&safe_repo);
+        let dest = dest_dir.join(filename);
+        if !dest.exists() {
+            std::fs::create_dir_all(&dest_dir)?;
+            let url = format!("https://huggingface.co/{repo}/resolve/main/{filename}");
+            let status = std::process::Command::new("curl")
+                .args(["-fsSL", "--retry", "3", "-o"])
+                .arg(&dest)
+                .arg(&url)
+                .status()
+                .map_err(|e| Error::Tokenizer(format!("spawn curl: {e}")))?;
+            if !status.success() {
+                let _ = std::fs::remove_file(&dest); // don't leave empty file
+                return Err(Error::Tokenizer(format!(
+                    "curl {url} failed (exit {status:?}). Set HF_HOME if behind a proxy or pre-download the file manually."
+                )));
+            }
+        }
+        Self::from_hf_file(&dest)
+    }
+
     /// Train a fresh ByteLevel-BPE tokenizer on the given text files. The
     /// resulting tokenizer is saved to `save_path` (HF JSON format) and
     /// returned ready-to-use. Use this for new corpora; reuse `from_hf_file`
@@ -97,6 +128,18 @@ impl Tokenizer {
             Tokenizer::Char(c) => Ok(c.decode(ids)),
         }
     }
+}
+
+fn dirs_cache() -> std::path::PathBuf {
+    if let Ok(c) = std::env::var("XDG_CACHE_HOME") {
+        if !c.is_empty() {
+            return std::path::PathBuf::from(c);
+        }
+    }
+    if let Ok(h) = std::env::var("HOME") {
+        return std::path::PathBuf::from(h).join(".cache");
+    }
+    std::path::PathBuf::from("/tmp")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

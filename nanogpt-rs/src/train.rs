@@ -315,15 +315,19 @@ pub fn train_with_teacher(
         let s_logits_scaled = (&s_logits / temp)?;
         let s_log_probs = ops::log_softmax(&s_logits_scaled, candle_core::D::Minus1)?;
 
-        // KL(t || s) = sum_v t * (log t - log s). Implemented as
-        // -sum_v t * log_s + const(t).
+        // KL(t || s) = sum_v t * (log t - log s). The `-sum_v t * log_s`
+        // half is what carries the student's gradient; the entropy of t
+        // is constant w.r.t. the student so we drop it. Average over
+        // (B × T) so the loss magnitude stays comparable to the hard CE
+        // term — without the T-dim normalization the KL ends up
+        // `seq_len` times too large and dominates training.
+        let (b, t, v) = s_logits.dims3()?;
         let neg_kl_part = (&t_probs * &s_log_probs)?;
         let kl = neg_kl_part.sum_all()?.neg()?;
         let kl = (kl * (temp * temp))?; // scale per Hinton
-        let kl = (kl / (cfg.batch_size as f64))?;
+        let kl = (kl / ((b * t) as f64))?;
 
         // Hard CE on student logits (no temperature).
-        let (b, t, v) = s_logits.dims3()?;
         let s_flat = s_logits.reshape((b * t, v))?;
         let y_flat = y.reshape(b * t)?.to_dtype(DType::U32)?;
         let ce = candle_nn::loss::cross_entropy(&s_flat, &y_flat)?;

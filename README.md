@@ -195,7 +195,48 @@ in axum routes. The same actor can be reached over an internal channel
 status codes (422 for malformed JSON, 408 for actor timeout, 500 for
 inference failure).
 
-### 7. Korean Wikipedia training
+### 7. Compare a self-trained vs pre-trained Korean BPE
+
+```bash
+# Pre-train your own 16K BPE inside train_kowiki, OR fetch Polyglot-Ko's
+# (30K Korean-pretrained BPE).
+curl -L -o data/kowiki/polyglot_ko_tokenizer.json \
+  https://huggingface.co/EleutherAI/polyglot-ko-1.3b/resolve/main/tokenizer.json
+# (or use Tokenizer::from_hub("EleutherAI/polyglot-ko-1.3b", "tokenizer.json"))
+
+cargo run -p nanogpt-rs --example compare_tokenizers --release
+```
+
+Results on the 95 MB cleaned KoWiki corpus:
+
+| Tokenizer        | Vocab | Tokens (kowiki) | chars/token | 10K-step train loss |
+|------------------|------:|----------------:|------------:|-------------------:|
+| ours-16K-BPE     | 16,000| 20.8M           | **4.59**    | 7.01               |
+| polyglot-ko-30K  | 30,003| 23.7M           | 4.04        | **6.41**           |
+
+The in-domain 16K BPE encodes denser, but Polyglot's 30K vocab — pretrained
+on diverse Korean (web, news, AI Hub) — produces more learnable subword
+units, so the same 50M-param model reaches a lower loss in the same step
+budget despite the higher uniform baseline.
+
+### 8. Knowledge distillation: 50M teacher → 12M student
+
+```bash
+cargo run -p nanogpt-rs --example distill_kowiki --features cuda --release -- \
+    --teacher checkpoints/kowiki_50m_clean.safetensors \
+    --tokenizer data/kowiki/kowiki_bpe.json \
+    --data data/kowiki/kowiki_clean.txt \
+    --steps 4000 \
+    --train-baseline   # also runs an A/B from-scratch student for comparison
+```
+
+`train_with_teacher` runs `(1−α)·CE + α·KL(T||S)` with temperature `T=2`,
+`α=0.7` (Hinton). Teacher weights are frozen (loaded into a separate
+varmap, never reach the optimizer). The KL is averaged over `B × T`
+positions — without that normalization the loss explodes by ~`seq_len`
+and gradients diverge.
+
+### 9. Korean Wikipedia training
 
 Two-step pipeline:
 
@@ -283,8 +324,10 @@ This is engineering infrastructure, not a state-of-the-art model.
   Wikipedia at 50M params + 30K steps reaches `loss≈7.0` (vs `ln(16k)=9.68`
   baseline) but doesn't generate fluent prose. Both are dataset-/scale-limited,
   not infrastructure-limited.
-- **Distillation**: `train_with_teacher` is implemented and unit-tested
-  but not validated end-to-end on a real teacher/student pair.
+- **Distillation**: `train_with_teacher` is implemented and validated
+  on a small CPU teacher/student. Full GPU run pending teacher
+  re-training with the KL-normalization fix landed alongside the
+  axum + distillation work.
 - **CUDA toolchain**: requires CUDA 12.5 (driver 555 limit). The cuda-12.9
   toolkit produces PTX the driver rejects.
 
