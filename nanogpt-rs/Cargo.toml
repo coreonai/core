@@ -41,3 +41,11 @@ path = "examples/extract_kowiki.rs"
 [[example]]
 name = "train_kowiki"
 path = "examples/train_kowiki.rs"
+
+[[example]]
+name = "distill_kowiki"
+path = "examples/distill_kowiki.rs"
+
+[[example]]
+name = "compare_tokenizers"
+path = "examples/compare_tokenizers.rs"
