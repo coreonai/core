@@ -9,6 +9,21 @@ Wikipedia.
 > **Vision:** "Rust nanoGPT × Pekko-Rust self-evolving Agentic Foundation
 > Model." Each phase ships infrastructure that the next phase composes.
 
+## TL;DR
+
+| You can ... | by running ... |
+|-------------|----------------|
+| Train a GPT (RoPE+GQA+SwiGLU+RMSNorm+untied) on Shakespeare | `cargo run -p nanogpt-rs --example train_shakespeare --features cuda --release` |
+| Watch evolutionary NAS rediscover the Llama recipe (12-axis search) | `cargo run -p llm-actors --example evolve_arithmetic --features cuda --release` |
+| Run an agentic loop that detects, dispatches, and splices tool calls | `cargo run -p llm-actors --example agentic_arithmetic --release` |
+| Self-improve a model with EWC + replay + LoRA on a verified domain | `cargo run -p llm-actors --example self_improve_tool_use --features cuda --release` |
+| Train a 50M Korean LM on a real KoWiki dump | `cargo run -p nanogpt-rs --example train_kowiki --features cuda --release` |
+| Distill a 50M teacher to a 12M student (KL, T=2, α=0.7) | `cargo run -p nanogpt-rs --example distill_kowiki --features cuda --release` |
+| Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
+| Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
+
+**~62 unit tests, 11 worked examples, 11 phases. CUDA 12.5 toolchain pinning required (driver 555).**
+
 ```
 [ Candle GPT ] ── [ pekko-rust actors ] ── [ NAS evolution ] ── [ tool-use agent loop ]
        │                  │                      │                       │

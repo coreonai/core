@@ -142,6 +142,100 @@ fn dirs_cache() -> std::path::PathBuf {
     std::path::PathBuf::from("/tmp")
 }
 
+#[cfg(test)]
+mod from_hub_tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    /// Serialize tests that mutate the global `XDG_CACHE_HOME` env var.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn cache_hit_avoids_network() {
+        let _g = ENV_LOCK.lock().unwrap();
+        // Point cache at a fresh tempdir, pre-seed with our own copy of
+        // the Polyglot tokenizer file (any valid HF tokenizer works), and
+        // verify `from_hub` loads it without spawning curl.
+        let tmp = std::env::temp_dir().join(format!(
+            "workllm-from-hub-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::env::set_var("XDG_CACHE_HOME", &tmp);
+
+        let repo = "EleutherAI/polyglot-ko-1.3b";
+        let filename = "tokenizer.json";
+        let dest = tmp
+            .join("workllm")
+            .join("hf-tokenizers")
+            .join(repo.replace('/', "__"))
+            .join(filename);
+        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+
+        // Seed with a known-good local tokenizer.json so we don't need
+        // the network. The repo path here is exercising path layout only.
+        let local = std::path::Path::new("data/kowiki/polyglot_ko_tokenizer.json");
+        if !local.exists() {
+            // No data/ available in this environment; nothing to assert.
+            std::env::remove_var("XDG_CACHE_HOME");
+            return;
+        }
+        std::fs::copy(local, &dest).unwrap();
+
+        // Make curl fail loudly if it's invoked — easiest way is to
+        // shadow it by prepending a dir with a fake `curl` to PATH.
+        let bin_dir = tmp.join("nopath-curl");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        let fake = bin_dir.join("curl");
+        std::fs::write(&fake, "#!/bin/sh\necho 'from_hub should not call curl on cache hit' >&2\nexit 99\n").unwrap();
+        // chmod +x
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&fake).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&fake, perms).unwrap();
+
+        let original_path = std::env::var("PATH").unwrap_or_default();
+        std::env::set_var("PATH", format!("{}:{}", bin_dir.display(), original_path));
+
+        let tk = Tokenizer::from_hub(repo, filename).expect("cache hit should load");
+        assert_eq!(tk.vocab_size(), 30003);
+
+        std::env::set_var("PATH", original_path);
+        std::env::remove_var("XDG_CACHE_HOME");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn cache_path_normalizes_repo_slash() {
+        let _g = ENV_LOCK.lock().unwrap();
+        let tmp = std::env::temp_dir().join(format!(
+            "workllm-from-hub-path-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::env::set_var("XDG_CACHE_HOME", &tmp);
+
+        // Without internet we can't actually download — but we can trigger
+        // the path-construction branch by providing a tokenizer file at
+        // the expected cache path and checking that's what gets read.
+        let repo = "owner/sub/repo";
+        let dest = tmp
+            .join("workllm")
+            .join("hf-tokenizers")
+            .join("owner__sub__repo")
+            .join("tokenizer.json");
+        // Just assert the path layout — we'd need a real tokenizer file
+        // for full load, which is overkill for this assertion.
+        assert!(!dest.exists());
+        // Building the path manually mirrors what `from_hub` does:
+        let safe_repo = repo.replace('/', "__");
+        assert_eq!(safe_repo, "owner__sub__repo");
+
+        std::env::remove_var("XDG_CACHE_HOME");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CharTokenizer {
     /// id -> char

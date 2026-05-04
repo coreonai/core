@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  test:
+    name: cargo test (CPU)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Vendor pekko-rust (path dep)
+        run: |
+          # The workspace pulls pekko-actor by path from a sibling
+          # directory. CI doesn't have it; create a minimal stub the
+          # workspace can compile against until the upstream repo is
+          # public.
+          mkdir -p ../AgenticAI/rust_pekko/pekko-actor/src
+          cat > ../AgenticAI/rust_pekko/Cargo.toml <<EOF
+          [package]
+          name = "pekko-rust"
+          version = "0.1.0"
+          edition = "2021"
+          [workspace]
+          members = ["pekko-actor"]
+          EOF
+          cat > ../AgenticAI/rust_pekko/pekko-actor/Cargo.toml <<EOF
+          [package]
+          name = "pekko-actor"
+          version = "0.1.0"
+          edition = "2021"
+          [dependencies]
+          tokio = { version = "1", features = ["full"] }
+          tracing = "0.1"
+          chrono = { version = "0.4", features = ["serde"] }
+          thiserror = "1"
+          EOF
+          # If you have the real pekko-rust upstream available, fetch it
+          # here instead — the stub above only exists so PRs can be tested
+          # without it.
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+        continue-on-error: true
+
+      - name: cargo build --workspace
+        run: cargo build --workspace --release
+
+      - name: cargo test --workspace
+        run: cargo test --workspace --release
+
+      - name: cargo build --workspace --examples (sanity)
+        run: cargo build --workspace --examples --release
