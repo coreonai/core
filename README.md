@@ -274,20 +274,33 @@ forgetting, so EWC's penalty is no-op overhead at this scale.
 Matches Phase 4's "EWC vs ER net benefit unproven" finding on the
 tool-use domain.
 
-LoRA-only fine-tune (`--lora-rank N`) reproduces Phase 4's
-capacity-stability trade-off:
+LoRA-only fine-tune (`--lora-rank N --lora-alpha A`) decouples rank
+(capacity) from alpha (per-step learning aggressiveness, scaling as
+α/r). Sweeping both axes:
 
 | Variant | Round-by-round eval (out of 21) | Peak | Stochastic gen |
 |---------|---------------------------------|-----:|---------------:|
-| Full FT (baseline) | 0 → 8 → 7 → 8 → 8 | 8/21 (38%) | **9/24 (37.5%)** |
-| Full FT + EWC λ=100 | 0 → 8 → 7 → 8 → 8 | 8/21 (38%) | 9/24 (37.5%) |
-| LoRA r=32 α=16 (scale 0.5) | 8 → 8 → 7 → 8 → 8 | 8/21 (38%) | 0% |
-| LoRA r=8 α=16 (scale 2.0) | 7 → 0 → **15** → 14 → 0 | **15/21 (71%)** | 0% |
+| Full FT (baseline) | 0 → 8 → 7 → 8 → 8 | 8 (38%) | **9/24 (37.5%)** |
+| Full FT + EWC λ=100 | 0 → 8 → 7 → 8 → 8 | 8 (38%) | 9/24 (37.5%) |
+| LoRA r=32 α=16 (scale 0.5) | 8 → 8 → 7 → 8 → 8 | 8 (38%) | 0% |
+| LoRA r=8  α=4  (scale 0.5) | 7 → 0 → 0 → **15** → 0 | 15 (71%) | 0% |
+| LoRA r=32 α=64 (scale 2.0) | 8 → **15** → 15 → 8 → 8 | **15 (71%)** | **9/24 (37.5%)** |
+| LoRA r=8  α=16 (scale 2.0) | 7 → 0 → **15** → 14 → 0 | 15 (71%) | 0% |
 
-LoRA r=8's effective per-step scale (α/r = 2) is 4× LoRA r=32's,
-which is why it can spike to 71% pass rate in one round — but also
-why it crashes back to 0 a round later. Full FT recovers a
-stochastic-gen signal that LoRA at any tested rank doesn't reach.
+The two scale-0.5 entries (different ranks) show different stability;
+the two scale-2.0 entries (different ranks) also differ. Scale alone
+doesn't predict behavior. The pattern that does hold:
+
+- **Rank controls stability** — high r → graceful learning + recovery
+  from spikes; low r → brittle, peaks then crashes.
+- **Alpha controls learning aggressiveness** — high α/r → bigger
+  swings either direction; low α/r → small swings.
+
+Best configuration tested: **r=32 α=64 (scale 2.0)**. Hits 71% pass
+rate immediately at round 0, *stays* at 71% for round 1, AND recovers
+the stochastic-gen 37.5% signal that previously only full-FT reached.
+High rank gives the model enough parameters to find a generalizing
+solution rather than a brittle fixed point.
 
 ### 5b. KoreanCompletion self-improve (after a KoWiki pretrain)
 

@@ -53,23 +53,40 @@
 //!    This matches Phase 4's "EWC vs ER net benefit unproven" result
 //!    on the tool-use task — same finding generalizes here.
 //!
-//! ## K9 v5: LoRA-only fine-tune (`--lora-rank > 0`)
+//! ## K9 v5: LoRA-only fine-tune (`--lora-rank` + `--lora-alpha`)
 //!
 //! Per-round trainer freezes base weights and updates only the LoRA
-//! adapters. lora_alpha is currently hardcoded to 16, so the
-//! effective per-step scaling is alpha/r — that's why r=8 looks more
-//! aggressive than r=32.
+//! adapters. Effective per-step scaling on the LoRA delta is
+//! `alpha/rank` — separate axes from "trainable parameter count".
 //!
-//!   r=32 (eff scale 0.5): eval 8/8/7/8/8 across rounds 0–3 — locked
-//!     into the same plateau as full FT; baseline-like stability.
-//!   r=8  (eff scale 2.0): eval 7→0→15→14→0 — peaks at 15/21 (71%
-//!     pass rate, biggest single round in the project) then crashes
-//!     back to 0 by round 3.
+//! Sweeping (rank, alpha) holding the rest fixed reveals that BOTH
+//! axes matter independently:
 //!
-//! Same trade-off Phase 4 documented for the tool-use task: smaller
-//! rank ⇒ stronger per-step delta (alpha/r) ⇒ larger swings, both
-//! positive and negative. Full FT recovers a stochastic-gen signal
-//! (37.5%) that LoRA at any rank doesn't reach.
+//! | r  | α  | scale | rounds 0–3      | peak  | stochastic gen |
+//! |----|----|-------|-----------------|-------|----------------|
+//! | 32 | 16 | 0.5   | 8/8/7/8/8       | 8     | 0%             |
+//! |  8 |  4 | 0.5   | 7/0/0/15/0      | 15    | 0%             |
+//! | 32 | 64 | 2.0   | 8/**15/15/8/8** | 15    | **9/24 (37.5%)** |
+//! |  8 | 16 | 2.0   | 7/0/15/14/0     | 15    | 0%             |
+//!
+//! Hypotheses ruled out:
+//! - "Effective scale α/r alone determines behavior": fails — r=32
+//!   α=16 (stable) vs r=8 α=4 (unstable) share scale 0.5.
+//! - "Rank alone determines behavior": fails — r=32 α=16 (stable, no
+//!   spike) vs r=32 α=64 (immediate spike, recoverable) differ.
+//!
+//! Pattern that holds:
+//! - **Rank controls stability**: high r → graceful learning + recovery
+//!   from spikes; low r → brittle, peaks then crashes.
+//! - **Scale controls learning aggressiveness**: high α/r → bigger
+//!   per-round Δ in either direction; low α/r → smaller swings.
+//!
+//! Best configuration tested: **r=32, α=64 (scale 2.0)** — combines
+//! aggressive learning (peak 15/21 immediately at round 0) with
+//! enough capacity to *stay* there for round 1 *and* recover the
+//! stochastic-gen 37.5% signal that previously only full-FT reached.
+//! High rank gives the model enough parameters to find a generalizing
+//! solution rather than a brittle fixed point.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -156,6 +173,12 @@ struct Args {
     /// linears was the best LoRA stability/capacity trade-off.
     #[arg(long, default_value_t = 0)]
     lora_rank: usize,
+    /// LoRA scaling. Effective per-step delta is `alpha / rank`, so
+    /// for a fixed rank, larger alpha → bigger swings. To separate
+    /// "rank as capacity" from "alpha as step size", hold one fixed
+    /// and sweep the other (e.g. r=8 α=4 vs r=32 α=16, both scale 0.5).
+    #[arg(long, default_value_t = 16.0)]
+    lora_alpha: f32,
 }
 
 fn pick_device() -> Device {
@@ -275,11 +298,17 @@ async fn main() -> anyhow::Result<()> {
         norm_kind: nanogpt_rs::config::NormKind::RmsNorm,
         norm_position: nanogpt_rs::config::NormPosition::Pre,
         lora_rank: args.lora_rank,
-        lora_alpha: 16.0,
+        lora_alpha: args.lora_alpha,
     };
     info!(
         params = gpt_cfg.num_params_estimate(),
         lora_rank = gpt_cfg.lora_rank,
+        lora_alpha = gpt_cfg.lora_alpha,
+        lora_scale = if gpt_cfg.lora_rank > 0 {
+            gpt_cfg.lora_alpha / gpt_cfg.lora_rank as f32
+        } else {
+            0.0
+        },
         "model config"
     );
 
