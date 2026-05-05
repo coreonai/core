@@ -490,6 +490,20 @@ optimizer vars by name (`*lora*`).
   trajectories, and evolution operators are deterministic in `seed`.
 - Saved checkpoints are vanilla safetensors; tokenizer is HF JSON.
 
+## Phase 5 (planned)
+
+`docs/phase5-design.md` is the design document for the next phase —
+**multi-actor agentic interaction**. Three candidate shapes are
+worked through (ensemble consensus / specialist routing / adversarial
+co-evolution) with a recommendation to start with the ensemble
+consensus shape because it composes cleanest with what's already
+built. Concrete next-session tasks, risks, measurement plan, and a
+"Phase 5 done" checklist are all in that doc.
+
+Phase 5 is **not yet implemented**. The doc exists so a future
+session can pick it up cold without re-deriving the design from the
+codebase.
+
 ## Honest limitations
 
 This is engineering infrastructure, not a state-of-the-art model.
