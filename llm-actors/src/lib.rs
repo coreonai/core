@@ -10,6 +10,7 @@
 pub mod agentic_generator_actor;
 pub mod curator_actor;
 pub mod domain;
+pub mod ensemble;
 pub mod evaluator_actor;
 pub mod evolution;
 pub mod generator_actor;

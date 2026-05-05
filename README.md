@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**69 unit tests, 13 worked examples, 11 phases. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**74 unit tests, 13 worked examples, 11 phases (Phase 5 scaffolding landed). CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -99,7 +99,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**69 unit tests, 13 worked examples, 11 phases. See the run-order list below.**
+**74 unit tests, 13 worked examples, 11 phases (Phase 5 scaffolding landed). See the run-order list below.**
 
 ## What it does
 
@@ -536,19 +536,25 @@ optimizer vars by name (`*lora*`).
   trajectories, and evolution operators are deterministic in `seed`.
 - Saved checkpoints are vanilla safetensors; tokenizer is HF JSON.
 
-## Phase 5 (planned)
+## Phase 5 (in progress)
 
-`docs/phase5-design.md` is the design document for the next phase —
-**multi-actor agentic interaction**. Three candidate shapes are
-worked through (ensemble consensus / specialist routing / adversarial
-co-evolution) with a recommendation to start with the ensemble
-consensus shape because it composes cleanest with what's already
-built. Concrete next-session tasks, risks, measurement plan, and a
-"Phase 5 done" checklist are all in that doc.
+`docs/phase5-design.md` is the design document — **multi-actor
+agentic interaction**. Three candidate shapes are worked through
+(ensemble consensus / specialist routing / adversarial co-evolution)
+with a recommendation to start with the ensemble consensus shape.
 
-Phase 5 is **not yet implemented**. The doc exists so a future
-session can pick it up cold without re-deriving the design from the
-codebase.
+**Session 1 (plumbing) landed.** `llm-actors/src/ensemble.rs`
+provides `EnsembleConfig` + `EnsembleActors::spawn` + a deterministic
+`ensemble_generate(prompts, samples_per_model, sampling, seed_base)`
+helper that returns `Vec<Vec<Trajectory>>` indexed by
+`[model][prompt × sample]`. 5 unit tests cover validation
+(vocab-mismatch / length-mismatch / empty / heterogeneous archs) and
+a 2-model smoke that asserts random-init models actually produce
+divergent trajectories (the consensus-filter premise).
+
+Sessions 2+ (consensus curator, ensemble-self-improve example,
+single-model-vs-ensemble comparison at fixed compute) remain in the
+design doc.
 
 ## Honest limitations
 
