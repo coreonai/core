@@ -333,6 +333,7 @@ async fn main() -> anyhow::Result<()> {
             corpus_seed: Some(round as u64 * 31 + 7),
             anchor: None,
             freeze_base: false,
+            gen_oversample: 1,
         };
 
         let report = run_round(&actors, cfg).await?;

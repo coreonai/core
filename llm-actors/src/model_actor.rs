@@ -39,6 +39,16 @@ pub enum ModelMessage {
         y: candle_core::Tensor,
         reply: oneshot::Sender<anyhow::Result<f32>>,
     },
+    /// Phase 6 Shape C — compute the model's log P(completion | prompt).
+    /// Returns the **mean** log-prob per completion token (length-
+    /// normalized so callers don't have to). Used by GeneratorActor's
+    /// oversample-and-rerank path: generate F candidates per prompt,
+    /// score each via this, keep the highest.
+    ScoreLogProb {
+        prompt_ids: Vec<u32>,
+        completion_ids: Vec<u32>,
+        reply: oneshot::Sender<anyhow::Result<f32>>,
+    },
     /// Health check.
     Ping { reply: oneshot::Sender<()> },
 }
@@ -123,6 +133,21 @@ impl Actor for ModelActor {
                         .and_then(|l| l.to_scalar::<f32>())
                         .map_err(anyhow::Error::from);
                     log_send(reply, result, "loss_on");
+                }
+                ModelMessage::ScoreLogProb {
+                    prompt_ids,
+                    completion_ids,
+                    reply,
+                } => {
+                    let result = if completion_ids.is_empty() {
+                        Ok(0.0)
+                    } else {
+                        self.model
+                            .sequence_log_prob(&prompt_ids, &completion_ids, &self.device)
+                            .map(|sum| sum / completion_ids.len() as f32)
+                            .map_err(anyhow::Error::from)
+                    };
+                    log_send(reply, result, "score_log_prob");
                 }
             }
         })

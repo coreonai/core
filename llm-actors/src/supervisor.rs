@@ -59,6 +59,12 @@ pub struct RoundConfig {
     /// Requires the GPTConfig used to spawn the trainer to have
     /// `lora_rank > 0`. `false` is plain full-parameter fine-tune.
     pub freeze_base: bool,
+    /// Phase 6 Shape C: oversample factor for the gen step. `1`
+    /// (default) = current behavior. `> 1` = generate this many
+    /// candidates per prompt, score each via the model's own log-prob,
+    /// keep the highest. Cargo budget unchanged; per-prompt selection
+    /// becomes critic-driven.
+    pub gen_oversample: usize,
 }
 
 pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result<RoundReport> {
@@ -96,6 +102,7 @@ pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result
             n: cfg.gen_n,
             seed: cfg.gen_seed,
             sampling: cfg.gen_sampling,
+            oversample: cfg.gen_oversample.max(1),
             reply: tx,
         })
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;

@@ -21,10 +21,19 @@ use crate::types::Trajectory;
 
 pub enum GeneratorMessage {
     /// Generate `n` trajectories from fresh random prompts.
+    /// `oversample = 1` (the default) → one generation per sampled
+    /// prompt. `oversample > 1` → for each prompt, generate
+    /// `oversample` candidates with different seed offsets, score each
+    /// via the model's own log-prob (Phase 6 Shape C `LogitCritic`),
+    /// and keep the highest-scoring candidate. Cargo budget is
+    /// unchanged (still `n` survivors), but per-prompt selection is
+    /// now critic-driven instead of single-shot.
     GenerateBatch {
         n: usize,
         seed: u64,
         sampling: GenerateConfig,
+        /// 1 = current behavior; > 1 enables critic-rerank.
+        oversample: usize,
         reply: oneshot::Sender<anyhow::Result<Vec<Trajectory>>>,
     },
 }
@@ -91,6 +100,48 @@ impl GeneratorActor {
             source: self.source.clone(),
         })
     }
+
+    /// Phase 6 Shape C: generate `oversample` candidates for the same
+    /// prompt with different seed offsets, score each via the model's
+    /// own mean log-prob (`ScoreLogProb`), return the highest scorer.
+    async fn generate_one_with_oversample(
+        &self,
+        prompt: String,
+        sampling: GenerateConfig,
+        oversample: usize,
+        seed_offset: u64,
+    ) -> anyhow::Result<Trajectory> {
+        let mut best: Option<(f32, Trajectory)> = None;
+        for k in 0..oversample {
+            let mut s = sampling.clone();
+            // Vary seed per candidate so they're independent draws.
+            // If the caller gave us a specific seed, fan out from it;
+            // otherwise let the underlying generator's None-seed
+            // behavior take over (un-seeded → entropy).
+            if let Some(base) = sampling.seed {
+                s.seed = Some(base.wrapping_add(seed_offset.wrapping_mul(31) + k as u64));
+            }
+            let traj = self.generate_one(prompt.clone(), s).await?;
+            // Score with the model's ScoreLogProb message.
+            let prompt_ids = self.tokenizer.encode(&traj.prompt)?;
+            let comp_ids = self.tokenizer.encode(&traj.completion)?;
+            let (tx, rx) = oneshot::channel();
+            self.model
+                .tell(ModelMessage::ScoreLogProb {
+                    prompt_ids,
+                    completion_ids: comp_ids,
+                    reply: tx,
+                })
+                .map_err(|e| anyhow::anyhow!("send ScoreLogProb: {e:?}"))?;
+            let score = timeout(self.per_request_timeout, rx).await???;
+            best = match best {
+                None => Some((score, traj)),
+                Some((s_old, t_old)) if score > s_old => Some((score, traj)),
+                Some(prev) => Some(prev),
+            };
+        }
+        Ok(best.expect("oversample > 0").1)
+    }
 }
 
 impl Actor for GeneratorActor {
@@ -107,14 +158,22 @@ impl Actor for GeneratorActor {
                     n,
                     seed,
                     sampling,
+                    oversample,
                     reply,
                 } => {
                     let mut rng = StdRng::seed_from_u64(seed);
                     let mut out = Vec::with_capacity(n);
                     let mut errs = 0usize;
-                    for _ in 0..n {
+                    let f = oversample.max(1);
+                    for i in 0..n {
                         let prompt = self.domain.sample_prompt(&mut rng);
-                        match self.generate_one(prompt, sampling.clone()).await {
+                        let result = if f == 1 {
+                            self.generate_one(prompt, sampling.clone()).await
+                        } else {
+                            self.generate_one_with_oversample(prompt, sampling.clone(), f, i as u64)
+                                .await
+                        };
+                        match result {
                             Ok(t) => out.push(t),
                             Err(e) => {
                                 warn!(error = %e, "generate_one failed");
@@ -125,6 +184,7 @@ impl Actor for GeneratorActor {
                     info!(
                         generated = out.len(),
                         errors = errs,
+                        oversample = f,
                         "GeneratorActor batch done"
                     );
                     let _ = reply.send(Ok(out));

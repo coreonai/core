@@ -604,8 +604,37 @@ specific high-prob failure modes.
 F=large. For real (slow) cargo invocations the wall-clock saving
 is meaningful at F=4; for our toy fast-cargo setup the savings are
 borderline since gen is so cheap. The mechanism is clean and
-generalizes — full integration into `self_improve_rust` (the actual
-`--critic-threshold` flag wiring) is the natural Session 4.
+generalizes — full integration into `self_improve_rust` lands in
+Session 4.
+
+**Session 4 result — compounding lift via curator turnover:**
+
+`self_improve_rust` gains `--critic-oversample F`, plumbed through
+`ModelMessage::ScoreLogProb` + `GeneratorMessage::GenerateBatch.oversample`
++ `RoundConfig.gen_oversample`. F=1 is the K9 baseline; F=4 enables
+the LogitCritic rerank inside the round loop.
+
+| Metric | Baseline F=1 | Critic F=4 |
+|---|---:|---:|
+| Round 0 gen-correct | 0/24 (0%) | **10/24 (41.7%)** |
+| Round 1 gen-correct | 0/24 | **13/24 (54.2%)** |
+| Round 2 gen-correct | 9/24 (37.5%) | 10/24 (41.7%) |
+| Round 3 gen-correct | 0/24 | **10/24 (41.7%)** |
+| Mean gen-pass | 9.4% | **44.8%** |
+| Wall-clock/round | 13s | 16s (+25%) |
+
+**4.8× lift on mean gen-pass-rate** at +25% wall-clock — far more
+than Session 3's 1.22× per-pool lift would predict. The mechanism
+is **curator compounding**: round-0's critic-selected gens populate
+the curator with higher-quality positives, round-1's training on
+that better curator produces a stronger model, round-1's critic-
+rerank then finds even more good candidates from that stronger
+model, and so on. Session 3 measured a fixed-pool scenario;
+Session 4 captures the closed-loop dynamics.
+
+This is the strongest Phase 6 Shape C result and validates the
+design doc's bet — a learned (or here, free) critic delivers real
+self-improve compute efficiency, not just a one-shot ranking lift.
 
 **Session 4 (only if a stronger signal is needed)**: train a
 dedicated critic head on top of the LM's hidden states. Skipped

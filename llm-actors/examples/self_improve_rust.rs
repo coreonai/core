@@ -215,6 +215,15 @@ struct Args {
     /// eval prompts that fall in its trained challenge(s).
     #[arg(long, default_value = "")]
     challenge_mask: String,
+    /// Phase 6 Shape C: oversample factor for the gen step. `1`
+    /// (default) is the K9 baseline — one generation per sampled
+    /// prompt. `> 1` enables the LogitCritic rerank: generate this
+    /// many candidates per prompt with different seeds, score each
+    /// via the model's own log-prob, and keep only the highest. Cargo
+    /// budget unchanged (still gen_n cargo calls per round).
+    /// Session 3's bake-off found F=4 to be the sweet spot.
+    #[arg(long, default_value_t = 1)]
+    critic_oversample: usize,
 }
 
 fn pick_device() -> Device {
@@ -544,6 +553,7 @@ async fn main() -> anyhow::Result<()> {
             corpus_seed: Some(round as u64 * 31 + 7),
             anchor: anchor.clone(),
             freeze_base: args.lora_rank > 0,
+            gen_oversample: args.critic_oversample.max(1),
         };
 
         let report = run_round(&actors, cfg).await?;
