@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**74 unit tests, 13 worked examples, 11 phases (Phase 5 scaffolding landed). CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**81 unit tests, 13 worked examples, 11 phases (Phase 5 Session 1+2 landed). CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -99,7 +99,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**74 unit tests, 13 worked examples, 11 phases (Phase 5 scaffolding landed). See the run-order list below.**
+**81 unit tests, 13 worked examples, 11 phases (Phase 5 Session 1+2 landed). See the run-order list below.**
 
 ## What it does
 
@@ -552,7 +552,19 @@ helper that returns `Vec<Vec<Trajectory>>` indexed by
 a 2-model smoke that asserts random-init models actually produce
 divergent trajectories (the consensus-filter premise).
 
-Sessions 2+ (consensus curator, ensemble-self-improve example,
+**Session 2 (consensus curator) landed.** `CuratorMessage::AddEnsemble`
+takes `Vec<EnsembleItem { trajectory, verdict, model_id }>` plus
+`n_models` + `min_agreement`. Items are grouped by exact
+`(prompt, completion)`; a group is kept iff `>= min_agreement`
+**distinct** models produced it AND verifier said correct, with
+`score = matching_models / n_models`. Standard `min_agreement` is
+`CuratorActor::majority_threshold(n)` = `⌈n/2⌉` (so 2-of-3, 2-of-4,
+3-of-5). 7 unit tests cover the threshold table, design-doc 2-of-3
+canonical example, dedup-same-model, all-3-correct (weight 1.0),
+strict-majority filtering, and the disable-filter (`min_agreement=1`)
+escape hatch.
+
+Sessions 3+ (`self_improve_ensemble_rust` example,
 single-model-vs-ensemble comparison at fixed compute) remain in the
 design doc.
 

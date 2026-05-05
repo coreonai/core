@@ -31,7 +31,8 @@ pub use inference_server_actor::{
 pub use tool_executor_actor::{ToolExecutorActor, ToolExecutorMessage};
 pub use tools::{Tool, ToolCall, ToolError, ToolRegistry};
 
-pub use curator_actor::{CuratorActor, CuratorAddReport, CuratorMessage};
+pub use curator_actor::{CuratorActor, CuratorAddReport, CuratorMessage, EnsembleItem};
+pub use ensemble::{ensemble_generate, EnsembleActors, EnsembleConfig};
 pub use evaluator_actor::{EvalReport, EvaluatorActor, EvaluatorMessage};
 pub use generator_actor::{GeneratorActor, GeneratorMessage};
 pub use model_actor::{ModelActor, ModelMessage};
