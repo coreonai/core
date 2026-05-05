@@ -154,6 +154,36 @@ verifier-V and domain-D:
      collapse, undertrained, distribution mismatch). Fix the
      model first.
 
+8. **NEW: High AUC ≠ high selection lift** (Phase 8 S2 measurement
+   on PythonCodeDomain). When the base model's harvest pass rate is
+   already high (≥ ~30%), the random-pick baseline is strong and
+   critic-rerank's *relative* lift compresses, even with very high
+   AUC. K9 RustCode: pass 19%, AUC 0.727, F=4 lift 1.22×. Python:
+   pass 35.6%, AUC 0.848, F=4 lift 1.00×. Higher AUC but no
+   improvement in expected pass-per-cargo-call.
+
+   Mechanism: at high pass rate, random sampling already finds
+   correct candidates often. The critic can only beat random if
+   the ranking is *qualitative* enough at the top tail to avoid
+   the outliers (high-prob short completions like `""` or `"1"`).
+   Python's high AUC averages over the bulk of the distribution
+   but the very top is poisoned, so argmax at F=4+ sees outliers
+   often.
+
+   Empirical sweet spot for selection lift: **pass rate ≈ 15–25%**.
+   - Below ~10%: critic might not even be calibrated (Phase 7 S2,
+     Phase 8 S1).
+   - 15–25%: AUC and selection align; Shape C delivers expected lift.
+   - Above ~30%: AUC may pass but selection rerank is no-op or
+     small. Either accept Shape C as redundant at this pass rate,
+     or deploy *only at F=2* (Phase 8 S2 saw 1.08× lift at F=2,
+     dropping to 1.00× by F=4).
+
+   This means the Phase 7 sum-AUC ≥ 0.6 gate should be combined
+   with a **selection-sweep smoke** as the actual deployment
+   decision: only integrate Shape C if F=2 or F=4 lift ≥ 1.10×
+   on a held-out sample. AUC alone misses the outlier-ceiling case.
+
 ## What "Phase 7 done" means
 
 Phase 7 is a consolidation phase, not an implementation phase. Its
