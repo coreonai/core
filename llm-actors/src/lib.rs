@@ -32,7 +32,7 @@ pub use inference_server_actor::{
 pub use tool_executor_actor::{ToolExecutorActor, ToolExecutorMessage};
 pub use tools::{Tool, ToolCall, ToolError, ToolRegistry};
 
-pub use critic::{AlwaysCorrectCritic, Critic, RandomCritic};
+pub use critic::{roc_auc, AlwaysCorrectCritic, Critic, LogitCritic, RandomCritic};
 pub use curator_actor::{CuratorActor, CuratorAddReport, CuratorMessage, EnsembleItem};
 pub use ensemble::{ensemble_generate, EnsembleActors, EnsembleConfig};
 pub use evaluator_actor::{EvalReport, EvaluatorActor, EvaluatorMessage};

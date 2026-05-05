@@ -705,6 +705,60 @@ impl GPT {
         Ok(total)
     }
 
+    /// Compute the model's per-token log-probability of `completion`
+    /// conditioned on `prompt`. Returns the **sum** of
+    /// `log P(completion[t] | prompt + completion[:t])` over all
+    /// completion positions. Higher (less-negative) = model is more
+    /// confident in this completion.
+    ///
+    /// Used by Phase 6 Shape C's `LogitCritic` as a free pre-filter:
+    /// if a candidate's per-token log-prob correlates with cargo's
+    /// verdict, we can rank candidates without running cargo.
+    ///
+    /// Caller must ensure `prompt_ids.len() + completion_ids.len() <=
+    /// block_size`. `prompt_ids` must be non-empty (we need at least
+    /// one prompt token to predict the first completion token).
+    pub fn sequence_log_prob(
+        &self,
+        prompt_ids: &[u32],
+        completion_ids: &[u32],
+        device: &Device,
+    ) -> CResult<f32> {
+        if prompt_ids.is_empty() {
+            candle_core::bail!("sequence_log_prob: prompt_ids is empty");
+        }
+        if completion_ids.is_empty() {
+            return Ok(0.0);
+        }
+        let n = prompt_ids.len() + completion_ids.len();
+        if n > self.cfg.block_size {
+            candle_core::bail!(
+                "sequence_log_prob: prompt+completion {} > block_size {}",
+                n,
+                self.cfg.block_size
+            );
+        }
+        // Input is full[0..n-1]; we ask the model to predict positions 1..n-1.
+        // Predictions at indices prompt_len-1 .. n-2 correspond to positions
+        // prompt_len .. n-1 in the full sequence — i.e. the completion span.
+        let full: Vec<u32> = prompt_ids
+            .iter()
+            .chain(completion_ids.iter())
+            .copied()
+            .collect();
+        let x = Tensor::from_slice(&full[..n - 1], (1, n - 1), device)?;
+        let logits = self.forward(&x)?; // (1, n-1, vocab)
+        let (_, t, v) = logits.dims3()?;
+        let log_probs = candle_nn::ops::log_softmax(&logits.reshape((t, v))?, 1)?;
+        let start = prompt_ids.len() - 1;
+        let lps_comp = log_probs.narrow(0, start, completion_ids.len())?;
+        let targets = Tensor::from_slice(completion_ids, completion_ids.len(), device)?
+            .to_dtype(DType::U32)?
+            .unsqueeze(1)?;
+        let gathered = lps_comp.gather(&targets, 1)?;
+        gathered.sum_all()?.to_scalar::<f32>()
+    }
+
     pub fn block_size(&self) -> usize {
         self.cfg.block_size
     }

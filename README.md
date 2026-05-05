@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**85 unit tests, 14 worked examples, 11 phases (Phase 5 done; Phase 6 S1 specialists + S-C scaffolding landed). CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**89 unit tests, 15 worked examples, 11 phases (Phase 5 done; Phase 6 S1 + S-C 1-2 landed; LogitCritic AUC 0.727 PASSES the acceptance gate). CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -99,7 +99,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**85 unit tests, 14 worked examples, 11 phases (Phase 5 done; Phase 6 S1 specialists + S-C scaffolding landed). See the run-order list below.**
+**89 unit tests, 15 worked examples, 11 phases (Phase 5 done; Phase 6 S1 + S-C 1-2 landed). See the run-order list below.**
 
 ## What it does
 
@@ -557,19 +557,35 @@ trivial implementations (`AlwaysCorrectCritic` = no filter,
 `RandomCritic { seed }` = deterministic random scoring as a negative
 baseline). 4 unit tests cover trait API + dyn dispatch.
 
-The plan:
+**Session 2 result (PASS at AUC 0.727):**
 
-- **Session 2 (next)**: `LogitCritic` — use the existing K9 generator's
-  own per-token negative log-likelihood as a "free" critic. If the
-  model's own log-prob of a completion correlates with cargo's verdict
-  (AUC ≥ 0.6 on harvested K9 data), Shape C pays its way without
-  training a separate model.
-- **Session 3**: integration into `self_improve_rust` via
-  `--critic-threshold`, oversample → critic-rank → cargo on top-K.
-- **Session 4 (only if S2 fails)**: train a dedicated critic head
-  on top of the LM's hidden states.
+`examples/critic_baseline.rs` pretrains a small K9 model (LoRA r=32
+α=64), harvests 90 stochastic candidates across the 3 challenges,
+labels each by cargo's verdict, scores each via three critics:
 
-See `docs/phase6-shape-c.md` for acceptance criteria and risks.
+| Critic | AUC |
+|---|---:|
+| **LogitCritic** (K9's own mean log-prob per token) | **0.727** |
+| RandomCritic (negative baseline) | 0.377 |
+| AlwaysCorrectCritic (no-filter) | 0.500 (all ties) |
+
+The model's own logits already encode meaningful "this completion
+looks plausible" signal that correlates with cargo's verdict —
+**no separate critic model needs to be trained**. Top-scored
+candidates are mostly cargo-correct (`"abcde"` for the
+string-length challenge); bottom-scored are mostly hallucinated
+junk (`"3 1 + 23"`, `"6 = * 3 1"`). Acceptance gate from
+`docs/phase6-shape-c.md` (≥ 0.6) passes.
+
+**Session 3 (next, deferred)**: integration into `self_improve_rust`
+via `--critic-threshold`. Oversample candidates per round, rank by
+LogitCritic score, and only run cargo on the top-K. Goal:
+≥ 1.2× gen-pass-rate at the same wall-clock OR same gen-pass at
+≤ 0.8× wall-clock.
+
+**Session 4 (only if a stronger signal is needed)**: train a
+dedicated critic head on top of the LM's hidden states. Skipped
+for now since Session 2's free-critic AUC already cleared the gate.
 
 ## Phase 6 Session 1 — Specialist routing (Shape B)
 

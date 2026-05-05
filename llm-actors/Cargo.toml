@@ -81,3 +81,8 @@ required-features = []
 name = "self_improve_ensemble_rust"
 path = "examples/self_improve_ensemble_rust.rs"
 required-features = []
+
+[[example]]
+name = "critic_baseline"
+path = "examples/critic_baseline.rs"
+required-features = []
