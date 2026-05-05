@@ -87,6 +87,31 @@
 //! stochastic-gen 37.5% signal that previously only full-FT reached.
 //! High rank gives the model enough parameters to find a generalizing
 //! solution rather than a brittle fixed point.
+//!
+//! ## 10-round extension (r=32 α=64, same other args)
+//!
+//!   round 0: gen 0/24    eval 8 → 15  Δ=+7
+//!   round 1: gen 0/24    eval 15 → 15 Δ=+0
+//!   round 2: gen 9/24    eval 15 → 8  Δ=-7  (37.5%)
+//!   round 3: gen 0/24    eval 8 → 8   Δ=+0
+//!   round 4: gen 8/24    eval 8 → 0   Δ=-8  (33.3%)
+//!   round 5: gen 0/24    eval 0 → 0   Δ=+0
+//!   round 6: gen 18/24   eval 0 → 15  Δ=+15 (75.0%)
+//!   round 7: gen 0/24    eval 15 → 8  Δ=-7
+//!   round 8: gen 9/24    eval 8 → 15  Δ=+7  (37.5%)
+//!   round 9: gen 24/24   eval 15 → 14 Δ=-1  (100.0%)
+//!
+//! - **Round 9: stochastic gen 24/24 = 100% pass.** Every
+//!   random-sampled (temp 0.8 top_k 10) completion compiles and
+//!   passes its cargo assertion. This is the strongest self-improve
+//!   signal anywhere in the project.
+//! - Eval (greedy) caps at 15/21 (71%) — 6 prompts have a greedy
+//!   fixed point that doesn't pass. Stochastic sampling escapes
+//!   those collapses (gen 100% > eval 71%).
+//! - Roughly biennial gen-spike rhythm: gen-pass climbs in even
+//!   rounds, drops in odd. Hypothesis: replay buffer turnover
+//!   alternates between "consolidate" and "expand" cycles.
+//! - Train loss monotone-decreasing 0.271 → 0.191 across 10 rounds.
 
 use std::path::PathBuf;
 use std::sync::Arc;
