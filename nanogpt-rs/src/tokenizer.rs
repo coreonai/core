@@ -16,14 +16,17 @@ use tokenizers::AddedToken;
 use crate::error::{Error, Result};
 
 pub enum Tokenizer {
-    Bpe(tokenizers::Tokenizer),
+    // Bpe is boxed: the inner tokenizers::Tokenizer is much larger than CharTokenizer,
+    // so the unboxed enum was wasting bytes on every Char variant.
+    Bpe(Box<tokenizers::Tokenizer>),
     Char(CharTokenizer),
 }
 
 impl Tokenizer {
     pub fn from_hf_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let tk = tokenizers::Tokenizer::from_file(path).map_err(|e| Error::Tokenizer(e.to_string()))?;
-        Ok(Tokenizer::Bpe(tk))
+        let tk =
+            tokenizers::Tokenizer::from_file(path).map_err(|e| Error::Tokenizer(e.to_string()))?;
+        Ok(Tokenizer::Bpe(Box::new(tk)))
     }
 
     /// Download a tokenizer file from a HuggingFace Hub repo (public-only)
@@ -98,7 +101,7 @@ impl Tokenizer {
         tokenizer
             .save(save_path.as_ref(), false)
             .map_err(|e| Error::Tokenizer(e.to_string()))?;
-        Ok(Tokenizer::Bpe(tokenizer))
+        Ok(Tokenizer::Bpe(Box::new(tokenizer)))
     }
 
     pub fn char_from_text(text: &str) -> Self {
@@ -115,7 +118,9 @@ impl Tokenizer {
     pub fn encode(&self, s: &str) -> Result<Vec<u32>> {
         match self {
             Tokenizer::Bpe(t) => {
-                let enc = t.encode(s, false).map_err(|e| Error::Tokenizer(e.to_string()))?;
+                let enc = t
+                    .encode(s, false)
+                    .map_err(|e| Error::Tokenizer(e.to_string()))?;
                 Ok(enc.get_ids().to_vec())
             }
             Tokenizer::Char(c) => Ok(c.encode(s)),
@@ -124,7 +129,9 @@ impl Tokenizer {
 
     pub fn decode(&self, ids: &[u32]) -> Result<String> {
         match self {
-            Tokenizer::Bpe(t) => t.decode(ids, true).map_err(|e| Error::Tokenizer(e.to_string())),
+            Tokenizer::Bpe(t) => t
+                .decode(ids, true)
+                .map_err(|e| Error::Tokenizer(e.to_string())),
             Tokenizer::Char(c) => Ok(c.decode(ids)),
         }
     }
@@ -156,10 +163,8 @@ mod from_hub_tests {
         // Point cache at a fresh tempdir, pre-seed with our own copy of
         // the Polyglot tokenizer file (any valid HF tokenizer works), and
         // verify `from_hub` loads it without spawning curl.
-        let tmp = std::env::temp_dir().join(format!(
-            "workllm-from-hub-test-{}",
-            std::process::id()
-        ));
+        let tmp =
+            std::env::temp_dir().join(format!("workllm-from-hub-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         std::env::set_var("XDG_CACHE_HOME", &tmp);
 
@@ -187,7 +192,11 @@ mod from_hub_tests {
         let bin_dir = tmp.join("nopath-curl");
         std::fs::create_dir_all(&bin_dir).unwrap();
         let fake = bin_dir.join("curl");
-        std::fs::write(&fake, "#!/bin/sh\necho 'from_hub should not call curl on cache hit' >&2\nexit 99\n").unwrap();
+        std::fs::write(
+            &fake,
+            "#!/bin/sh\necho 'from_hub should not call curl on cache hit' >&2\nexit 99\n",
+        )
+        .unwrap();
         // chmod +x
         use std::os::unix::fs::PermissionsExt;
         let mut perms = std::fs::metadata(&fake).unwrap().permissions();
@@ -208,10 +217,8 @@ mod from_hub_tests {
     #[test]
     fn cache_path_normalizes_repo_slash() {
         let _g = ENV_LOCK.lock().unwrap();
-        let tmp = std::env::temp_dir().join(format!(
-            "workllm-from-hub-path-{}",
-            std::process::id()
-        ));
+        let tmp =
+            std::env::temp_dir().join(format!("workllm-from-hub-path-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         std::env::set_var("XDG_CACHE_HOME", &tmp);
 
@@ -249,7 +256,11 @@ impl CharTokenizer {
         let mut chars: Vec<char> = text.chars().collect();
         chars.sort();
         chars.dedup();
-        let stoi: BTreeMap<char, u32> = chars.iter().enumerate().map(|(i, c)| (*c, i as u32)).collect();
+        let stoi: BTreeMap<char, u32> = chars
+            .iter()
+            .enumerate()
+            .map(|(i, c)| (*c, i as u32))
+            .collect();
         Self { itos: chars, stoi }
     }
 
@@ -258,7 +269,9 @@ impl CharTokenizer {
     }
 
     pub fn encode(&self, s: &str) -> Vec<u32> {
-        s.chars().filter_map(|c| self.stoi.get(&c).copied()).collect()
+        s.chars()
+            .filter_map(|c| self.stoi.get(&c).copied())
+            .collect()
     }
 
     pub fn decode(&self, ids: &[u32]) -> String {

@@ -21,16 +21,11 @@
 //!       --checkpoints checkpoints/kowiki_distill_student.safetensors \
 //!       --checkpoints checkpoints/kowiki_distill_baseline.safetensors
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use candle_core::{DType, Device};
 use clap::Parser;
-use nanogpt_rs::{
-    config::GPTConfig,
-    data::TokenDataset,
-    model::GPT,
-    tokenizer::Tokenizer,
-};
+use nanogpt_rs::{config::GPTConfig, data::TokenDataset, model::GPT, tokenizer::Tokenizer};
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -64,7 +59,7 @@ fn pick_device() -> Device {
     Device::Cpu
 }
 
-fn load_cfg(checkpoint: &PathBuf) -> anyhow::Result<GPTConfig> {
+fn load_cfg(checkpoint: &Path) -> anyhow::Result<GPTConfig> {
     let cfg_path = checkpoint.with_extension("cfg.json");
     let s = std::fs::read_to_string(&cfg_path)
         .map_err(|e| anyhow::anyhow!("read {:?}: {e}", cfg_path))?;
@@ -73,7 +68,7 @@ fn load_cfg(checkpoint: &PathBuf) -> anyhow::Result<GPTConfig> {
 }
 
 fn eval_one(
-    checkpoint: &PathBuf,
+    checkpoint: &Path,
     val_ds: &TokenDataset,
     args: &Args,
     device: &Device,
@@ -94,7 +89,11 @@ fn eval_one(
             count += 1;
         }
     }
-    let mean_loss = if count > 0 { total / count as f32 } else { f32::NAN };
+    let mean_loss = if count > 0 {
+        total / count as f32
+    } else {
+        f32::NAN
+    };
     let ppl = mean_loss.exp();
     Ok((mean_loss, ppl))
 }

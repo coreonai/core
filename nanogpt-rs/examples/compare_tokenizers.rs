@@ -70,8 +70,16 @@ fn main() -> anyhow::Result<()> {
     );
 
     // Round-trip spot check on a few lines.
-    println!("\n--- round-trip spot check (first {} non-empty lines) ---", args.sample_lines);
-    for (i, line) in text.lines().filter(|l| !l.trim().is_empty()).take(args.sample_lines).enumerate() {
+    println!(
+        "\n--- round-trip spot check (first {} non-empty lines) ---",
+        args.sample_lines
+    );
+    for (i, line) in text
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .take(args.sample_lines)
+        .enumerate()
+    {
         let line = if line.len() > 200 { &line[..200] } else { line };
         let our_ids = our_tk.encode(line)?;
         let hf_ids = hf_tk.encode(line)?;
@@ -80,8 +88,18 @@ fn main() -> anyhow::Result<()> {
             our_ids.len(),
             hf_ids.len()
         );
-        println!("     decoded(ours): {}", our_tk.decode(&our_ids)?.chars().take(80).collect::<String>());
-        println!("     decoded(hf):   {}", hf_tk.decode(&hf_ids)?.chars().take(80).collect::<String>());
+        println!(
+            "     decoded(ours): {}",
+            our_tk
+                .decode(&our_ids)?
+                .chars()
+                .take(80)
+                .collect::<String>()
+        );
+        println!(
+            "     decoded(hf):   {}",
+            hf_tk.decode(&hf_ids)?.chars().take(80).collect::<String>()
+        );
     }
 
     Ok(())

@@ -86,7 +86,11 @@ fn main() -> anyhow::Result<()> {
             std::fs::create_dir_all(parent)?;
         }
         tracing::info!(?args.data, vocab = args.vocab_size, "training BPE tokenizer");
-        Tokenizer::train_bpe(&[args.data.clone()], args.vocab_size, args.tokenizer.clone())?
+        Tokenizer::train_bpe(
+            std::slice::from_ref(&args.data),
+            args.vocab_size,
+            args.tokenizer.clone(),
+        )?
     } else {
         tracing::info!(?args.tokenizer, "reusing existing tokenizer");
         Tokenizer::from_hf_file(&args.tokenizer)?
@@ -127,15 +131,7 @@ fn main() -> anyhow::Result<()> {
     tcfg.weight_decay = 0.1;
     tracing::info!(steps = tcfg.max_steps, lr = tcfg.lr, "training...");
 
-    let outcome = train_from(
-        &gpt_cfg,
-        &ds,
-        None,
-        &tcfg,
-        &device,
-        Some(&args.save),
-        None,
-    )?;
+    let outcome = train_from(&gpt_cfg, &ds, None, &tcfg, &device, Some(&args.save), None)?;
     tracing::info!(
         train_loss = outcome.last_train_loss,
         steps = outcome.final_step,
@@ -158,6 +154,9 @@ fn main() -> anyhow::Result<()> {
     };
     let out_ids = generate(&model, &prompt_ids, &cfg, &device)?;
     let text = tk.decode(&out_ids)?;
-    println!("\n=== sample (prompt: {:?}) ===\n{text}\n=== end ===", args.sample_prompt);
+    println!(
+        "\n=== sample (prompt: {:?}) ===\n{text}\n=== end ===",
+        args.sample_prompt
+    );
     Ok(())
 }

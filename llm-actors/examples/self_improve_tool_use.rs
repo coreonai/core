@@ -17,11 +17,12 @@
 //! the unresolved form (model emits `(arith add 3 4)\n`, executor splices
 //! the result inline).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use candle_core::Device;
+use candle_nn::{VarBuilder, VarMap};
 use clap::Parser;
 use llm_actors::{
     agentic_generator_actor::{AgenticGeneratorActor, AgenticMessage},
@@ -42,7 +43,6 @@ use nanogpt_rs::{
     tokenizer::Tokenizer,
     train::{train_from, TrainConfig},
 };
-use candle_nn::{VarBuilder, VarMap};
 use pekko_actor::{ActorRef, ActorSystem};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -192,7 +192,9 @@ fn pick_device() -> Device {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
     let args = Args::parse();
     let device = pick_device();
     info!(?device, "device");
@@ -206,12 +208,17 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // -------- Corpus + tokenizer.
-    let pretrain_corpus = domain.synth_corpus_with_mode(args.pretrain_examples, args.seed, seed_mode);
+    let pretrain_corpus =
+        domain.synth_corpus_with_mode(args.pretrain_examples, args.seed, seed_mode);
     let mut seed_chars = String::from(domain.charset());
     seed_chars.push_str(&pretrain_corpus);
     let tk = Arc::new(Tokenizer::char_from_text(&seed_chars));
     let vocab = tk.vocab_size();
-    info!(vocab, corpus_chars = pretrain_corpus.len(), "tokenizer + corpus ready");
+    info!(
+        vocab,
+        corpus_chars = pretrain_corpus.len(),
+        "tokenizer + corpus ready"
+    );
 
     let mut gpt_cfg = arch_preset(&args.arch, vocab)?;
     gpt_cfg.lora_rank = args.lora_rank;
@@ -234,7 +241,13 @@ async fn main() -> anyhow::Result<()> {
     pre_cfg.warmup_steps = 100;
     info!("pretraining...");
     let outcome = train_from(
-        &gpt_cfg, &pretrain_ds, None, &pre_cfg, &device, Some(&args.seed_ckpt), None,
+        &gpt_cfg,
+        &pretrain_ds,
+        None,
+        &pre_cfg,
+        &device,
+        Some(&args.seed_ckpt),
+        None,
     )?;
     info!(train_loss = outcome.last_train_loss, "pretrain done");
 
@@ -245,7 +258,9 @@ async fn main() -> anyhow::Result<()> {
     let model_ref = system.spawn(model_actor, "model").await?;
 
     let registry = ToolRegistry::from_tools(vec![Arc::new(ArithmeticTool) as Arc<dyn Tool>]);
-    let executor_ref = system.spawn(ToolExecutorActor::new(registry), "tool_executor").await?;
+    let executor_ref = system
+        .spawn(ToolExecutorActor::new(registry), "tool_executor")
+        .await?;
 
     let agent = AgenticGeneratorActor::new(model_ref.clone(), executor_ref.clone(), tk.clone());
     let agent_ref = system.spawn(agent, "agent").await?;
@@ -300,7 +315,9 @@ async fn main() -> anyhow::Result<()> {
     let mut current_ckpt = args.seed_ckpt.clone();
     let mut history: Vec<RoundResult> = Vec::with_capacity(args.rounds);
     for round in 0..args.rounds {
-        let round_save = args.round_ckpt.with_extension(format!("r{round}.safetensors"));
+        let round_save = args
+            .round_ckpt
+            .with_extension(format!("r{round}.safetensors"));
         let result = run_one_round(
             round,
             &args,
@@ -374,8 +391,8 @@ async fn run_one_round(
     curator: &ActorRef<CuratorActor>,
     trainer: &ActorRef<TrainerActor>,
     model: &ActorRef<ModelActor>,
-    init_from: &PathBuf,
-    save_to: &PathBuf,
+    init_from: &Path,
+    save_to: &Path,
 ) -> anyhow::Result<RoundResult> {
     let t0 = Instant::now();
 
@@ -408,21 +425,36 @@ async fn run_one_round(
     )
     .await?;
     let gen_correct = traj.iter().filter(|v| v.is_correct()).count();
-    info!(round, gen_correct, gen_total = traj.len(), "generate+verify done");
+    info!(
+        round,
+        gen_correct,
+        gen_total = traj.len(),
+        "generate+verify done"
+    );
 
     // 3. Curate.
     let (tx, rx) = oneshot::channel();
     curator
-        .tell(CuratorMessage::Add { items: traj, reply: tx })
+        .tell(CuratorMessage::Add {
+            items: traj,
+            reply: tx,
+        })
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;
     let add_report = rx.await?;
-    info!(round, accepted = add_report.accepted, buffer = add_report.buffer_size, "curated");
+    info!(
+        round,
+        accepted = add_report.accepted,
+        buffer = add_report.buffer_size,
+        "curated"
+    );
 
     // 4. Render corpus + replay-mix pretrain (forgetting prevention).
     let (tx, rx) = oneshot::channel();
     curator
         .tell(CuratorMessage::RenderCorpus {
-            mode: SampleMode::Priority { recency_decay: 0.95 },
+            mode: SampleMode::Priority {
+                recency_decay: 0.95,
+            },
             seed: Some(round as u64 + 31),
             reply: tx,
         })
@@ -458,8 +490,8 @@ async fn run_one_round(
         trainer
             .tell(TrainerMessage::Train {
                 corpus,
-                save_path: save_to.clone(),
-                init_from: Some(init_from.clone()),
+                save_path: save_to.to_path_buf(),
+                init_from: Some(init_from.to_path_buf()),
                 train_cfg,
                 anchor: anchor.clone(),
                 freeze_base,
@@ -476,7 +508,10 @@ async fn run_one_round(
     if last_train_loss.is_some() {
         let (tx, rx) = oneshot::channel();
         model
-            .tell(ModelMessage::ReloadCheckpoint { path: save_to.clone(), reply: tx })
+            .tell(ModelMessage::ReloadCheckpoint {
+                path: save_to.to_path_buf(),
+                reply: tx,
+            })
             .map_err(|e| anyhow::anyhow!("{e:?}"))?;
         rx.await??;
     }
@@ -500,8 +535,8 @@ async fn run_one_round(
 
 /// Assemble a per-round training corpus from the curator's replay buffer
 /// + a sample of the pretrain corpus. Mixes the two so continual fine-tune
-/// won't catastrophically forget the pretrain distribution. ASCII-safe
-/// (the tool-use grammar only uses ASCII), so byte slicing == char slicing.
+///   won't catastrophically forget the pretrain distribution. ASCII-safe
+///   (the tool-use grammar only uses ASCII), so byte slicing == char slicing.
 fn build_round_corpus(
     pretrain: &str,
     buffer: &str,
@@ -575,9 +610,17 @@ async fn agentic_generate(
             .unwrap_or(&report.final_text)
             .to_string();
         let verdict = domain.verify(&prompt, &completion);
-        let score: f32 = if matches!(verdict, Verdict::Correct) { 1.0 } else { 0.0 };
+        let score: f32 = if matches!(verdict, Verdict::Correct) {
+            1.0
+        } else {
+            0.0
+        };
         out.push(VerifiedTrajectory {
-            trajectory: Trajectory { prompt, completion, source: "agent".into() },
+            trajectory: Trajectory {
+                prompt,
+                completion,
+                source: "agent".into(),
+            },
             verdict,
             score,
         });

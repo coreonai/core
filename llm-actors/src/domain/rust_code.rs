@@ -149,10 +149,16 @@ impl Domain for RustCodeDomain {
     fn verify(&self, prompt: &str, completion: &str) -> Verdict {
         let challenge = match self.challenge_for_prompt(prompt) {
             Some(c) => c,
-            None => return Verdict::Inconclusive { reason: format!("unknown prompt: {prompt:?}") },
+            None => {
+                return Verdict::Inconclusive {
+                    reason: format!("unknown prompt: {prompt:?}"),
+                }
+            }
         };
         if let Err(e) = self.write_program(prompt, completion, challenge.suffix) {
-            return Verdict::Inconclusive { reason: format!("write failed: {e}") };
+            return Verdict::Inconclusive {
+                reason: format!("write failed: {e}"),
+            };
         }
         match self.run_cargo(self.run_program) {
             Ok(out) if out.success => Verdict::Correct,
@@ -164,7 +170,9 @@ impl Domain for RustCodeDomain {
                     out.stderr_tail
                 ),
             },
-            Err(e) => Verdict::Inconclusive { reason: format!("cargo invoke failed: {e}") },
+            Err(e) => Verdict::Inconclusive {
+                reason: format!("cargo invoke failed: {e}"),
+            },
         }
     }
 

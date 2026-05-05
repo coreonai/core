@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use candle_core::{DType, Device};
 use candle_nn::{VarBuilder, VarMap};
-use nanogpt_rs::{config::GPTConfig, generate, GenerateConfig, GPT, Tokenizer};
+use nanogpt_rs::{config::GPTConfig, generate, GenerateConfig, Tokenizer, GPT};
 use pekko_actor::{Actor, ActorContext};
 use tokio::sync::oneshot;
 use tracing::{error, info, warn};
@@ -40,9 +40,7 @@ pub enum ModelMessage {
         reply: oneshot::Sender<anyhow::Result<f32>>,
     },
     /// Health check.
-    Ping {
-        reply: oneshot::Sender<()>,
-    },
+    Ping { reply: oneshot::Sender<()> },
 }
 
 pub struct GenerateReply {
@@ -67,7 +65,13 @@ impl ModelActor {
         let varmap = VarMap::new();
         let vb = VarBuilder::from_varmap(&varmap, DType::F32, &device);
         let model = GPT::new(config.clone(), vb)?;
-        Ok(Self { varmap, model, tokenizer, device, config })
+        Ok(Self {
+            varmap,
+            model,
+            tokenizer,
+            device,
+            config,
+        })
     }
 
     pub fn from_checkpoint(
@@ -99,7 +103,11 @@ impl Actor for ModelActor {
                     let result = self.handle_generate(&prompt, &cfg);
                     log_send(reply, result, "generate");
                 }
-                ModelMessage::GenerateTokens { prompt_ids, cfg, reply } => {
+                ModelMessage::GenerateTokens {
+                    prompt_ids,
+                    cfg,
+                    reply,
+                } => {
                     let result = generate(&self.model, &prompt_ids, &cfg, &self.device)
                         .map_err(anyhow::Error::from);
                     log_send(reply, result, "generate_tokens");
@@ -120,7 +128,9 @@ impl Actor for ModelActor {
         })
     }
 
-    fn pre_start(&mut self) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
+    fn pre_start(
+        &mut self,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
         Box::pin(async {
             info!("ModelActor started");
         })
@@ -137,11 +147,7 @@ fn log_send<T>(reply: oneshot::Sender<anyhow::Result<T>>, r: anyhow::Result<T>, 
 }
 
 impl ModelActor {
-    fn handle_generate(
-        &self,
-        prompt: &str,
-        cfg: &GenerateConfig,
-    ) -> anyhow::Result<GenerateReply> {
+    fn handle_generate(&self, prompt: &str, cfg: &GenerateConfig) -> anyhow::Result<GenerateReply> {
         let prompt_ids = self.tokenizer.encode(prompt)?;
         let tokens = generate(&self.model, &prompt_ids, cfg, &self.device)?;
         let text = self.tokenizer.decode(&tokens)?;

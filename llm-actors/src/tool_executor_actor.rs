@@ -15,9 +15,7 @@ pub enum ToolExecutorMessage {
         reply: oneshot::Sender<Result<String, ToolError>>,
     },
     /// List registered tool names.
-    ListTools {
-        reply: oneshot::Sender<Vec<String>>,
-    },
+    ListTools { reply: oneshot::Sender<Vec<String>> },
 }
 
 pub struct ToolExecutorActor {
@@ -49,7 +47,12 @@ impl Actor for ToolExecutorActor {
                     let _ = reply.send(r);
                 }
                 ToolExecutorMessage::ListTools { reply } => {
-                    let names: Vec<String> = self.registry.names().iter().map(|s| s.to_string()).collect();
+                    let names: Vec<String> = self
+                        .registry
+                        .names()
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect();
                     let _ = reply.send(names);
                 }
             }

@@ -80,7 +80,11 @@ impl SearchSpace {
             // MoE expensive: cap at 4 experts so worst-case compute stays
             // within ~3 minutes per variant on A100.
             n_experts: vec![1, 2, 4],
-            activation: vec![ActivationKind::Gelu, ActivationKind::SwiGlu, ActivationKind::GeGlu],
+            activation: vec![
+                ActivationKind::Gelu,
+                ActivationKind::SwiGlu,
+                ActivationKind::GeGlu,
+            ],
             weight_tying: vec![true, false],
             norm_kind: vec![NormKind::LayerNorm, NormKind::RmsNorm],
             norm_position: vec![NormPosition::Pre, NormPosition::Post],
@@ -96,7 +100,7 @@ impl SearchSpace {
             .kv_group
             .iter()
             .copied()
-            .filter(|g| *g >= 1 && n_head % g == 0)
+            .filter(|g| *g >= 1 && n_head.is_multiple_of(*g))
             .collect();
         if valid.is_empty() {
             1
@@ -111,7 +115,7 @@ impl SearchSpace {
         for _ in 0..32 {
             let e = *self.n_embd.choose(rng).unwrap();
             let h = *self.n_head.choose(rng).unwrap();
-            if e % h == 0 {
+            if e.is_multiple_of(h) {
                 return (e, h);
             }
         }
@@ -189,8 +193,21 @@ pub enum VariantOrigin {
 }
 
 impl Variant {
-    pub fn new(id: usize, generation: usize, config: GPTConfig, origin: VariantOrigin, parents: Vec<usize>) -> Self {
-        Self { id, generation, config, fitness: None, parents, origin }
+    pub fn new(
+        id: usize,
+        generation: usize,
+        config: GPTConfig,
+        origin: VariantOrigin,
+        parents: Vec<usize>,
+    ) -> Self {
+        Self {
+            id,
+            generation,
+            config,
+            fitness: None,
+            parents,
+            origin,
+        }
     }
 }
 
@@ -226,14 +243,27 @@ impl EvolutionConfig {
 /// Mutation: pick 1-2 fields and swap them out for a random alternative
 /// from the search space. Compatibility (n_embd % n_head == 0) is preserved
 /// by re-pairing if either of those fields is touched.
-pub fn mutate(parent: &GPTConfig, space: &SearchSpace, rng: &mut StdRng) -> (GPTConfig, Vec<String>) {
+pub fn mutate(
+    parent: &GPTConfig,
+    space: &SearchSpace,
+    rng: &mut StdRng,
+) -> (GPTConfig, Vec<String>) {
     let mut cfg = parent.clone();
     let mut touched: Vec<String> = Vec::new();
     let n_changes = rng.gen_range(1..=2);
     let fields: [&str; 12] = [
-        "n_layer", "n_head", "n_embd", "block_size", "ffn_mult",
-        "use_rope", "kv_group", "n_experts", "activation",
-        "weight_tying", "norm_kind", "norm_position",
+        "n_layer",
+        "n_head",
+        "n_embd",
+        "block_size",
+        "ffn_mult",
+        "use_rope",
+        "kv_group",
+        "n_experts",
+        "activation",
+        "weight_tying",
+        "norm_kind",
+        "norm_position",
     ];
     let chosen: Vec<&&str> = fields.choose_multiple(rng, n_changes).collect();
     for f in chosen {
@@ -290,7 +320,7 @@ pub fn mutate(parent: &GPTConfig, space: &SearchSpace, rng: &mut StdRng) -> (GPT
             _ => unreachable!(),
         }
     }
-    if cfg.n_embd % cfg.n_head != 0 {
+    if !cfg.n_embd.is_multiple_of(cfg.n_head) {
         let (e, h) = space.sample_compatible_embd_head(rng);
         cfg.n_embd = e;
         cfg.n_head = h;
@@ -302,7 +332,8 @@ pub fn mutate(parent: &GPTConfig, space: &SearchSpace, rng: &mut StdRng) -> (GPT
         }
     }
     // After any change to n_head, re-pick kv_group so divisibility holds.
-    if cfg.n_kv_head == 0 || cfg.n_head % cfg.n_kv_head != 0 || cfg.n_kv_head > cfg.n_head {
+    if cfg.n_kv_head == 0 || !cfg.n_head.is_multiple_of(cfg.n_kv_head) || cfg.n_kv_head > cfg.n_head
+    {
         let g = space.sample_kv_group(cfg.n_head, rng);
         cfg.n_kv_head = cfg.n_head / g;
     }
@@ -313,25 +344,73 @@ pub fn mutate(parent: &GPTConfig, space: &SearchSpace, rng: &mut StdRng) -> (GPT
 /// post-hoc compatibility check.
 pub fn crossover(a: &GPTConfig, b: &GPTConfig, space: &SearchSpace, rng: &mut StdRng) -> GPTConfig {
     let mut cfg = a.clone();
-    cfg.n_layer = if rng.gen_bool(0.5) { a.n_layer } else { b.n_layer };
-    cfg.n_head = if rng.gen_bool(0.5) { a.n_head } else { b.n_head };
-    cfg.n_embd = if rng.gen_bool(0.5) { a.n_embd } else { b.n_embd };
-    cfg.block_size = if rng.gen_bool(0.5) { a.block_size } else { b.block_size };
-    cfg.ffn_mult = if rng.gen_bool(0.5) { a.ffn_mult } else { b.ffn_mult };
-    cfg.use_rope = if rng.gen_bool(0.5) { a.use_rope } else { b.use_rope };
-    cfg.n_experts = if rng.gen_bool(0.5) { a.n_experts } else { b.n_experts };
-    cfg.activation = if rng.gen_bool(0.5) { a.activation } else { b.activation };
-    cfg.weight_tying = if rng.gen_bool(0.5) { a.weight_tying } else { b.weight_tying };
-    cfg.norm_kind = if rng.gen_bool(0.5) { a.norm_kind } else { b.norm_kind };
-    cfg.norm_position = if rng.gen_bool(0.5) { a.norm_position } else { b.norm_position };
-    if cfg.n_embd % cfg.n_head != 0 {
+    cfg.n_layer = if rng.gen_bool(0.5) {
+        a.n_layer
+    } else {
+        b.n_layer
+    };
+    cfg.n_head = if rng.gen_bool(0.5) {
+        a.n_head
+    } else {
+        b.n_head
+    };
+    cfg.n_embd = if rng.gen_bool(0.5) {
+        a.n_embd
+    } else {
+        b.n_embd
+    };
+    cfg.block_size = if rng.gen_bool(0.5) {
+        a.block_size
+    } else {
+        b.block_size
+    };
+    cfg.ffn_mult = if rng.gen_bool(0.5) {
+        a.ffn_mult
+    } else {
+        b.ffn_mult
+    };
+    cfg.use_rope = if rng.gen_bool(0.5) {
+        a.use_rope
+    } else {
+        b.use_rope
+    };
+    cfg.n_experts = if rng.gen_bool(0.5) {
+        a.n_experts
+    } else {
+        b.n_experts
+    };
+    cfg.activation = if rng.gen_bool(0.5) {
+        a.activation
+    } else {
+        b.activation
+    };
+    cfg.weight_tying = if rng.gen_bool(0.5) {
+        a.weight_tying
+    } else {
+        b.weight_tying
+    };
+    cfg.norm_kind = if rng.gen_bool(0.5) {
+        a.norm_kind
+    } else {
+        b.norm_kind
+    };
+    cfg.norm_position = if rng.gen_bool(0.5) {
+        a.norm_position
+    } else {
+        b.norm_position
+    };
+    if !cfg.n_embd.is_multiple_of(cfg.n_head) {
         let (e, h) = space.sample_compatible_embd_head(rng);
         cfg.n_embd = e;
         cfg.n_head = h;
     }
     // kv_group inherited proportionally where possible, else resampled.
-    let inherited_kv = if rng.gen_bool(0.5) { a.n_kv_head } else { b.n_kv_head };
-    if inherited_kv > 0 && cfg.n_head % inherited_kv == 0 {
+    let inherited_kv = if rng.gen_bool(0.5) {
+        a.n_kv_head
+    } else {
+        b.n_kv_head
+    };
+    if inherited_kv > 0 && cfg.n_head.is_multiple_of(inherited_kv) {
         cfg.n_kv_head = inherited_kv;
     } else {
         let g = space.sample_kv_group(cfg.n_head, rng);
@@ -378,14 +457,18 @@ pub fn evaluate_variant(
 
     // Pad / repeat corpus if too short.
     let corpus_str = if inputs.corpus.len() < inputs.min_corpus_chars && !inputs.corpus.is_empty() {
-        let factor = (inputs.min_corpus_chars + inputs.corpus.len() - 1) / inputs.corpus.len();
+        let factor = inputs.min_corpus_chars.div_ceil(inputs.corpus.len());
         inputs.corpus.repeat(factor)
     } else {
         (*inputs.corpus).clone()
     };
     let ids = inputs.tokenizer.encode(&corpus_str)?;
     if ids.len() < config.block_size + 2 {
-        anyhow::bail!("corpus too short ({} ids) for block_size {}", ids.len(), config.block_size);
+        anyhow::bail!(
+            "corpus too short ({} ids) for block_size {}",
+            ids.len(),
+            config.block_size
+        );
     }
     let ds = TokenDataset::new(ids, config.block_size);
 
@@ -476,7 +559,13 @@ pub struct GenerationReport {
 
 impl EvolutionRunner {
     pub fn new(space: SearchSpace, cfg: EvolutionConfig, inputs: FitnessInputs, seed: u64) -> Self {
-        Self { space, cfg, inputs, seed, next_id: 0 }
+        Self {
+            space,
+            cfg,
+            inputs,
+            seed,
+            next_id: 0,
+        }
     }
 
     fn alloc_id(&mut self) -> usize {
@@ -502,7 +591,11 @@ impl EvolutionRunner {
         let mut history: Vec<GenerationReport> = Vec::with_capacity(self.cfg.generations);
 
         for gen in 0..self.cfg.generations {
-            info!(generation = gen, n = population.len(), "starting generation");
+            info!(
+                generation = gen,
+                n = population.len(),
+                "starting generation"
+            );
 
             // Evaluate all unfit variants in parallel.
             let mut joinset = JoinSet::new();
@@ -592,7 +685,10 @@ impl EvolutionRunner {
                         id,
                         gen + 1,
                         cfg,
-                        VariantOrigin::Crossover { a: parent_a.id, b: parent_b.id },
+                        VariantOrigin::Crossover {
+                            a: parent_a.id,
+                            b: parent_b.id,
+                        },
                         vec![parent_a.id, parent_b.id],
                     )
                 } else {
@@ -602,7 +698,10 @@ impl EvolutionRunner {
                         id,
                         gen + 1,
                         cfg,
-                        VariantOrigin::Mutated { from: parent.id, fields },
+                        VariantOrigin::Mutated {
+                            from: parent.id,
+                            fields,
+                        },
                         vec![parent.id],
                     )
                 };
@@ -629,7 +728,12 @@ mod tests {
         let s = space();
         for _ in 0..50 {
             let cfg = s.sample(&mut rng);
-            assert!(cfg.n_embd % cfg.n_head == 0, "{} % {} != 0", cfg.n_embd, cfg.n_head);
+            assert!(
+                cfg.n_embd.is_multiple_of(cfg.n_head),
+                "{} % {} != 0",
+                cfg.n_embd,
+                cfg.n_head
+            );
         }
     }
 
@@ -652,7 +756,7 @@ mod tests {
         let b = s.sample(&mut rng);
         for _ in 0..50 {
             let c = crossover(&a, &b, &s, &mut rng);
-            assert!(c.n_embd % c.n_head == 0);
+            assert!(c.n_embd.is_multiple_of(c.n_head));
         }
     }
 
@@ -663,7 +767,12 @@ mod tests {
         // Every sampled config has ffn_mult drawn from the space.
         for _ in 0..50 {
             let cfg = s.sample(&mut rng);
-            assert!(s.ffn_mult.contains(&cfg.ffn_mult), "ffn_mult={} not in space {:?}", cfg.ffn_mult, s.ffn_mult);
+            assert!(
+                s.ffn_mult.contains(&cfg.ffn_mult),
+                "ffn_mult={} not in space {:?}",
+                cfg.ffn_mult,
+                s.ffn_mult
+            );
         }
     }
 
@@ -674,7 +783,10 @@ mod tests {
         for _ in 0..100 {
             let cfg = s.sample(&mut rng);
             assert!(cfg.n_kv_head > 0, "n_kv_head must be positive");
-            assert!(cfg.n_head % cfg.n_kv_head == 0, "GQA divisibility violated");
+            assert!(
+                cfg.n_head.is_multiple_of(cfg.n_kv_head),
+                "GQA divisibility violated"
+            );
         }
     }
 
@@ -698,9 +810,16 @@ mod tests {
         let mut saw_no_rope = false;
         for _ in 0..50 {
             let cfg = s.sample(&mut rng);
-            if cfg.use_rope { saw_rope = true; } else { saw_no_rope = true; }
+            if cfg.use_rope {
+                saw_rope = true;
+            } else {
+                saw_no_rope = true;
+            }
         }
-        assert!(saw_rope && saw_no_rope, "expected both RoPE on/off in 50 samples");
+        assert!(
+            saw_rope && saw_no_rope,
+            "expected both RoPE on/off in 50 samples"
+        );
     }
 
     #[test]
@@ -734,9 +853,16 @@ mod tests {
         let mut saw_untied = false;
         for _ in 0..50 {
             let cfg = s.sample(&mut rng);
-            if cfg.weight_tying { saw_tied = true; } else { saw_untied = true; }
+            if cfg.weight_tying {
+                saw_tied = true;
+            } else {
+                saw_untied = true;
+            }
         }
-        assert!(saw_tied && saw_untied, "expected both tied/untied in 50 samples");
+        assert!(
+            saw_tied && saw_untied,
+            "expected both tied/untied in 50 samples"
+        );
     }
 
     #[test]
@@ -754,7 +880,10 @@ mod tests {
                 ActivationKind::GeGlu => saw_ge = true,
             }
         }
-        assert!(saw_gelu && saw_swi && saw_ge, "all 3 activations must appear in 80 samples");
+        assert!(
+            saw_gelu && saw_swi && saw_ge,
+            "all 3 activations must appear in 80 samples"
+        );
     }
 
     #[test]
@@ -765,9 +894,16 @@ mod tests {
         let mut saw_moe = false;
         for _ in 0..50 {
             let cfg = s.sample(&mut rng);
-            if cfg.n_experts <= 1 { saw_dense = true; } else { saw_moe = true; }
+            if cfg.n_experts <= 1 {
+                saw_dense = true;
+            } else {
+                saw_moe = true;
+            }
         }
-        assert!(saw_dense && saw_moe, "expected both dense and MoE in 50 samples");
+        assert!(
+            saw_dense && saw_moe,
+            "expected both dense and MoE in 50 samples"
+        );
     }
 
     #[test]

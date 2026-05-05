@@ -60,7 +60,9 @@ fn parse_seed_mode(s: &str) -> anyhow::Result<SeedMode> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
     let args = Args::parse();
 
     let domain = Arc::new(ArithmeticDomain::default());
@@ -78,7 +80,11 @@ async fn main() -> anyhow::Result<()> {
     seed_chars.push_str(&corpus);
     let tk = Arc::new(Tokenizer::char_from_text(&seed_chars));
     let vocab = tk.vocab_size();
-    info!(vocab, corpus_chars = corpus.len(), "tokenizer + corpus ready");
+    info!(
+        vocab,
+        corpus_chars = corpus.len(),
+        "tokenizer + corpus ready"
+    );
 
     let space = SearchSpace::small_char(vocab);
 
@@ -130,7 +136,7 @@ async fn main() -> anyhow::Result<()> {
                 v.config.ffn_mult,
                 v.config.n_experts,
                 v.config.use_rope,
-                format!("{:?}", v.config.activation),
+                format_args!("{:?}", v.config.activation),
                 v.config.weight_tying,
                 v.config.norm_kind,
                 v.config.norm_position,
@@ -153,7 +159,7 @@ async fn main() -> anyhow::Result<()> {
                 best.config.ffn_mult,
                 best.config.n_experts,
                 best.config.use_rope,
-                format!("{:?}", best.config.activation),
+                format_args!("{:?}", best.config.activation),
                 best.config.weight_tying,
                 best.config.norm_kind,
                 best.config.norm_position,

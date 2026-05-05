@@ -58,11 +58,19 @@ impl GeneratorActor {
         }
     }
 
-    async fn generate_one(&self, prompt: String, sampling: GenerateConfig) -> anyhow::Result<Trajectory> {
+    async fn generate_one(
+        &self,
+        prompt: String,
+        sampling: GenerateConfig,
+    ) -> anyhow::Result<Trajectory> {
         let prompt_ids = self.tokenizer.encode(&prompt)?;
         let (tx, rx) = oneshot::channel();
         self.model
-            .tell(ModelMessage::GenerateTokens { prompt_ids: prompt_ids.clone(), cfg: sampling, reply: tx })
+            .tell(ModelMessage::GenerateTokens {
+                prompt_ids: prompt_ids.clone(),
+                cfg: sampling,
+                reply: tx,
+            })
             .map_err(|e| anyhow::anyhow!("send GenerateTokens: {e:?}"))?;
         let tokens = timeout(self.per_request_timeout, rx).await???;
         // Decode just the completion (tokens after the prompt).
@@ -77,7 +85,11 @@ impl GeneratorActor {
                 completion.truncate(idx + stop.len_utf8());
             }
         }
-        Ok(Trajectory { prompt, completion, source: self.source.clone() })
+        Ok(Trajectory {
+            prompt,
+            completion,
+            source: self.source.clone(),
+        })
     }
 }
 
@@ -91,7 +103,12 @@ impl Actor for GeneratorActor {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
         Box::pin(async move {
             match msg {
-                GeneratorMessage::GenerateBatch { n, seed, sampling, reply } => {
+                GeneratorMessage::GenerateBatch {
+                    n,
+                    seed,
+                    sampling,
+                    reply,
+                } => {
                     let mut rng = StdRng::seed_from_u64(seed);
                     let mut out = Vec::with_capacity(n);
                     let mut errs = 0usize;
@@ -105,7 +122,11 @@ impl Actor for GeneratorActor {
                             }
                         }
                     }
-                    info!(generated = out.len(), errors = errs, "GeneratorActor batch done");
+                    info!(
+                        generated = out.len(),
+                        errors = errs,
+                        "GeneratorActor batch done"
+                    );
                     let _ = reply.send(Ok(out));
                 }
             }

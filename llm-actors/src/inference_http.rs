@@ -112,7 +112,10 @@ async fn inference(
     let (tx, rx) = oneshot::channel();
     state
         .actor
-        .tell(InferenceMessage::Serve { req: inner, reply: tx })
+        .tell(InferenceMessage::Serve {
+            req: inner,
+            reply: tx,
+        })
         .map_err(|e| http_err(StatusCode::INTERNAL_SERVER_ERROR, format!("send: {e:?}")))?;
     let reply = timeout(state.timeout, rx)
         .await

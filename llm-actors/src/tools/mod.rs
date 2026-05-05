@@ -50,7 +50,9 @@ impl ToolRegistry {
         for t in tools {
             inner.insert(t.name().to_string(), t);
         }
-        Self { inner: Arc::new(inner) }
+        Self {
+            inner: Arc::new(inner),
+        }
     }
 
     pub fn dispatch(&self, call: &ToolCall) -> Result<String, ToolError> {
@@ -159,13 +161,18 @@ mod tests {
     fn registry_dispatches_known_tool() {
         struct Echo;
         impl Tool for Echo {
-            fn name(&self) -> &str { "echo" }
+            fn name(&self) -> &str {
+                "echo"
+            }
             fn execute(&self, args: &str) -> Result<String, ToolError> {
                 Ok(args.to_string())
             }
         }
         let r = ToolRegistry::from_tools(vec![Arc::new(Echo)]);
-        let call = ToolCall { name: "echo".into(), args: "hi".into() };
+        let call = ToolCall {
+            name: "echo".into(),
+            args: "hi".into(),
+        };
         assert_eq!(r.dispatch(&call).unwrap(), "hi");
     }
 
@@ -189,7 +196,10 @@ mod tests {
     #[test]
     fn registry_errors_on_unknown_tool() {
         let r = ToolRegistry::default();
-        let call = ToolCall { name: "missing".into(), args: "".into() };
+        let call = ToolCall {
+            name: "missing".into(),
+            args: "".into(),
+        };
         assert!(matches!(r.dispatch(&call), Err(ToolError::UnknownTool(_))));
     }
 }

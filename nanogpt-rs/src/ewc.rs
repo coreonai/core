@@ -89,7 +89,11 @@ impl WeightAnchor {
         let reference = Arc::new(reference);
 
         if n_batches == 0 {
-            return Ok(Self { reference, fisher: None, lambda });
+            return Ok(Self {
+                reference,
+                fisher: None,
+                lambda,
+            });
         }
 
         // 2. Build a model bound to this varmap so backward fills the
@@ -110,7 +114,9 @@ impl WeightAnchor {
             let loss = model.loss(&x, &y)?;
             let grads = loss.backward()?;
             for (name, var) in &vars {
-                let Some(g) = grads.get(var.as_tensor()) else { continue };
+                let Some(g) = grads.get(var.as_tensor()) else {
+                    continue;
+                };
                 let g_sq = g.sqr()?;
                 let acc = fisher.remove(name).expect("fisher entry");
                 fisher.insert(name.clone(), (acc + g_sq)?);
@@ -138,7 +144,9 @@ impl WeightAnchor {
         let mut device = Device::Cpu;
         for (name, var) in data.iter() {
             device = var.as_tensor().device().clone();
-            let Some(ref_t) = self.reference.get(name) else { continue };
+            let Some(ref_t) = self.reference.get(name) else {
+                continue;
+            };
             let diff = (var.as_tensor() - ref_t)?;
             let sq = diff.sqr()?;
             // Weight by Fisher diagonal if available (proper EWC), else
@@ -173,7 +181,14 @@ mod tests {
         let varmap = VarMap::new();
         let vb = VarBuilder::from_varmap(&varmap, candle_core::DType::F32, &Device::Cpu);
         let _w = vb
-            .get_with_hints((4, 3), "w", Init::Randn { mean: 0.0, stdev: 0.02 })
+            .get_with_hints(
+                (4, 3),
+                "w",
+                Init::Randn {
+                    mean: 0.0,
+                    stdev: 0.02,
+                },
+            )
             .unwrap();
         let anchor = WeightAnchor::snapshot(&varmap, 1.0).unwrap();
         let p = anchor.penalty(&varmap).unwrap();
@@ -186,20 +201,14 @@ mod tests {
         // Build a tiny varmap with one weight and a hand-rolled fisher.
         let varmap = VarMap::new();
         let vb = VarBuilder::from_varmap(&varmap, candle_core::DType::F32, &Device::Cpu);
-        let _w = vb
-            .get_with_hints((2, 2), "w", Init::Const(0.0))
-            .unwrap();
+        let _w = vb.get_with_hints((2, 2), "w", Init::Const(0.0)).unwrap();
 
         // Snapshot first (uniform Fisher path: penalty would be sum(diff²)).
         let mut anchor = WeightAnchor::snapshot(&varmap, 2.0).unwrap();
 
         // Inject a non-uniform Fisher: 1.0 in the (0,0) slot, zero elsewhere.
-        let custom_fisher = Tensor::from_vec(
-            vec![1.0_f32, 0.0, 0.0, 0.0],
-            (2, 2),
-            &Device::Cpu,
-        )
-        .unwrap();
+        let custom_fisher =
+            Tensor::from_vec(vec![1.0_f32, 0.0, 0.0, 0.0], (2, 2), &Device::Cpu).unwrap();
         let mut fisher_map = HashMap::new();
         fisher_map.insert("w".to_string(), custom_fisher);
         anchor.fisher = Some(Arc::new(fisher_map));
@@ -221,9 +230,7 @@ mod tests {
     fn penalty_grows_when_weights_drift() {
         let varmap = VarMap::new();
         let vb = VarBuilder::from_varmap(&varmap, candle_core::DType::F32, &Device::Cpu);
-        let _w = vb
-            .get_with_hints((4, 3), "w", Init::Const(0.0))
-            .unwrap();
+        let _w = vb.get_with_hints((4, 3), "w", Init::Const(0.0)).unwrap();
         let anchor = WeightAnchor::snapshot(&varmap, 2.0).unwrap();
         // Mutate the var to all-ones — total drift = 4*3 = 12 squared sum,
         // penalty = (λ/2) * 12 = 12.

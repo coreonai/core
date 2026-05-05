@@ -47,7 +47,11 @@ pub struct TrainerActor {
 
 impl TrainerActor {
     pub fn new(gpt_cfg: GPTConfig, tokenizer: Arc<Tokenizer>, device: Device) -> Self {
-        Self { gpt_cfg, tokenizer, device }
+        Self {
+            gpt_cfg,
+            tokenizer,
+            device,
+        }
     }
 }
 
@@ -83,9 +87,7 @@ impl Actor for TrainerActor {
                         "TrainerActor: launching blocking training"
                     );
                     let job = spawn_blocking(move || {
-                        let ids = tokenizer
-                            .encode(&corpus)
-                            .map_err(anyhow::Error::from)?;
+                        let ids = tokenizer.encode(&corpus).map_err(anyhow::Error::from)?;
                         if ids.len() < gpt_cfg.block_size + 2 {
                             anyhow::bail!(
                                 "corpus too short to train: {} tokens < block_size {}+2",

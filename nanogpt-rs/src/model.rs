@@ -29,7 +29,13 @@ fn lin(in_dim: usize, out_dim: usize, bias: bool, vb: VarBuilder) -> CResult<Lin
 }
 
 /// Linear for residual projections: scale stdev by 1/sqrt(2 * n_layer) per GPT-2.
-fn lin_resid(in_dim: usize, out_dim: usize, bias: bool, n_layer: usize, vb: VarBuilder) -> CResult<Linear> {
+fn lin_resid(
+    in_dim: usize,
+    out_dim: usize,
+    bias: bool,
+    n_layer: usize,
+    vb: VarBuilder,
+) -> CResult<Linear> {
     let std = INIT_STD / ((2.0 * n_layer as f64).sqrt());
     let w = vb.get_with_hints((out_dim, in_dim), "weight", small_normal(std))?;
     let b = if bias {
@@ -62,7 +68,13 @@ pub struct LoraAdapter {
 }
 
 impl LoraAdapter {
-    pub fn new(in_dim: usize, out_dim: usize, rank: usize, alpha: f32, vb: VarBuilder) -> CResult<Self> {
+    pub fn new(
+        in_dim: usize,
+        out_dim: usize,
+        rank: usize,
+        alpha: f32,
+        vb: VarBuilder,
+    ) -> CResult<Self> {
         let a = lin(in_dim, rank, false, vb.pp("lora_a"))?;
         let b = lin_zero(rank, out_dim, vb.pp("lora_b"))?;
         let scale = (alpha / rank as f32) as f64;
@@ -77,9 +89,20 @@ impl LoraAdapter {
 }
 
 /// `Some(adapter)` when `lora_rank > 0`, else `None` for back-compat.
-fn maybe_lora(in_dim: usize, out_dim: usize, cfg: &GPTConfig, vb: VarBuilder) -> CResult<Option<LoraAdapter>> {
+fn maybe_lora(
+    in_dim: usize,
+    out_dim: usize,
+    cfg: &GPTConfig,
+    vb: VarBuilder,
+) -> CResult<Option<LoraAdapter>> {
     if cfg.lora_rank > 0 {
-        Ok(Some(LoraAdapter::new(in_dim, out_dim, cfg.lora_rank, cfg.lora_alpha, vb)?))
+        Ok(Some(LoraAdapter::new(
+            in_dim,
+            out_dim,
+            cfg.lora_rank,
+            cfg.lora_alpha,
+            vb,
+        )?))
     } else {
         Ok(None)
     }
@@ -114,22 +137,37 @@ pub struct CausalSelfAttention {
 impl CausalSelfAttention {
     pub fn new(cfg: &GPTConfig, vb: VarBuilder) -> CResult<Self> {
         let n_q_head = cfg.n_head;
-        let n_kv_head = if cfg.n_kv_head == 0 { n_q_head } else { cfg.n_kv_head };
-        if n_q_head % n_kv_head != 0 {
-            candle_core::bail!("n_head {} not divisible by n_kv_head {}", n_q_head, n_kv_head);
+        let n_kv_head = if cfg.n_kv_head == 0 {
+            n_q_head
+        } else {
+            cfg.n_kv_head
+        };
+        if !n_q_head.is_multiple_of(n_kv_head) {
+            candle_core::bail!(
+                "n_head {} not divisible by n_kv_head {}",
+                n_q_head,
+                n_kv_head
+            );
         }
         let head_dim = cfg.n_embd / n_q_head;
         let qkv_out = (n_q_head + 2 * n_kv_head) * head_dim;
         let c_attn = lin(cfg.n_embd, qkv_out, cfg.bias, vb.pp("c_attn"))?;
         let c_attn_lora = maybe_lora(cfg.n_embd, qkv_out, cfg, vb.pp("c_attn"))?;
-        let c_proj = lin_resid(cfg.n_embd, cfg.n_embd, cfg.bias, cfg.n_layer, vb.pp("c_proj"))?;
+        let c_proj = lin_resid(
+            cfg.n_embd,
+            cfg.n_embd,
+            cfg.bias,
+            cfg.n_layer,
+            vb.pp("c_proj"),
+        )?;
         let c_proj_lora = maybe_lora(cfg.n_embd, cfg.n_embd, cfg, vb.pp("c_proj"))?;
         let mask = build_causal_mask(cfg.block_size, vb.device())?;
         let (rope_cos, rope_sin) = if cfg.use_rope {
-            if head_dim % 2 != 0 {
+            if !head_dim.is_multiple_of(2) {
                 candle_core::bail!("RoPE requires head_dim even, got {head_dim}");
             }
-            let (c, s) = build_rope_tables(cfg.block_size, head_dim, cfg.rope_base as f64, vb.device())?;
+            let (c, s) =
+                build_rope_tables(cfg.block_size, head_dim, cfg.rope_base as f64, vb.device())?;
             (Some(c), Some(s))
         } else {
             (None, None)
@@ -212,7 +250,12 @@ fn repeat_kv(x: &Tensor, n_rep: usize) -> CResult<Tensor> {
 /// Build rotary cos/sin tables of shape `(max_seq, head_dim)`. The last dim
 /// is `[c0, c1, ..., c_{hd/2-1}, c0, c1, ...]` (duplicated halves) so
 /// `apply_rope` can use one broadcast_mul + rotate_half.
-fn build_rope_tables(max_seq: usize, head_dim: usize, base: f64, device: &Device) -> CResult<(Tensor, Tensor)> {
+fn build_rope_tables(
+    max_seq: usize,
+    head_dim: usize,
+    base: f64,
+    device: &Device,
+) -> CResult<(Tensor, Tensor)> {
     let half = head_dim / 2;
     let inv_freq: Vec<f32> = (0..half)
         .map(|i| (1.0 / base.powf(2.0 * i as f64 / head_dim as f64)) as f32)
@@ -274,6 +317,7 @@ fn masked_fill(x: &Tensor, mask: &Tensor, fill: f32) -> CResult<Tensor> {
 ///   - **Dense GELU** (`ActivationKind::Gelu`): `x → c_fc → gelu → c_proj`
 ///   - **GeGLU**: `x → (gelu(c_fc) * c_gate) → c_proj`
 ///   - **SwiGLU**: `x → (silu(c_fc) * c_gate) → c_proj`
+///
 /// Each Linear may carry an optional LoRA adapter (when `cfg.lora_rank > 0`).
 pub struct MLP {
     c_fc: Linear,
@@ -367,7 +411,11 @@ impl FeedForward {
             } else {
                 cfg.moe_top_k
             };
-            Ok(FeedForward::MoE { router, experts, top_k })
+            Ok(FeedForward::MoE {
+                router,
+                experts,
+                top_k,
+            })
         }
     }
 
@@ -377,9 +425,13 @@ impl FeedForward {
     pub fn forward_with_aux(&self, x: &Tensor) -> CResult<(Tensor, Option<Tensor>)> {
         match self {
             FeedForward::Dense(mlp) => Ok((mlp.forward(x)?, None)),
-            FeedForward::MoE { router, experts, top_k } => {
+            FeedForward::MoE {
+                router,
+                experts,
+                top_k,
+            } => {
                 let n_experts = experts.len();
-                let logits = router.forward(x)?;                    // (B, T, E)
+                let logits = router.forward(x)?; // (B, T, E)
                 let full_weights = ops::softmax_last_dim(&logits)?;
 
                 // Top-k mask: keep entries >= k-th largest, zero else, renorm.
@@ -392,7 +444,7 @@ impl FeedForward {
                 // Combine experts (full weights ARE soft if top_k=0).
                 let mut out: Option<Tensor> = None;
                 for (i, expert) in experts.iter().enumerate() {
-                    let y = expert.forward(x)?;                    // (B, T, C)
+                    let y = expert.forward(x)?; // (B, T, C)
                     let w = weights.narrow(candle_core::D::Minus1, i, 1)?; // (B, T, 1)
                     let weighted = y.broadcast_mul(&w)?;
                     out = Some(match out {
@@ -407,9 +459,9 @@ impl FeedForward {
                 //   L_aux = E · sum_i P_i²
                 // Minimum at uniform (= 1) ; scales > 1 as routing concentrates.
                 let p_mean = full_weights
-                    .mean_keepdim(0)?    // → (1, T, E)
-                    .mean_keepdim(1)?    // → (1, 1, E)
-                    .flatten_all()?;     // → (E,)
+                    .mean_keepdim(0)? // → (1, T, E)
+                    .mean_keepdim(1)? // → (1, 1, E)
+                    .flatten_all()?; // → (E,)
                 let aux = (p_mean.sqr()?.sum_all()? * (n_experts as f64))?;
                 Ok((out, Some(aux)))
             }
@@ -422,10 +474,10 @@ fn topk_mask_renorm(weights: &Tensor, k: usize) -> CResult<Tensor> {
     // Sort descending and read the k-th value as a per-row threshold.
     let (sorted, _idx) = weights.sort_last_dim(false)?;
     let kth = sorted.narrow(candle_core::D::Minus1, k - 1, 1)?; // (..., 1)
-    let mask = weights.broadcast_ge(&kth)?;                      // u8 (..., E)
+    let mask = weights.broadcast_ge(&kth)?; // u8 (..., E)
     let mask = mask.to_dtype(weights.dtype())?;
     let masked = weights.broadcast_mul(&mask)?;
-    let sum = masked.sum_keepdim(candle_core::D::Minus1)?;       // (..., 1)
+    let sum = masked.sum_keepdim(candle_core::D::Minus1)?; // (..., 1)
     masked.broadcast_div(&sum)
 }
 
@@ -475,7 +527,13 @@ impl Block {
         let attn = CausalSelfAttention::new(cfg, vb.pp("attn"))?;
         let n2 = Norm::new(cfg.norm_kind, cfg.n_embd, vb.pp("ln_2"))?;
         let mlp = FeedForward::new(cfg, vb.pp("mlp"))?;
-        Ok(Self { n1, attn, n2, mlp, norm_position: cfg.norm_position })
+        Ok(Self {
+            n1,
+            attn,
+            n2,
+            mlp,
+            norm_position: cfg.norm_position,
+        })
     }
 
     fn forward(&self, x: &Tensor) -> CResult<Tensor> {
@@ -543,7 +601,16 @@ impl GPT {
         } else {
             None
         };
-        Ok(Self { cfg, wte, wpe, blocks, ln_f, lm_head, lm_head_lora, device })
+        Ok(Self {
+            cfg,
+            wte,
+            wpe,
+            blocks,
+            ln_f,
+            lm_head,
+            lm_head_lora,
+            device,
+        })
     }
 
     /// Forward: (B, T) i64 token ids → (B, T, vocab) logits.
@@ -589,7 +656,10 @@ impl GPT {
     pub fn forward_with_aux(&self, idx: &Tensor) -> CResult<(Tensor, Vec<Tensor>)> {
         let (_b, t) = idx.dims2()?;
         if t > self.cfg.block_size {
-            candle_core::bail!("sequence length {t} exceeds block_size {}", self.cfg.block_size);
+            candle_core::bail!(
+                "sequence length {t} exceeds block_size {}",
+                self.cfg.block_size
+            );
         }
         let tok_emb = self.wte.forward(idx)?;
         let mut x = if let Some(wpe) = &self.wpe {
@@ -712,7 +782,10 @@ mod moe_tests {
         assert_eq!(aux.len(), 2, "expected one aux loss per MoE block");
         for a in aux {
             let v = a.to_scalar::<f32>().unwrap();
-            assert!(v.is_finite() && v > 0.0, "aux loss must be a positive finite scalar, got {v}");
+            assert!(
+                v.is_finite() && v > 0.0,
+                "aux loss must be a positive finite scalar, got {v}"
+            );
         }
     }
 
@@ -727,7 +800,10 @@ mod moe_tests {
         let nz: Vec<f32> = out.iter().copied().filter(|x| *x > 0.0).collect();
         assert_eq!(nz.len(), 2, "exactly top-2 entries survive");
         let sum: f32 = nz.iter().sum();
-        assert!((sum - 1.0).abs() < 1e-5, "renormalized weights must sum to 1, got {sum}");
+        assert!(
+            (sum - 1.0).abs() < 1e-5,
+            "renormalized weights must sum to 1, got {sum}"
+        );
         // Specifically, the two largest (0.4, 0.3) survive and renormalize to 4/7, 3/7.
         assert!((out[0] - 4.0 / 7.0).abs() < 1e-5);
         assert!((out[1] - 3.0 / 7.0).abs() < 1e-5);
@@ -769,7 +845,10 @@ mod moe_tests {
         let device = Device::Cpu;
         let varmap = VarMap::new();
         let vb = VarBuilder::from_varmap(&varmap, DType::F32, &device);
-        let cfg = GPTConfig { norm_kind: NormKind::RmsNorm, ..cpu_cfg(1, 0) };
+        let cfg = GPTConfig {
+            norm_kind: NormKind::RmsNorm,
+            ..cpu_cfg(1, 0)
+        };
         let m = GPT::new(cfg, vb).unwrap();
         let idx = Tensor::from_vec(vec![0u32, 1, 2, 3], (1, 4), &device).unwrap();
         let _ = m.forward(&idx).unwrap();
@@ -780,7 +859,10 @@ mod moe_tests {
         let device = Device::Cpu;
         let varmap = VarMap::new();
         let vb = VarBuilder::from_varmap(&varmap, DType::F32, &device);
-        let cfg = GPTConfig { norm_position: NormPosition::Post, ..cpu_cfg(1, 0) };
+        let cfg = GPTConfig {
+            norm_position: NormPosition::Post,
+            ..cpu_cfg(1, 0)
+        };
         let m = GPT::new(cfg, vb).unwrap();
         let idx = Tensor::from_vec(vec![0u32, 1, 2, 3], (1, 4), &device).unwrap();
         let _ = m.forward(&idx).unwrap();
@@ -788,8 +870,14 @@ mod moe_tests {
 
     #[test]
     fn rms_norm_has_fewer_params_than_layer_norm() {
-        let ln = GPTConfig { norm_kind: NormKind::LayerNorm, ..cpu_cfg(1, 0) };
-        let rms = GPTConfig { norm_kind: NormKind::RmsNorm, ..cpu_cfg(1, 0) };
+        let ln = GPTConfig {
+            norm_kind: NormKind::LayerNorm,
+            ..cpu_cfg(1, 0)
+        };
+        let rms = GPTConfig {
+            norm_kind: NormKind::RmsNorm,
+            ..cpu_cfg(1, 0)
+        };
         assert!(
             rms.num_params_estimate() < ln.num_params_estimate(),
             "RmsNorm has no bias so per-block param count must be smaller"
@@ -801,14 +889,23 @@ mod moe_tests {
         let device = Device::Cpu;
         let varmap = VarMap::new();
         let vb = VarBuilder::from_varmap(&varmap, DType::F32, &device);
-        let cfg = GPTConfig { weight_tying: false, ..cpu_cfg(1, 0) };
+        let cfg = GPTConfig {
+            weight_tying: false,
+            ..cpu_cfg(1, 0)
+        };
         let m = GPT::new(cfg.clone(), vb).unwrap();
         let idx = Tensor::from_vec(vec![0u32, 1, 2, 3], (1, 4), &device).unwrap();
         let logits = m.forward(&idx).unwrap();
         assert_eq!(logits.dims3().unwrap(), (1, 4, cfg.vocab_size));
 
-        let tied = GPTConfig { weight_tying: true, ..cpu_cfg(1, 0) };
-        let untied = GPTConfig { weight_tying: false, ..cpu_cfg(1, 0) };
+        let tied = GPTConfig {
+            weight_tying: true,
+            ..cpu_cfg(1, 0)
+        };
+        let untied = GPTConfig {
+            weight_tying: false,
+            ..cpu_cfg(1, 0)
+        };
         assert!(
             untied.num_params_estimate() > tied.num_params_estimate(),
             "untied head must report more params"

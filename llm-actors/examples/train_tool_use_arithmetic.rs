@@ -67,7 +67,9 @@ fn pick_device() -> Device {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
     let args = Args::parse();
     let device = pick_device();
     info!(?device, "device");
@@ -79,7 +81,11 @@ async fn main() -> anyhow::Result<()> {
     seed_chars.push_str(&corpus);
     let tk = Arc::new(Tokenizer::char_from_text(&seed_chars));
     let vocab = tk.vocab_size();
-    info!(vocab, corpus_chars = corpus.len(), "tokenizer + corpus ready");
+    info!(
+        vocab,
+        corpus_chars = corpus.len(),
+        "tokenizer + corpus ready"
+    );
 
     // -------- Architecture: small modern transformer (the Llama-flavored
     // recipe Phase 3 evolution converged on, scaled down).
@@ -118,15 +124,7 @@ async fn main() -> anyhow::Result<()> {
     tcfg.min_lr = 1e-4;
     tcfg.warmup_steps = 100;
     info!(steps = tcfg.max_steps, "pretraining...");
-    let outcome = train_from(
-        &gpt_cfg,
-        &ds,
-        None,
-        &tcfg,
-        &device,
-        Some(&args.save),
-        None,
-    )?;
+    let outcome = train_from(&gpt_cfg, &ds, None, &tcfg, &device, Some(&args.save), None)?;
     info!(train_loss = outcome.last_train_loss, "pretrain done");
 
     // -------- Wire up actors.
@@ -136,7 +134,9 @@ async fn main() -> anyhow::Result<()> {
     let model_ref = system.spawn(model_actor, "model").await?;
 
     let registry = ToolRegistry::from_tools(vec![Arc::new(ArithmeticTool) as Arc<dyn Tool>]);
-    let executor_ref = system.spawn(ToolExecutorActor::new(registry), "tool_executor").await?;
+    let executor_ref = system
+        .spawn(ToolExecutorActor::new(registry), "tool_executor")
+        .await?;
 
     let agent = AgenticGeneratorActor::new(model_ref.clone(), executor_ref.clone(), tk.clone());
     let agent_ref = system.spawn(agent, "agent").await?;
@@ -168,7 +168,10 @@ async fn main() -> anyhow::Result<()> {
 
         // The agent's final_text contains prompt + completion; verify on the
         // completion portion (everything after the prompt).
-        let completion = report.final_text.strip_prefix(&prompt).unwrap_or(&report.final_text);
+        let completion = report
+            .final_text
+            .strip_prefix(&prompt)
+            .unwrap_or(&report.final_text);
         let verdict = domain.verify(&prompt, completion);
         if verdict.is_correct() {
             correct += 1;
@@ -188,7 +191,9 @@ async fn main() -> anyhow::Result<()> {
     let pass_rate = correct as f32 / args.eval_n.max(1) as f32;
     println!(
         "\n=== eval ===\npass_rate: {}/{} = {:.1}%\n",
-        correct, args.eval_n, 100.0 * pass_rate
+        correct,
+        args.eval_n,
+        100.0 * pass_rate
     );
     for t in &sample_traces {
         println!("--- sample ---\n{t}\n");

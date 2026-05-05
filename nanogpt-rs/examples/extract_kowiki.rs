@@ -163,10 +163,7 @@ impl Cleaner {
         s = self.table_residue.replace_all(&s, "").into_owned();
         s = self.blank_lines.replace_all(&s, "\n\n").into_owned();
         // Drop empty / punctuation-only lines.
-        let kept: Vec<&str> = s
-            .lines()
-            .filter(|l| !self.noise_line.is_match(l))
-            .collect();
+        let kept: Vec<&str> = s.lines().filter(|l| !self.noise_line.is_match(l)).collect();
         kept.join("\n")
     }
 }
@@ -218,7 +215,7 @@ fn main() -> anyhow::Result<()> {
                             writeln!(out, "{cleaned}\n")?;
                             articles += 1;
                             bytes_out += cleaned.len() as u64;
-                            if articles % 1000 == 0 {
+                            if articles.is_multiple_of(1000) {
                                 eprintln!(
                                     "extracted {} articles, {:.1} MB",
                                     articles,

@@ -93,10 +93,16 @@ impl AgenticGeneratorActor {
         Ok((full, new_token_count))
     }
 
-    async fn dispatch_tool(&self, call: &crate::tools::ToolCall) -> anyhow::Result<Result<String, String>> {
+    async fn dispatch_tool(
+        &self,
+        call: &crate::tools::ToolCall,
+    ) -> anyhow::Result<Result<String, String>> {
         let (tx, rx) = oneshot::channel();
         self.executor
-            .tell(ToolExecutorMessage::Execute { call: call.clone(), reply: tx })
+            .tell(ToolExecutorMessage::Execute {
+                call: call.clone(),
+                reply: tx,
+            })
             .map_err(|e| anyhow::anyhow!("send Execute: {e:?}"))?;
         let result = timeout(self.per_request_timeout, rx).await??;
         match result {
@@ -171,7 +177,12 @@ impl Actor for AgenticGeneratorActor {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
         Box::pin(async move {
             match msg {
-                AgenticMessage::Run { prompt, sampling, max_steps, reply } => {
+                AgenticMessage::Run {
+                    prompt,
+                    sampling,
+                    max_steps,
+                    reply,
+                } => {
                     let r = self.run_loop(prompt, sampling, max_steps).await;
                     if let Err(e) = &r {
                         warn!(error = %e, "agentic loop failed");

@@ -96,6 +96,7 @@ pub fn train_from(
 /// Like [`train_from`] but optionally adds an EWC weight anchor's penalty
 /// to every step's loss. Use this for continual fine-tuning rounds where
 /// you want to keep parameters close to the pretrained checkpoint.
+#[allow(clippy::too_many_arguments)]
 pub fn train_from_with_anchor(
     gpt_cfg: &GPTConfig,
     train_ds: &TokenDataset,
@@ -106,7 +107,9 @@ pub fn train_from_with_anchor(
     init_from: Option<&Path>,
     anchor: Option<&crate::ewc::WeightAnchor>,
 ) -> Result<TrainOutcome> {
-    train_from_full(gpt_cfg, train_ds, val_ds, cfg, device, save_path, init_from, anchor, false)
+    train_from_full(
+        gpt_cfg, train_ds, val_ds, cfg, device, save_path, init_from, anchor, false,
+    )
 }
 
 /// Most general training entrypoint. When `freeze_base` is `true`, only
@@ -153,7 +156,10 @@ pub fn train_from_full(
                     .into(),
             ));
         }
-        tracing::info!(n_trainable = only_lora.len(), "LoRA-only fine-tune (base frozen)");
+        tracing::info!(
+            n_trainable = only_lora.len(),
+            "LoRA-only fine-tune (base frozen)"
+        );
         only_lora
     } else {
         varmap.all_vars()
@@ -193,7 +199,13 @@ pub fn train_from_full(
                 }
                 let mean = acc / cfg.eval_iters as f32;
                 last_val_loss = Some(mean);
-                info!(step = step + 1, train = last_train_loss, val = mean, lr, "eval");
+                info!(
+                    step = step + 1,
+                    train = last_train_loss,
+                    val = mean,
+                    lr,
+                    "eval"
+                );
                 pb.set_message(format!(
                     "train={:.4} val={:.4} lr={:.2e}",
                     last_train_loss, mean, lr
@@ -234,7 +246,10 @@ pub struct DistillConfig {
 
 impl Default for DistillConfig {
     fn default() -> Self {
-        Self { temperature: 2.0, kl_weight: 0.7 }
+        Self {
+            temperature: 2.0,
+            kl_weight: 0.7,
+        }
     }
 }
 
@@ -243,9 +258,10 @@ impl Default for DistillConfig {
 /// gradients flow through it). Loss combines:
 ///   - hard cross-entropy on the dataset targets
 ///   - KL divergence between softmax(student / T) and softmax(teacher / T)
-/// scaled by `kl_weight`. Standard recipe: T=2, weight=0.7.
+///     scaled by `kl_weight`. Standard recipe: T=2, weight=0.7.
 ///
 /// Teacher and student must share `vocab_size`; other architecture is free.
+#[allow(clippy::too_many_arguments)]
 pub fn train_with_teacher(
     student_cfg: &GPTConfig,
     teacher_cfg: &GPTConfig,
@@ -346,7 +362,13 @@ pub fn train_with_teacher(
                 }
                 let mean = acc / cfg.eval_iters as f32;
                 last_val_loss = Some(mean);
-                info!(step = step + 1, train = last_train_loss, val = mean, lr, "distill eval");
+                info!(
+                    step = step + 1,
+                    train = last_train_loss,
+                    val = mean,
+                    lr,
+                    "distill eval"
+                );
             }
         }
         pb.set_message(format!("distill loss={:.4} lr={:.2e}", last_train_loss, lr));

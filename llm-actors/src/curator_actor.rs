@@ -14,25 +14,20 @@ use std::collections::HashSet;
 
 use pekko_actor::{Actor, ActorContext};
 use rand::distributions::{Distribution, WeightedIndex};
+use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
-use rand::rngs::StdRng;
 use tokio::sync::oneshot;
 use tracing::info;
 
 use crate::types::VerifiedTrajectory;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum SampleMode {
+    #[default]
     Uniform,
     /// score * recency_decay^(age_in_inserts).
     Priority { recency_decay: f32 },
-}
-
-impl Default for SampleMode {
-    fn default() -> Self {
-        SampleMode::Uniform
-    }
 }
 
 pub enum CuratorMessage {
@@ -58,9 +53,7 @@ pub enum CuratorMessage {
         reply: oneshot::Sender<String>,
     },
     /// Current buffer size.
-    Size {
-        reply: oneshot::Sender<usize>,
-    },
+    Size { reply: oneshot::Sender<usize> },
 }
 
 #[derive(Debug, Clone, Default)]
@@ -171,7 +164,12 @@ impl Actor for CuratorActor {
                     );
                     let _ = reply.send(report);
                 }
-                CuratorMessage::Sample { n, seed, mode, reply } => {
+                CuratorMessage::Sample {
+                    n,
+                    seed,
+                    mode,
+                    reply,
+                } => {
                     let mut rng: StdRng = match seed {
                         Some(s) => StdRng::seed_from_u64(s),
                         None => StdRng::from_entropy(),
@@ -181,14 +179,16 @@ impl Actor for CuratorActor {
                             let take = n.min(self.buf.len());
                             let mut idx: Vec<usize> = (0..self.buf.len()).collect();
                             idx.shuffle(&mut rng);
-                            idx.into_iter().take(take).map(|i| self.buf[i].clone()).collect()
-                        }
-                        SampleMode::Priority { recency_decay } => {
-                            self.weighted_indices(n, recency_decay, &mut rng)
-                                .into_iter()
+                            idx.into_iter()
+                                .take(take)
                                 .map(|i| self.buf[i].clone())
                                 .collect()
                         }
+                        SampleMode::Priority { recency_decay } => self
+                            .weighted_indices(n, recency_decay, &mut rng)
+                            .into_iter()
+                            .map(|i| self.buf[i].clone())
+                            .collect(),
                     };
                     let _ = reply.send(out);
                 }

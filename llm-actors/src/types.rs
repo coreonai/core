@@ -66,11 +66,20 @@ pub struct RoundReport {
 
 impl RoundReport {
     pub fn pass_rate_generated(&self) -> f32 {
-        if self.generated == 0 { 0.0 } else { self.correct as f32 / self.generated as f32 }
+        if self.generated == 0 {
+            0.0
+        } else {
+            self.correct as f32 / self.generated as f32
+        }
     }
 
     pub fn pass_rate_eval_after(&self) -> Option<f32> {
-        self.eval_correct_after
-            .map(|c| if self.eval_total == 0 { 0.0 } else { c as f32 / self.eval_total as f32 })
+        self.eval_correct_after.map(|c| {
+            if self.eval_total == 0 {
+                0.0
+            } else {
+                c as f32 / self.eval_total as f32
+            }
+        })
     }
 }

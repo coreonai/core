@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**~63 unit tests, 12 worked examples, 11 phases. CUDA 12.5 toolchain pinning required (driver 555).**
+**63 unit tests, 12 worked examples, 11 phases. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`.**
 
 ## Phase lineage
 
@@ -89,19 +89,6 @@ graph TB
   Verifier --> Korean
 ```
 
-
-
-```
-[ Candle GPT ] ── [ pekko-rust actors ] ── [ NAS evolution ] ── [ tool-use agent loop ]
-       │                  │                      │                       │
-   nanogpt-rs       ModelActor +              SearchSpace          AgenticGenerator
-                    Curator/Trainer/          12 axes              ToolExecutor
-                    Evaluator/Verifier        L,H,E,B,F,           ArithmeticTool
-                                              RoPE,GQA,            (cargo-verified
-                                              MoE,SwiGLU,           RustCodeDomain)
-                                              Tying,Norm
-```
-
 ## Phase Map
 
 | Phase | Deliverable | Tests | Highlight |
@@ -112,7 +99,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**~62 unit tests, 10 worked examples, 11 phases.**
+**63 unit tests, 12 worked examples, 11 phases. See the run-order list below.**
 
 ## What it does
 
@@ -348,7 +335,7 @@ varmap, never reach the optimizer). The KL is averaged over `B × T`
 positions — without that normalization the loss explodes by ~`seq_len`
 and gradients diverge.
 
-### 9. Korean Wikipedia training
+### 10. Korean Wikipedia training (full pipeline)
 
 Two-step pipeline:
 
@@ -436,10 +423,12 @@ This is engineering infrastructure, not a state-of-the-art model.
   Wikipedia at 50M params + 30K steps reaches `loss≈7.0` (vs `ln(16k)=9.68`
   baseline) but doesn't generate fluent prose. Both are dataset-/scale-limited,
   not infrastructure-limited.
-- **Distillation**: `train_with_teacher` is implemented and validated
-  on a small CPU teacher/student. Full GPU run pending teacher
-  re-training with the KL-normalization fix landed alongside the
-  axum + distillation work.
+- **Distillation**: `train_with_teacher` is fully validated end-to-end
+  with the KL `(B*T)` normalization fix. At the scale tested (4K-step
+  student, 7.5-loss teacher) the from-scratch baseline still beats the
+  distilled student by 0.19 nats — distillation pays off only when the
+  teacher is meaningfully stronger than the baseline can reach in the
+  same compute budget. See example 8 for the eval table.
 - **CUDA toolchain**: requires CUDA 12.5 (driver 555 limit). The cuda-12.9
   toolkit produces PTX the driver rejects.
 
@@ -447,11 +436,15 @@ This is engineering infrastructure, not a state-of-the-art model.
 
 ```
 workLLM/
-├── Cargo.toml               # workspace
+├── Cargo.toml               # workspace; pulls pekko-actor by path dep
 ├── nanogpt-rs/              # core model + training + tokenizer + EWC
 ├── llm-actors/              # actor system + domains + evolution + tools
-├── data/                    # Shakespeare + KoWiki
-├── checkpoints/             # safetensors snapshots
+├── data/                    # Shakespeare + KoWiki (gitignored)
+├── checkpoints/             # safetensors snapshots (gitignored)
+├── docs/lfs-setup.md        # Git LFS guide for shipping reference checkpoints
+├── .github/workflows/ci.yml # cargo build/test/clippy on push
+├── .gitattributes           # *.safetensors / *.bz2 routed through LFS
+├── CLAUDE.md                # engineer-facing repo context (gotchas, phases)
 └── README.md
 ```
 

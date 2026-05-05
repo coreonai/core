@@ -22,7 +22,11 @@ pub trait Domain: Send + Sync {
 
     /// Score in 0.0..=1.0 (defaults to 1.0 for correct, 0.0 otherwise).
     fn score(&self, verdict: &Verdict) -> f32 {
-        if verdict.is_correct() { 1.0 } else { 0.0 }
+        if verdict.is_correct() {
+            1.0
+        } else {
+            0.0
+        }
     }
 
     /// Charset that must be present in any tokenizer used with this domain

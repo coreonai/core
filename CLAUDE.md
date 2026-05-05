@@ -195,14 +195,38 @@ in-domain compression, HF wins on coverage).
 
 ## Testing strategy
 
-- 60+ unit tests are exhaustive on what's deterministic (parsing,
+- 63 unit tests are exhaustive on what's deterministic (parsing,
   domain verification, evolution operators, EWC penalty math, LoRA
   output shape).
 - Integration validation is via the worked-out examples in
   `nanogpt-rs/examples/` and `llm-actors/examples/`. Each example
   asserts something concrete (correct count, non-zero gradient, etc.).
-- No CI yet. Manual `cargo test --workspace && cargo build --workspace
-  --examples` is the smoke gate.
+- CI lives at `.github/workflows/ci.yml` — `cargo build --workspace
+  --release`, `cargo test --workspace --release`, `cargo build
+  --workspace --examples`, `cargo fmt --check`, and
+  `cargo clippy --workspace --all-targets -- -D warnings`. All four
+  gates are strict (no `continue-on-error`).
+- Workspace is currently at **zero clippy warnings** and **zero fmt
+  drift**. Don't introduce them — fix the lint or, if the lint is
+  genuinely the wrong call, gate the function with
+  `#[allow(clippy::xxx)]` and a comment explaining why.
+
+## Pre-commit checklist
+
+Before committing, run these in order. If any fails, fix before
+committing — do not let CI catch it:
+
+```bash
+cargo fmt --all
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```
+
+Optional but useful for example-touching changes:
+
+```bash
+cargo build --workspace --examples --release
+```
 
 ## Memory system (Claude-specific)
 
@@ -225,15 +249,27 @@ memory tells you what was learned.
 ## When something is broken
 
 Order to check:
-1. Did `nano_50m` (or whichever preset) silently change in `config.rs`?
+1. **Build green?** `cargo clippy --workspace --all-targets -- -D
+   warnings` and `cargo fmt --check` should both pass — they're CI
+   gates. If they don't, that's the first thing to fix.
+2. Did `nano_50m` (or whichever preset) silently change in `config.rs`?
    If old checkpoints fail to load, this is almost always why.
-2. Is the right CUDA toolchain in PATH? See gotcha #5.
-3. Did a previous example leak GPU memory (`nvidia-smi` says it's full
+3. Is the right CUDA toolchain in PATH? See gotcha #5.
+4. Did a previous example leak GPU memory (`nvidia-smi` says it's full
    but no `python`/`example` process is visible)? `pkill -f train_` and
    wait 30s.
-4. Is the corpus actually clean? `head -200 data/kowiki/kowiki_clean.txt`
+5. Is the corpus actually clean? `head -200 data/kowiki/kowiki_clean.txt`
    should show prose, not `[[파일:...]]` or LaTeX-only lines. If not,
    `extract_kowiki` regressed; check the line-level filters at the top
    of `clean()`.
-5. Are there warnings that became errors? `cargo check --workspace --examples`
-   should report 0. Run before committing.
+
+## Large checkpoints + Git LFS
+
+`*.safetensors`, `*.bz2`, `*.bin`, `*.pt`, `*.gguf` are routed through
+Git LFS via `.gitattributes`. Today the `checkpoints/` and `data/`
+trees are gitignored, so LFS is dormant — but if you ever want to ship
+a "reference" checkpoint with the repo (e.g. the 30K-step KoWiki run
+backing the README results table), see `docs/lfs-setup.md`. Do **not**
+commit the raw `kowiki-latest-pages-articles.xml.bz2` (~1.2 GB) — it
+blows the GitHub free LFS tier and is reproducibly downloadable from
+`dumps.wikimedia.org/kowiki/latest/`.

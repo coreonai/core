@@ -64,8 +64,8 @@ jobs:
           # without it.
 
       - name: Format check
+        # Strict: fmt drift is a build break.
         run: cargo fmt --all -- --check
-        continue-on-error: true
 
       - name: cargo build --workspace
         run: cargo build --workspace --release
@@ -77,9 +77,6 @@ jobs:
         run: cargo build --workspace --examples --release
 
       - name: cargo clippy
-        # Lint sweeping. continue-on-error today because we ship some
-        # warnings that aren't yet a hard contract; once we're at
-        # zero-clippy-warnings, drop continue-on-error and add
-        # `-D warnings` to make the gate strict.
+        # Strict gate: any clippy warning is a build break. Workspace
+        # is currently at zero clippy warnings (workLLM K3 sweep).
         run: cargo clippy --workspace --all-targets -- -D warnings
-        continue-on-error: true

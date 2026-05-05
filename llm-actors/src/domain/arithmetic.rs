@@ -113,7 +113,11 @@ impl Domain for ArithmeticDomain {
     fn verify(&self, prompt: &str, completion: &str) -> Verdict {
         let (a, b) = match Self::parse_prompt(prompt) {
             Some(p) => p,
-            None => return Verdict::Inconclusive { reason: format!("bad prompt: {prompt:?}") },
+            None => {
+                return Verdict::Inconclusive {
+                    reason: format!("bad prompt: {prompt:?}"),
+                }
+            }
         };
         let answer = match Self::parse_completion_answer(completion) {
             Some(n) => n,
@@ -163,7 +167,10 @@ mod tests {
     #[test]
     fn verify_inconclusive_on_bad_prompt() {
         let d = ArithmeticDomain::default();
-        assert!(matches!(d.verify("malformed", "5\n"), Verdict::Inconclusive { .. }));
+        assert!(matches!(
+            d.verify("malformed", "5\n"),
+            Verdict::Inconclusive { .. }
+        ));
     }
 
     #[test]

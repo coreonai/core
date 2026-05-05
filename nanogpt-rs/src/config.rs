@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 /// `GeGlu` are gated variants used in Llama, Mistral, PaLM — they add a
 /// third Linear (the gate) so MLP has ~1.5× the params of dense at the
 /// same `ffn_mult`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ActivationKind {
+    #[default]
     Gelu,
     SwiGlu,
     GeGlu,
@@ -17,25 +18,14 @@ impl ActivationKind {
     }
 }
 
-impl Default for ActivationKind {
-    fn default() -> Self {
-        ActivationKind::Gelu
-    }
-}
-
 /// Normalization layer kind. `LayerNorm` is the GPT-2 default; `RmsNorm`
 /// (used by Llama / Mistral) skips the mean centering — typically a small
 /// quality + speed win.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum NormKind {
+    #[default]
     LayerNorm,
     RmsNorm,
-}
-
-impl Default for NormKind {
-    fn default() -> Self {
-        NormKind::LayerNorm
-    }
 }
 
 /// Where the per-block norm is applied. Pre-norm (the GPT-2 / nanoGPT and
@@ -43,16 +33,11 @@ impl Default for NormKind {
 /// residual. Post-norm puts norm after the residual sum (original
 /// Transformer paper) — usually less stable but occasionally wins at
 /// quality.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum NormPosition {
+    #[default]
     Pre,
     Post,
-}
-
-impl Default for NormPosition {
-    fn default() -> Self {
-        NormPosition::Pre
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -121,15 +106,33 @@ pub struct GPTConfig {
     pub lora_alpha: f32,
 }
 
-fn default_ffn_mult() -> usize { 4 }
-fn default_use_rope() -> bool { false }
-fn default_rope_base() -> f32 { 10_000.0 }
-fn default_n_experts() -> usize { 1 }
-fn default_moe_top_k() -> usize { 0 }
-fn default_moe_aux_weight() -> f32 { 0.01 }
-fn default_weight_tying() -> bool { true }
-fn default_lora_rank() -> usize { 0 }
-fn default_lora_alpha() -> f32 { 16.0 }
+fn default_ffn_mult() -> usize {
+    4
+}
+fn default_use_rope() -> bool {
+    false
+}
+fn default_rope_base() -> f32 {
+    10_000.0
+}
+fn default_n_experts() -> usize {
+    1
+}
+fn default_moe_top_k() -> usize {
+    0
+}
+fn default_moe_aux_weight() -> f32 {
+    0.01
+}
+fn default_weight_tying() -> bool {
+    true
+}
+fn default_lora_rank() -> usize {
+    0
+}
+fn default_lora_alpha() -> f32 {
+    16.0
+}
 
 impl GPTConfig {
     /// ~50M-param config tuned to the Phase 3 NAS-discovered Llama recipe
@@ -254,7 +257,11 @@ impl GPTConfig {
         let block_size = self.block_size;
         let f = self.ffn_mult;
         let nq = self.n_head as f64;
-        let nkv = if self.n_kv_head == 0 { nq } else { self.n_kv_head as f64 };
+        let nkv = if self.n_kv_head == 0 {
+            nq
+        } else {
+            self.n_kv_head as f64
+        };
         let n_exp = self.n_experts.max(1);
         // embeddings: token (always) + learned position (only if not RoPE)
         let emb = v * e + if self.use_rope { 0 } else { block_size * e };

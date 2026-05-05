@@ -20,6 +20,6 @@ pub mod train;
 
 pub use config::GPTConfig;
 pub use error::{Error, Result};
-pub use generate::{GenerateConfig, generate};
+pub use generate::{generate, GenerateConfig};
 pub use model::GPT;
 pub use tokenizer::Tokenizer;

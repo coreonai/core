@@ -3,8 +3,8 @@
 use candle_core::{DType, Device, Tensor};
 use candle_nn::ops;
 use rand::distributions::{Distribution, WeightedIndex};
-use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rand::SeedableRng;
 
 use crate::error::Result;
 use crate::model::GPT;
@@ -52,7 +52,7 @@ pub fn generate(
             &tokens[tokens.len() - block_size..]
         };
         let input = Tensor::from_vec(context.to_vec(), (1, context.len()), device)?;
-        let logits = model.forward_last(&input)?;       // (1, vocab)
+        let logits = model.forward_last(&input)?; // (1, vocab)
         let logits = logits.squeeze(0)?.to_dtype(DType::F32)?;
         let next = sample_logits(&logits, cfg, &mut rng)?;
         tokens.push(next);
@@ -89,7 +89,10 @@ fn sample_logits(logits: &Tensor, cfg: &GenerateConfig, rng: &mut StdRng) -> Res
             let mut sorted = v.clone();
             sorted.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
             let kth = sorted[k - 1];
-            let masked: Vec<f32> = v.into_iter().map(|x| if x < kth { f32::NEG_INFINITY } else { x }).collect();
+            let masked: Vec<f32> = v
+                .into_iter()
+                .map(|x| if x < kth { f32::NEG_INFINITY } else { x })
+                .collect();
             Tensor::from_vec(masked, logits.shape(), logits.device())?
         } else {
             logits
@@ -105,7 +108,11 @@ fn sample_logits(logits: &Tensor, cfg: &GenerateConfig, rng: &mut StdRng) -> Res
     if let Some(p) = cfg.top_p {
         let p = p as f32;
         let mut idx: Vec<usize> = (0..probs_v.len()).collect();
-        idx.sort_by(|a, b| probs_v[*b].partial_cmp(&probs_v[*a]).unwrap_or(std::cmp::Ordering::Equal));
+        idx.sort_by(|a, b| {
+            probs_v[*b]
+                .partial_cmp(&probs_v[*a])
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         let mut cumsum = 0.0;
         let mut keep = vec![false; probs_v.len()];
         for i in &idx {
@@ -139,6 +146,7 @@ fn sample_logits(logits: &Tensor, cfg: &GenerateConfig, rng: &mut StdRng) -> Res
         return Ok(argmax);
     }
 
-    let dist = WeightedIndex::new(&probs_v).map_err(|e| crate::error::Error::Data(e.to_string()))?;
+    let dist =
+        WeightedIndex::new(&probs_v).map_err(|e| crate::error::Error::Data(e.to_string()))?;
     Ok(dist.sample(rng) as u32)
 }

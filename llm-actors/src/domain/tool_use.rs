@@ -141,7 +141,11 @@ impl Domain for ToolUseArithmeticDomain {
     fn verify(&self, prompt: &str, completion: &str) -> Verdict {
         let (a, b) = match Self::parse_prompt(prompt) {
             Some(p) => p,
-            None => return Verdict::Inconclusive { reason: format!("bad prompt: {prompt:?}") },
+            None => {
+                return Verdict::Inconclusive {
+                    reason: format!("bad prompt: {prompt:?}"),
+                }
+            }
         };
         match Self::parse_answer(completion) {
             None => Verdict::Incorrect {

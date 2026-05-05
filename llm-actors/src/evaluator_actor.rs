@@ -36,7 +36,11 @@ pub struct EvalReport {
 
 impl EvalReport {
     pub fn pass_rate(&self) -> f32 {
-        if self.total == 0 { 0.0 } else { self.correct as f32 / self.total as f32 }
+        if self.total == 0 {
+            0.0
+        } else {
+            self.correct as f32 / self.total as f32
+        }
     }
 }
 
@@ -77,7 +81,12 @@ impl Actor for EvaluatorActor {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
         Box::pin(async move {
             match msg {
-                EvaluatorMessage::Eval { n, seed, sampling, reply } => {
+                EvaluatorMessage::Eval {
+                    n,
+                    seed,
+                    sampling,
+                    reply,
+                } => {
                     let result = self.run(n, seed, sampling).await;
                     let _ = reply.send(result);
                 }
@@ -87,7 +96,12 @@ impl Actor for EvaluatorActor {
 }
 
 impl EvaluatorActor {
-    async fn run(&self, n: usize, seed: u64, sampling: GenerateConfig) -> anyhow::Result<EvalReport> {
+    async fn run(
+        &self,
+        n: usize,
+        seed: u64,
+        sampling: GenerateConfig,
+    ) -> anyhow::Result<EvalReport> {
         let mut rng = StdRng::seed_from_u64(seed);
         let mut correct = 0usize;
         let mut total = 0usize;
@@ -122,10 +136,23 @@ impl EvaluatorActor {
                 correct += 1;
             }
             if samples.len() < self.keep_samples {
-                samples.push(Trajectory { prompt, completion, source: "eval".to_string() });
+                samples.push(Trajectory {
+                    prompt,
+                    completion,
+                    source: "eval".to_string(),
+                });
             }
         }
-        info!(total, correct, pass_rate = correct as f32 / total.max(1) as f32, "EvaluatorActor done");
-        Ok(EvalReport { total, correct, samples })
+        info!(
+            total,
+            correct,
+            pass_rate = correct as f32 / total.max(1) as f32,
+            "EvaluatorActor done"
+        );
+        Ok(EvalReport {
+            total,
+            correct,
+            samples,
+        })
     }
 }

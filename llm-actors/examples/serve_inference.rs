@@ -29,11 +29,7 @@ use std::sync::Arc;
 
 use candle_core::Device;
 use clap::Parser;
-use llm_actors::{
-    inference_http,
-    inference_server_actor::InferenceServerActor,
-    ModelActor,
-};
+use llm_actors::{inference_http, inference_server_actor::InferenceServerActor, ModelActor};
 use nanogpt_rs::{
     config::{ActivationKind, GPTConfig, NormKind, NormPosition},
     tokenizer::Tokenizer,

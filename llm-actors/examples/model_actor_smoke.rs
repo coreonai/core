@@ -17,7 +17,9 @@ use tokio::sync::oneshot;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
 
     let device = Device::Cpu;
 
@@ -56,7 +58,9 @@ async fn main() -> anyhow::Result<()> {
 
     // Ping
     let (px, prx) = oneshot::channel::<()>();
-    actor_ref.tell(ModelMessage::Ping { reply: px }).map_err(|e| anyhow::anyhow!("{e:?}"))?;
+    actor_ref
+        .tell(ModelMessage::Ping { reply: px })
+        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
     tokio::time::timeout(Duration::from_secs(2), prx).await??;
     println!("Ping OK");
 

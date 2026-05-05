@@ -20,7 +20,10 @@ impl Tool for ArithmeticTool {
         })?;
         let a: i64 = iter
             .next()
-            .ok_or(ToolError::BadArgs { tool: "arith".into(), reason: "missing a".into() })?
+            .ok_or(ToolError::BadArgs {
+                tool: "arith".into(),
+                reason: "missing a".into(),
+            })?
             .parse()
             .map_err(|e: std::num::ParseIntError| ToolError::BadArgs {
                 tool: "arith".into(),
@@ -28,7 +31,10 @@ impl Tool for ArithmeticTool {
             })?;
         let b: i64 = iter
             .next()
-            .ok_or(ToolError::BadArgs { tool: "arith".into(), reason: "missing b".into() })?
+            .ok_or(ToolError::BadArgs {
+                tool: "arith".into(),
+                reason: "missing b".into(),
+            })?
             .parse()
             .map_err(|e: std::num::ParseIntError| ToolError::BadArgs {
                 tool: "arith".into(),

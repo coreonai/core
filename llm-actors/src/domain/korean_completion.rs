@@ -53,7 +53,9 @@ pub struct KoreanCompletionDomain {
 
 impl Default for KoreanCompletionDomain {
     fn default() -> Self {
-        Self { prompts: SEED_PROMPTS }
+        Self {
+            prompts: SEED_PROMPTS,
+        }
     }
 }
 
@@ -84,7 +86,9 @@ impl Domain for KoreanCompletionDomain {
     fn verify(&self, _prompt: &str, completion: &str) -> Verdict {
         let trimmed = completion.trim();
         if trimmed.is_empty() {
-            return Verdict::Incorrect { reason: "empty completion".into() };
+            return Verdict::Incorrect {
+                reason: "empty completion".into(),
+            };
         }
         if trimmed.chars().count() < MIN_CHARS {
             return Verdict::Incorrect {
@@ -126,7 +130,10 @@ mod tests {
 
     #[test]
     fn correct_when_proper_korean_ends_with_da() {
-        let v = d().verify("대한민국의 수도는 ", "서울특별시이며 정치, 경제의 중심지이다.");
+        let v = d().verify(
+            "대한민국의 수도는 ",
+            "서울특별시이며 정치, 경제의 중심지이다.",
+        );
         assert!(matches!(v, Verdict::Correct), "got {v:?}");
     }
 
@@ -144,10 +151,7 @@ mod tests {
 
     #[test]
     fn incorrect_on_no_sentence_ending() {
-        let v = d().verify(
-            "대한민국의 수도는 ",
-            "서울특별시이며 정치 경제의 중심지인",
-        );
+        let v = d().verify("대한민국의 수도는 ", "서울특별시이며 정치 경제의 중심지인");
         assert!(matches!(v, Verdict::Incorrect { .. }), "got {v:?}");
     }
 

@@ -29,7 +29,11 @@ impl TokenDataset {
     /// Sample one batch (B, T) of inputs and targets.
     pub fn random_batch(&self, batch_size: usize, device: &Device) -> Result<(Tensor, Tensor)> {
         let n = self.len();
-        assert!(n > 0, "dataset is too small for block_size {}", self.block_size);
+        assert!(
+            n > 0,
+            "dataset is too small for block_size {}",
+            self.block_size
+        );
 
         let mut rng = rand::thread_rng();
         let t = self.block_size;

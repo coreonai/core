@@ -30,7 +30,9 @@ use tokio::sync::oneshot;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
 
     // Char tokenizer over the chars used in the demo (digits, ops, parens, ws).
     let charset = "0123456789+-*/=() abcdefghijklmnopqrstuvwxyz\nA";

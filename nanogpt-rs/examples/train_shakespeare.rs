@@ -48,14 +48,21 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
     let args = Args::parse();
 
     let device = pick_device();
     tracing::info!(?device, "device selected");
 
-    let text = std::fs::read_to_string(&args.data)
-        .map_err(|e| anyhow::anyhow!("read {:?}: {} (download instructions in file header)", args.data, e))?;
+    let text = std::fs::read_to_string(&args.data).map_err(|e| {
+        anyhow::anyhow!(
+            "read {:?}: {} (download instructions in file header)",
+            args.data,
+            e
+        )
+    })?;
     tracing::info!(chars = text.len(), "loaded corpus");
 
     let tk = Tokenizer::char_from_text(&text);
@@ -71,7 +78,11 @@ fn main() -> anyhow::Result<()> {
     let ids = tk.encode(&text)?;
     let ds = TokenDataset::new(ids, GPTConfig::shakespeare_char(vocab).block_size);
     let (train_ds, val_ds) = ds.split_train_val(0.05);
-    tracing::info!(train_tokens = train_ds.tokens.len(), val_tokens = val_ds.tokens.len(), "split");
+    tracing::info!(
+        train_tokens = train_ds.tokens.len(),
+        val_tokens = val_ds.tokens.len(),
+        "split"
+    );
 
     let gpt_cfg = GPTConfig::shakespeare_char(vocab);
     tracing::info!(
@@ -89,7 +100,14 @@ fn main() -> anyhow::Result<()> {
     tcfg.lr = args.lr;
     tcfg.min_lr = args.lr * 0.1;
 
-    let outcome = train(&gpt_cfg, &train_ds, Some(&val_ds), &tcfg, &device, Some(&args.save))?;
+    let outcome = train(
+        &gpt_cfg,
+        &train_ds,
+        Some(&val_ds),
+        &tcfg,
+        &device,
+        Some(&args.save),
+    )?;
     tracing::info!(
         train = outcome.last_train_loss,
         val = ?outcome.last_val_loss,
@@ -108,7 +126,11 @@ fn main() -> anyhow::Result<()> {
         temperature: 0.8,
         top_k: Some(40),
         top_p: None,
-        seed: if args.seed == 0 { None } else { Some(args.seed) },
+        seed: if args.seed == 0 {
+            None
+        } else {
+            Some(args.seed)
+        },
     };
     let out_ids = generate(&model, &prompt_ids, &cfg, &device)?;
     let text = tk.decode(&out_ids)?;

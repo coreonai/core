@@ -25,8 +25,7 @@ use llm_actors::{
         Domain,
     },
     run_round, CuratorActor, CuratorMessage, EvaluatorActor, GeneratorActor, ModelActor,
-    RoundActors, RoundConfig, TrainerActor, Trajectory, Verdict, VerifiedTrajectory,
-    VerifierActor,
+    RoundActors, RoundConfig, TrainerActor, Trajectory, Verdict, VerifiedTrajectory, VerifierActor,
 };
 use nanogpt_rs::{
     config::GPTConfig,
@@ -76,7 +75,9 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
     let args = Args::parse();
 
     let device = pick_device();
@@ -191,14 +192,16 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // -------- Sanity: confirm seed checkpoint works after reload.
-    let _ = sanity_generate(&model_ref, "5+3=", 4).await?;
+    sanity_generate(&model_ref, "5+3=", 4).await?;
 
     // -------- Run rounds.
     let curator_sample_mode = parse_curator_mode(&args.curator_mode, args.recency_decay)?;
     let mut current_ckpt = args.seed_ckpt.clone();
     let mut history = Vec::new();
     for round in 0..args.rounds {
-        let round_save = args.round_ckpt.with_extension(format!("r{round}.safetensors"));
+        let round_save = args
+            .round_ckpt
+            .with_extension(format!("r{round}.safetensors"));
 
         let mut train_cfg = TrainConfig::smoke();
         train_cfg.max_steps = args.round_train_steps;
@@ -330,7 +333,11 @@ async fn sanity_generate(
     };
     let (tx, rx) = oneshot::channel();
     model
-        .tell(ModelMessage::Generate { prompt: prompt.to_string(), cfg, reply: tx })
+        .tell(ModelMessage::Generate {
+            prompt: prompt.to_string(),
+            cfg,
+            reply: tx,
+        })
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;
     let r = rx.await??;
     info!(prompt, completion = %r.text, "sanity gen");

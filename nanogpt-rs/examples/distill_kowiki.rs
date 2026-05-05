@@ -103,7 +103,14 @@ fn student_config(vocab: usize, block_size: usize) -> GPTConfig {
     }
 }
 
-fn sample_from(checkpoint: &PathBuf, gpt_cfg: &GPTConfig, tk: &Tokenizer, prompt: &str, max_new: usize, device: &Device) -> anyhow::Result<String> {
+fn sample_from(
+    checkpoint: &PathBuf,
+    gpt_cfg: &GPTConfig,
+    tk: &Tokenizer,
+    prompt: &str,
+    max_new: usize,
+    device: &Device,
+) -> anyhow::Result<String> {
     let mut varmap = candle_nn::VarMap::new();
     let vb = candle_nn::VarBuilder::from_varmap(&varmap, DType::F32, device);
     let model = GPT::new(gpt_cfg.clone(), vb)?;
@@ -207,13 +214,34 @@ fn main() -> anyhow::Result<()> {
 
     // ---- Sample side-by-side.
     println!("\n=== samples (prompt: {:?}) ===", args.sample_prompt);
-    let s1 = sample_from(&args.student_save, &student_cfg, &tk, &args.sample_prompt, args.sample_tokens, &device)?;
+    let s1 = sample_from(
+        &args.student_save,
+        &student_cfg,
+        &tk,
+        &args.sample_prompt,
+        args.sample_tokens,
+        &device,
+    )?;
     println!("\n--- distilled student ---\n{s1}\n");
-    if let Some(_) = baseline_outcome {
-        let s2 = sample_from(&args.baseline_save, &student_cfg, &tk, &args.sample_prompt, args.sample_tokens, &device)?;
+    if baseline_outcome.is_some() {
+        let s2 = sample_from(
+            &args.baseline_save,
+            &student_cfg,
+            &tk,
+            &args.sample_prompt,
+            args.sample_tokens,
+            &device,
+        )?;
         println!("--- from-scratch baseline ---\n{s2}\n");
     }
-    let s3 = sample_from(&args.teacher, &teacher_cfg, &tk, &args.sample_prompt, args.sample_tokens, &device)?;
+    let s3 = sample_from(
+        &args.teacher,
+        &teacher_cfg,
+        &tk,
+        &args.sample_prompt,
+        args.sample_tokens,
+        &device,
+    )?;
     println!("--- teacher (50M) ---\n{s3}\n");
 
     println!("=== final losses ===");

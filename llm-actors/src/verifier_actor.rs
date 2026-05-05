@@ -49,7 +49,11 @@ impl Actor for VerifierActor {
                             correct += 1;
                         }
                         let score = self.domain.score(&verdict);
-                        out.push(VerifiedTrajectory { trajectory: t, verdict, score });
+                        out.push(VerifiedTrajectory {
+                            trajectory: t,
+                            verdict,
+                            score,
+                        });
                     }
                     info!(verified = out.len(), correct, "VerifierActor batch done");
                     let _ = reply.send(out);
