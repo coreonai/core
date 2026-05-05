@@ -54,6 +54,11 @@ pub struct RoundConfig {
     /// `None` (default) is plain continual fine-tune; `Some` adds the
     /// anchor's penalty term to every step's loss.
     pub anchor: Option<Arc<WeightAnchor>>,
+    /// When `true`, the trainer freezes all non-LoRA Vars during the
+    /// per-round fine-tune — only `lora_*` adapters get gradient updates.
+    /// Requires the GPTConfig used to spawn the trainer to have
+    /// `lora_rank > 0`. `false` is plain full-parameter fine-tune.
+    pub freeze_base: bool,
 }
 
 pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result<RoundReport> {
@@ -160,7 +165,7 @@ pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result
             init_from: cfg.init_from,
             train_cfg: cfg.train_cfg.clone(),
             anchor: cfg.anchor.clone(),
-            freeze_base: false,
+            freeze_base: cfg.freeze_base,
             reply: tx,
         })
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;

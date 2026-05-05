@@ -274,6 +274,21 @@ forgetting, so EWC's penalty is no-op overhead at this scale.
 Matches Phase 4's "EWC vs ER net benefit unproven" finding on the
 tool-use domain.
 
+LoRA-only fine-tune (`--lora-rank N`) reproduces Phase 4's
+capacity-stability trade-off:
+
+| Variant | Round-by-round eval (out of 21) | Peak | Stochastic gen |
+|---------|---------------------------------|-----:|---------------:|
+| Full FT (baseline) | 0 → 8 → 7 → 8 → 8 | 8/21 (38%) | **9/24 (37.5%)** |
+| Full FT + EWC λ=100 | 0 → 8 → 7 → 8 → 8 | 8/21 (38%) | 9/24 (37.5%) |
+| LoRA r=32 α=16 (scale 0.5) | 8 → 8 → 7 → 8 → 8 | 8/21 (38%) | 0% |
+| LoRA r=8 α=16 (scale 2.0) | 7 → 0 → **15** → 14 → 0 | **15/21 (71%)** | 0% |
+
+LoRA r=8's effective per-step scale (α/r = 2) is 4× LoRA r=32's,
+which is why it can spike to 71% pass rate in one round — but also
+why it crashes back to 0 a round later. Full FT recovers a
+stochastic-gen signal that LoRA at any tested rank doesn't reach.
+
 ### 5b. KoreanCompletion self-improve (after a KoWiki pretrain)
 
 ```bash

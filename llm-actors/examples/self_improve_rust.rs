@@ -52,6 +52,24 @@
 //!    EWC matters; at the smoke configuration it's no-op overhead.
 //!    This matches Phase 4's "EWC vs ER net benefit unproven" result
 //!    on the tool-use task — same finding generalizes here.
+//!
+//! ## K9 v5: LoRA-only fine-tune (`--lora-rank > 0`)
+//!
+//! Per-round trainer freezes base weights and updates only the LoRA
+//! adapters. lora_alpha is currently hardcoded to 16, so the
+//! effective per-step scaling is alpha/r — that's why r=8 looks more
+//! aggressive than r=32.
+//!
+//!   r=32 (eff scale 0.5): eval 8/8/7/8/8 across rounds 0–3 — locked
+//!     into the same plateau as full FT; baseline-like stability.
+//!   r=8  (eff scale 2.0): eval 7→0→15→14→0 — peaks at 15/21 (71%
+//!     pass rate, biggest single round in the project) then crashes
+//!     back to 0 by round 3.
+//!
+//! Same trade-off Phase 4 documented for the tool-use task: smaller
+//! rank ⇒ stronger per-step delta (alpha/r) ⇒ larger swings, both
+//! positive and negative. Full FT recovers a stochastic-gen signal
+//! (37.5%) that LoRA at any rank doesn't reach.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -131,6 +149,13 @@ struct Args {
     /// the practical range for real Fisher.
     #[arg(long, default_value_t = 0)]
     fisher_batches: usize,
+    /// LoRA rank. When `> 0`, pretrain trains everything (including
+    /// the zero-init LoRA `lora_b` so it has no effect at init) and
+    /// per-round continual fine-tune freezes the base weights —
+    /// only `lora_*` adapters update. Phase 4 found r=32 across all
+    /// linears was the best LoRA stability/capacity trade-off.
+    #[arg(long, default_value_t = 0)]
+    lora_rank: usize,
 }
 
 fn pick_device() -> Device {
@@ -249,10 +274,14 @@ async fn main() -> anyhow::Result<()> {
         weight_tying: false,
         norm_kind: nanogpt_rs::config::NormKind::RmsNorm,
         norm_position: nanogpt_rs::config::NormPosition::Pre,
-        lora_rank: 0,
+        lora_rank: args.lora_rank,
         lora_alpha: 16.0,
     };
-    info!(params = gpt_cfg.num_params_estimate(), "model config");
+    info!(
+        params = gpt_cfg.num_params_estimate(),
+        lora_rank = gpt_cfg.lora_rank,
+        "model config"
+    );
 
     // ---- Pretrain.
     info!("pretraining...");
@@ -404,6 +433,7 @@ async fn main() -> anyhow::Result<()> {
             },
             corpus_seed: Some(round as u64 * 31 + 7),
             anchor: anchor.clone(),
+            freeze_base: args.lora_rank > 0,
         };
 
         let report = run_round(&actors, cfg).await?;
