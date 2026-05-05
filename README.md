@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**63 unit tests, 12 worked examples, 11 phases. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`.**
+**66 unit tests, 13 worked examples, 11 phases. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -99,7 +99,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**63 unit tests, 12 worked examples, 11 phases. See the run-order list below.**
+**66 unit tests, 13 worked examples, 11 phases. See the run-order list below.**
 
 ## What it does
 
@@ -239,24 +239,35 @@ cargo run -p llm-actors --example self_improve_rust --features cuda --release --
     --rounds 2 --pretrain-steps 800 --round-train-steps 200
 ```
 
-A small char-level model trained to emit the right-hand side of
-`assert_eq!(<...>, 5);`. The verifier writes the program to a scratch
-Cargo project and runs `cargo run --offline`; correct iff cargo exits 0
-(compile + assert pass). This is **external, ground-truth verification**:
-the loop can't game the metric.
+A small char-level model trained to emit the slot in three distinct
+Rust challenges:
 
-Smoke result (2 rounds, 16 gen, 12 eval, 200 steps each):
+- `equals_5`              : `assert_eq!(<slot>, 5)`
+- `equals_14_via_doubling`: `assert_eq!(2 * (<slot>), 14)`
+- `len_5_string`          : `let s: &str = <slot>; assert_eq!(s.len(), 5)`
+
+Each prompt prefix is unique so the verifier dispatches correctly.
+The verifier writes the full program to a scratch Cargo project and
+runs `cargo run --offline`; correct iff cargo exits 0. This is
+**external, ground-truth verification**: the loop can't game the metric.
+
+Smoke result (3 rounds, 24 gen, 21 eval, 1500 pretrain + 400/round):
 
 ```
-round 0: gen 0/16 (0.0%)  eval before=0/12 after=0/12   Δ=+0
-round 1: gen 0/16 (0.0%)  eval before=0/12 after=12/12  Δ=+12
+round 0: gen 0/24 (0.0%)   eval before=0/21 after=8/21   Δ=+8
+round 1: gen 0/24 (0.0%)   eval before=8/21 after=0/21   Δ=-8   ← catastrophic forgetting
+round 2: gen 9/24 (37.5%)  eval before=0/21 after=8/21   Δ=+8
 ```
 
-Round-1 greedy decode converges on `1 * 5\n` for every prompt — a
-slot in the seed corpus. cargo runs `assert_eq!(1 * 5, 5)` → 12/12.
-This is the cleanest positive-Δ self-improvement result in the
-codebase (arithmetic capped ~30%, Korean stayed 0% under greedy
-eval at the K8 KoWiki scale).
+Two phenomena worth noting. First, the round-0→1 collapse reproduces
+the catastrophic-forgetting pattern that drove Phase 4's EWC / replay
+/ LoRA work, but on a verifier that can't be gamed. Second, round-2
+stochastic gen-pass-rate hits **37.5%** — the first real
+sampling-side self-improvement signal anywhere in the codebase
+(arithmetic capped ~30% under greedy + heuristic parsing, Korean
+stayed at 0% under greedy eval at the KoWiki scale). 9/24 random
+samples (temp 0.8, top_k 10) actually pass cargo across the three
+challenges.
 
 ### 5b. KoreanCompletion self-improve (after a KoWiki pretrain)
 

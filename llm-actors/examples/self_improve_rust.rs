@@ -5,31 +5,46 @@
 //! `Correct` iff cargo exits 0 (compile + assert pass).
 //!
 //! Three challenges (see `domain::rust_code::DEFAULT_CHALLENGES`):
-//!   - `add_two_three`  : `fn main() { assert_eq!(<...>, 5); }`
-//!   - `double_seven`   : `fn main() { assert_eq!(<...>, 14); }`
-//!   - `string_len`     : `fn main() { assert_eq!(<...>, 5); }`
-//!     (a string-literal whose `.len()` == 5)
+//!   - `equals_5`              : `fn main() { assert_eq!(<...>, 5); }`
+//!   - `equals_14_via_doubling`: `fn main() { assert_eq!(2 * (<...>), 14); }`
+//!   - `len_5_string`          : `fn main() { let s: &str = <...>; assert_eq!(s.len(), 5); }`
 //!
-//! The model only emits the `<...>` slot — typically 3–10 chars of
-//! arithmetic / method call / string-literal. Char-level tokenizer is
-//! a natural fit (BPE would over-fragment short ASCII patterns).
+//! Each challenge has a distinct prompt prefix so the verifier's
+//! exact-prompt dispatch routes correctly. The model only emits the
+//! `<...>` slot — typically 1–10 chars of arithmetic / integer /
+//! string-literal. Char-level tokenizer is a natural fit (BPE would
+//! over-fragment short ASCII patterns).
 //!
 //! Run:
 //!   cargo run -p llm-actors --example self_improve_rust --features cuda --release -- \
-//!       --rounds 2 --pretrain-steps 800 --round-train-steps 200
+//!       --rounds 2 --pretrain-steps 1500 --round-train-steps 400
 //!
-//! ## Smoke result (2 rounds, 16 gen, 12 eval, 200 steps):
+//! With the multi-challenge layout, the eval set draws prompts
+//! uniformly across all three challenges. Greedy decode must produce
+//! a slot appropriate to each prompt — i.e. cross-challenge
+//! conditional generation, not a single memorized slot.
 //!
-//!   round 0: gen 0/16 (0.0%)  eval before=0/12 after=0/12   Δ=+0
-//!   round 1: gen 0/16 (0.0%)  eval before=0/12 after=12/12  Δ=+12
+//! ## Smoke result (3 rounds, 24 gen, 21 eval, 1500 pretrain, 400/round):
 //!
-//! Round-1 greedy decode converges on `"1 * 5\n"` for every prompt —
-//! a known-correct slot. cargo runs `assert_eq!(1 * 5, 5)` and exits
-//! 0 → Verdict::Correct on all 12 eval prompts. This is the cleanest
-//! positive-Δ self-improve signal in the codebase: arithmetic /
-//! tool-use experiments capped near 30%, Korean stayed at 0% under
-//! greedy eval, but here the cargo-verified domain hit 100% in two
-//! rounds (~7 sec wall-clock per round).
+//!   round 0: gen 0/24 (0.0%)   eval before=0/21 after=8/21   Δ=+8
+//!   round 1: gen 0/24 (0.0%)   eval before=8/21 after=0/21   Δ=-8   ← catastrophic forgetting
+//!   round 2: gen 9/24 (37.5%)  eval before=0/21 after=8/21   Δ=+8
+//!
+//! Two phenomena worth flagging:
+//!
+//! 1. **Round 0 → 1 catastrophic forgetting (Δ=−8).** The same
+//!    pattern that motivated Phase 4's EWC/replay-mix/LoRA work
+//!    surfaces here: continual fine-tune on the curator's small
+//!    replay buffer disrupts the pattern that round 0 had locked in.
+//!    Pass `--lora-rank 8` (when added) or wire EWC to the trainer
+//!    if you need stable monotonic Δ.
+//!
+//! 2. **Round 2 stochastic gen 37.5%** is the first non-trivial
+//!    sampling-side self-improve signal we've measured anywhere in
+//!    the codebase (arithmetic capped near 30% on greedy + heuristic
+//!    parsing; Korean stayed at 0% in greedy eval). 9/24 randomly
+//!    sampled (temp=0.8, top_k=10) slots actually pass cargo's
+//!    external check across three different challenges.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -109,18 +124,41 @@ fn pick_device() -> Device {
 
 /// Trajectory format the GeneratorActor produces:
 ///   prompt → completion(== slot) → '\n' (stop)
-/// The verifier appends the challenge's `suffix` (`, 5); }\n`) before
-/// running cargo, so the LM must NOT emit the suffix itself —
+/// The verifier appends the challenge's `suffix` (e.g. `, 5); }\n`)
+/// before running cargo, so the LM must NOT emit the suffix itself —
 /// otherwise the suffix is duplicated and cargo rejects on syntax.
 ///
-/// Note on `RustCodeDomain::DEFAULT_CHALLENGES`: all three challenges
-/// share the same prompt prefix `fn main() { assert_eq!(`, but
-/// `verify` dispatches by FIRST exact-prompt match. So in practice
-/// only the FIRST challenge (`add_two_three`, expecting 5) is
-/// reachable. We only pretrain on slots that equal 5.
-const PROMPT: &str = "fn main() { assert_eq!(";
-const CORRECT_SLOTS: &[&str] = &[
-    "2 + 3", "1 + 4", "5 + 0", "0 + 5", "10 - 5", "5 * 1", "1 * 5", "100 / 20",
+/// Each (prompt, slots) pair below pretrains the LM to emit a slot
+/// that, when wrapped by the matching challenge's suffix, produces
+/// a Rust program that compiles and the assertion passes. Slots are
+/// hand-picked correct fillings; the model still has to learn
+/// *which prompt → which slot space* via fine-tune.
+const CHALLENGES: &[(&str, &[&str])] = &[
+    // equals_5: `fn main() { assert_eq!(<slot>, 5); }`
+    (
+        "fn main() { assert_eq!(",
+        &[
+            "2 + 3", "1 + 4", "5 + 0", "0 + 5", "10 - 5", "5 * 1", "1 * 5", "100 / 20",
+        ],
+    ),
+    // equals_14_via_doubling: `fn main() { assert_eq!(2 * (<slot>), 14); }`
+    // Slot must equal 7.
+    (
+        "fn main() { assert_eq!(2 * (",
+        &["7", "3 + 4", "4 + 3", "1 + 6", "6 + 1", "10 - 3", "14 / 2"],
+    ),
+    // len_5_string: `fn main() { let s: &str = <slot>; assert_eq!(s.len(), 5); }`
+    // Slot must be a `&str` of length 5.
+    (
+        "fn main() { let s: &str = ",
+        &[
+            r#""hello""#,
+            r#""world""#,
+            r#""abcde""#,
+            r#""12345""#,
+            r#""HELLO""#,
+        ],
+    ),
 ];
 
 fn synth_pretrain_corpus(n: usize, seed: u64) -> String {
@@ -128,12 +166,13 @@ fn synth_pretrain_corpus(n: usize, seed: u64) -> String {
     use rand::seq::SliceRandom;
     use rand::SeedableRng;
     let mut rng = StdRng::seed_from_u64(seed);
-    let mut out = String::with_capacity(n * 32);
+    let mut out = String::with_capacity(n * 64);
     for _ in 0..n {
-        let slot = CORRECT_SLOTS.choose(&mut rng).expect("non-empty");
+        let (prompt, slots) = CHALLENGES.choose(&mut rng).expect("non-empty");
+        let slot = slots.choose(&mut rng).expect("non-empty");
         // Train the LM to emit slot then stop (\n triggers GeneratorActor
         // termination). The verifier supplies the suffix at runtime.
-        out.push_str(PROMPT);
+        out.push_str(prompt);
         out.push_str(slot);
         out.push('\n');
     }
@@ -360,10 +399,11 @@ async fn seed_curator_from_synthetic(
     let mut rng = StdRng::seed_from_u64(0xC0DE);
     let mut items: Vec<VerifiedTrajectory> = Vec::with_capacity(n);
     for _ in 0..n {
-        let slot = CORRECT_SLOTS.choose(&mut rng).expect("non-empty");
+        let (prompt, slots) = CHALLENGES.choose(&mut rng).expect("non-empty");
+        let slot = slots.choose(&mut rng).expect("non-empty");
         items.push(VerifiedTrajectory {
             trajectory: Trajectory {
-                prompt: PROMPT.to_string(),
+                prompt: prompt.to_string(),
                 completion: format!("{slot}\n"),
                 source: "synthetic-seed".to_string(),
             },

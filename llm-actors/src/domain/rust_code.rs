@@ -36,22 +36,32 @@ pub struct RustChallenge {
     pub suffix: &'static str,
 }
 
+/// Each challenge has a UNIQUE `prompt` so `verify`'s first-match
+/// dispatch (see `challenge_for_prompt`) routes correctly. An earlier
+/// version of this list had three challenges sharing one prompt prefix;
+/// only the first was reachable. The rule going forward: don't add a
+/// new `RustChallenge` whose `prompt` is a duplicate or a prefix of
+/// another challenge's prompt.
 pub const DEFAULT_CHALLENGES: &[RustChallenge] = &[
+    // Slot must be an expression equal to 5. Examples: "2 + 3", "5 * 1".
     RustChallenge {
-        name: "add_two_three",
+        name: "equals_5",
         prompt: "fn main() { assert_eq!(",
         suffix: ", 5); }\n",
     },
+    // Slot is the inner factor; full expression is 2 * <slot> = 14, so
+    // <slot> must equal 7. Distinct prompt ("2 * (" prefix) routes here.
     RustChallenge {
-        name: "double_seven",
-        prompt: "fn main() { assert_eq!(",
-        suffix: ", 14); }\n",
+        name: "equals_14_via_doubling",
+        prompt: "fn main() { assert_eq!(2 * (",
+        suffix: "), 14); }\n",
     },
+    // Slot is a `&str` whose `.len()` == 5. Examples: `"hello"`, `"world"`.
+    // Distinct prompt ("let s: &str = " prefix) routes here.
     RustChallenge {
-        name: "string_len",
-        prompt: r#"fn main() { assert_eq!("#,
-        suffix: r#", 5); }
-"#,
+        name: "len_5_string",
+        prompt: "fn main() { let s: &str = ",
+        suffix: "; assert_eq!(s.len(), 5); }\n",
     },
 ];
 
@@ -219,5 +229,43 @@ mod tests {
         d.ensure_scratch_project().unwrap();
         let v = d.verify("fn main() { unknown_thing(", "");
         assert!(matches!(v, Verdict::Inconclusive { .. }), "got: {v:?}");
+    }
+
+    #[test]
+    fn challenge_2_doubling_dispatches_correctly() {
+        let dir = scratch_dir("doubling");
+        let d = RustCodeDomain::new(&dir);
+        d.ensure_scratch_project().unwrap();
+        // Challenge 2 prompt: "fn main() { assert_eq!(2 * (".
+        // Slot 7 → assert_eq!(2 * (7), 14) passes.
+        let v = d.verify("fn main() { assert_eq!(2 * (", "7");
+        assert!(matches!(v, Verdict::Correct), "got: {v:?}");
+    }
+
+    #[test]
+    fn challenge_3_string_len_dispatches_correctly() {
+        let dir = scratch_dir("strlen");
+        let d = RustCodeDomain::new(&dir);
+        d.ensure_scratch_project().unwrap();
+        // Challenge 3 prompt: `fn main() { let s: &str = `.
+        // Slot `"hello"` → s.len() == 5 → assert passes.
+        let v = d.verify("fn main() { let s: &str = ", r#""hello""#);
+        assert!(matches!(v, Verdict::Correct), "got: {v:?}");
+    }
+
+    #[test]
+    fn all_default_prompts_are_unique() {
+        // Guards against the "all three challenges share one prompt"
+        // regression that originally made challenges 2 and 3
+        // unreachable: `challenge_for_prompt` does exact-string match,
+        // so duplicate prompts always route to the first one.
+        let prompts: Vec<&str> = DEFAULT_CHALLENGES.iter().map(|c| c.prompt).collect();
+        let mut seen = std::collections::HashSet::new();
+        for p in &prompts {
+            assert!(
+                seen.insert(p),
+                "duplicate prompt in DEFAULT_CHALLENGES: {p:?}"
+            );
+        }
     }
 }
