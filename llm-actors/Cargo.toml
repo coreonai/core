@@ -91,3 +91,8 @@ required-features = []
 name = "critic_baseline_arithmetic"
 path = "examples/critic_baseline_arithmetic.rs"
 required-features = []
+
+[[example]]
+name = "critic_baseline_korean"
+path = "examples/critic_baseline_korean.rs"
+required-features = []

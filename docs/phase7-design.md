@@ -76,18 +76,23 @@ verifier-V and domain-D:
    corpus. Run an extension of `examples/critic_baseline_arithmetic.rs`
    pointed at V to harvest ~1000 (prompt, completion, verdict) tuples.
 2. **Compute both AUCs** — mean and sum variants.
-3. **Decision tree:**
+3. **Decision tree (updated by Phase 8 S1 anti-calibration finding):**
    ```
-   if sum_AUC ≥ 0.6:
-       deploy Shape C with sum variant
-   elif mean_AUC ≥ 0.6 and completions are length-uniform:
-       deploy with mean variant
-   elif sum_AUC < 0.6 and pass_rate < 2× chance:
-       train base model more (calibration may follow accuracy)
-   else:
-       Shape C doesn't fit this domain — try Shape B (specialist)
-       or Shape D (TBD: train dedicated critic head)
+   if sum_AUC < 0.4:
+       model is anti-calibrated (mode collapse / undertrained).
+       Fix the model first (more pretrain, different data, different
+       arch). Don't deploy any Shape C variant.
+   elif 0.4 ≤ sum_AUC < 0.5:
+       no signal in either direction. Shape C wastes compute.
+       Either train more or skip this domain.
+   elif 0.5 ≤ sum_AUC < 0.6:
+       marginal — small lift possible but unstable. Train more
+       and retest before committing to integration.
+   elif sum_AUC ≥ 0.6:
+       deploy Shape C with sum variant.
    ```
+   For length-uniform domains where mean ≈ sum, the same bands
+   apply to mean-AUC.
 4. **Choose F** — based on Phase 6 Shape C S3 sweep, F=4 is
    typically optimal. F=16 risks top-tail outlier poisoning (the
    single-completion modes the model loves but verifier rejects).
@@ -127,6 +132,27 @@ verifier-V and domain-D:
    initial framing ("≥ 2× chance") was overruled by S2 (sum-AUC
    crosses 0.6 while pass rate stays at chance). Calibration is
    what gets amplified, not accuracy.
+
+7. **NEW: Anti-calibration on undertrained models** (Phase 8 S1
+   measurement on KoWiki 30K + KoreanCompletionDomain). Sum-AUC
+   can land *below 0.5* when the model has collapsed onto a
+   degenerate mode (e.g. K8 30K loves emitting `\n\n\n\n...`,
+   which the heuristic verifier specifically rejects). Don't
+   assume sum-AUC ≥ 0.5 — measure both directions. If sum-AUC <
+   0.4, the model's own preferences are *anti-correlated* with
+   the verifier and Shape C would actively hurt. Treat this as a
+   sign the model needs much more training before any Shape C
+   deployment, not a sign that you should "invert the critic"
+   (which is unstable as the model improves and the inversion
+   point shifts).
+
+   Empirical band:
+   - sum-AUC ≥ 0.6 → deploy Shape C
+   - 0.5 ≤ sum-AUC < 0.6 → marginal; train more, retest
+   - 0.4 ≤ sum-AUC < 0.5 → no signal; Shape C wastes compute
+   - sum-AUC < 0.4 → anti-calibration; model is broken (mode
+     collapse, undertrained, distribution mismatch). Fix the
+     model first.
 
 ## What "Phase 7 done" means
 
