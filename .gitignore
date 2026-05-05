@@ -9,7 +9,10 @@
 /checkpoints/
 
 # Corpus + intermediate data (regenerable from upstream dumps)
-/data/
+# Note: `/data/*` (with `/*`), not `/data/` — git refuses to recurse into a
+# whole-directory ignore, so the `!/data/.gitkeep` exception below would
+# silently not apply with `/data/`.
+/data/*
 !/data/.gitkeep
 
 # Tokenizer artifacts (regenerable)
