@@ -543,6 +543,41 @@ optimizer vars by name (`*lora*`).
   trajectories, and evolution operators are deterministic in `seed`.
 - Saved checkpoints are vanilla safetensors; tokenizer is HF JSON.
 
+## Phase 6 Session 1 — Specialist routing (Shape B)
+
+After Phase 5's consensus-ensemble negative result, Phase 6 explores
+the design doc's "Shape B" — pure specialization. `self_improve_rust`
+gains `--challenge-mask` so a single member can be trained on only
+challenge 0, 1, or 2 while still being evaluated on the full
+3-challenge mix.
+
+| Configuration | Compute | Eval | Stochastic gen peak |
+|---|---:|---:|---:|
+| Generalist (K9 v5 r=32 α=64 baseline) | 1× | **15/21 (71%)** | 9/24 (37.5%) |
+| Specialist suite, **3× compute** | 3× | 21/21 (100%) | 13/24 (54%) |
+| Specialist suite, **compute-matched** | 1× | **8/21 (38%)** | 13/24 (54%) |
+
+The 3×-compute specialist suite (one specialist per challenge,
+each with the full 1500-pretrain + 4×400-round budget the generalist
+got, and routed to its own challenge at eval time) hits the
+project's first 21/21 = 100% greedy pass, beating the generalist's
+71% peak. Each specialist aces its own challenge slice (6/6, 7/7,
+8/8 within-challenge) so the routed sum is 21/21.
+
+But **at compute parity** — each specialist gets 1/3 the budget so
+total matches generalist — the suite collapses to 8/21 (38%) because
+specialists 0 and 1 can't learn their challenge's slot space in 500
+pretrain steps. Only specialist 2 (the simpler string-literal task)
+makes it to 8/21 in 1/3 compute.
+
+**Honest conclusion:** Pure specialization is a "more compute = better
+result" trick at this scale, not a qualitative win over a generalist.
+For toy K9 with 5–8 slots per challenge, the per-challenge data is too
+small for a 1/3-compute specialist; the generalist's union-training is
+more sample-efficient. Same lesson as Phase 5: multi-actor structure
+isn't magic — the task distribution has to genuinely benefit from
+splitting.
+
 ## Phase 5 (in progress)
 
 `docs/phase5-design.md` is the design document — **multi-actor

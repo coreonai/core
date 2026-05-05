@@ -204,6 +204,17 @@ struct Args {
     /// and sweep the other (e.g. r=8 α=4 vs r=32 α=16, both scale 0.5).
     #[arg(long, default_value_t = 16.0)]
     lora_alpha: f32,
+    /// Phase 6 Shape B: comma-separated indices of CHALLENGES the
+    /// model is allowed to see. Empty (the default) = all 3 challenges
+    /// (the K9 v3+ generalist setup). `0` = train as a specialist on
+    /// challenge 0 (equals_5) only; `1` = equals_14_via_doubling only;
+    /// `2` = len_5_string only. Multiple indices comma-joined are also
+    /// accepted (e.g. `0,2`). The eval set still draws from all 3
+    /// challenges from `RustCodeDomain::DEFAULT_CHALLENGES`, so a
+    /// specialist's score is naturally bounded by the fraction of
+    /// eval prompts that fall in its trained challenge(s).
+    #[arg(long, default_value = "")]
+    challenge_mask: String,
 }
 
 fn pick_device() -> Device {
@@ -255,17 +266,51 @@ const CHALLENGES: &[(&str, &[&str])] = &[
     ),
 ];
 
-fn synth_pretrain_corpus(n: usize, seed: u64) -> String {
+/// Parse `--challenge-mask` into a list of CHALLENGES indices.
+/// Empty string = no filter (use all). Comma-separated indices
+/// otherwise; out-of-range indices are an error.
+fn parse_challenge_mask(s: &str) -> anyhow::Result<Vec<usize>> {
+    if s.trim().is_empty() {
+        return Ok((0..CHALLENGES.len()).collect());
+    }
+    let mut out = Vec::new();
+    for part in s.split(',') {
+        let i: usize = part.trim().parse().map_err(|_| {
+            anyhow::anyhow!(
+                "--challenge-mask: invalid index {part:?} (expected 0..{})",
+                CHALLENGES.len()
+            )
+        })?;
+        if i >= CHALLENGES.len() {
+            anyhow::bail!(
+                "--challenge-mask index {i} out of range (have {} challenges)",
+                CHALLENGES.len()
+            );
+        }
+        if !out.contains(&i) {
+            out.push(i);
+        }
+    }
+    Ok(out)
+}
+
+fn challenges_for(indices: &[usize]) -> Vec<(&'static str, &'static [&'static str])> {
+    indices.iter().map(|&i| CHALLENGES[i]).collect()
+}
+
+fn synth_pretrain_corpus_from(
+    chs: &[(&'static str, &'static [&'static str])],
+    n: usize,
+    seed: u64,
+) -> String {
     use rand::rngs::StdRng;
     use rand::seq::SliceRandom;
     use rand::SeedableRng;
     let mut rng = StdRng::seed_from_u64(seed);
-    let mut out = String::with_capacity(n * 64);
+    let mut out = String::with_capacity(n * 32);
     for _ in 0..n {
-        let (prompt, slots) = CHALLENGES.choose(&mut rng).expect("non-empty");
-        let slot = slots.choose(&mut rng).expect("non-empty");
-        // Train the LM to emit slot then stop (\n triggers GeneratorActor
-        // termination). The verifier supplies the suffix at runtime.
+        let (prompt, slots) = chs.choose(&mut rng).expect("non-empty challenge set");
+        let slot = slots.choose(&mut rng).expect("non-empty slot list");
         out.push_str(prompt);
         out.push_str(slot);
         out.push('\n');
@@ -289,8 +334,19 @@ async fn main() -> anyhow::Result<()> {
     info!(scratch_dir = %args.scratch_dir.display(), "scratch project ready");
     let domain = Arc::new(rcd);
 
+    // ---- Phase 6 Shape B: optional challenge filter (specialist mode).
+    let challenge_indices = parse_challenge_mask(&args.challenge_mask)?;
+    let challenges = challenges_for(&challenge_indices);
+    info!(
+        challenge_indices = ?challenge_indices,
+        n_challenges = challenges.len(),
+        all_challenges = CHALLENGES.len(),
+        "challenge filter resolved (Phase 6 Shape B = specialist mode iff < {})",
+        CHALLENGES.len()
+    );
+
     // ---- Pretrain corpus.
-    let pretrain_text = synth_pretrain_corpus(args.pretrain_examples, 7);
+    let pretrain_text = synth_pretrain_corpus_from(&challenges, args.pretrain_examples, 7);
     let mut seed_chars = String::from(domain.charset());
     seed_chars.push_str(&pretrain_text);
     let tk = Arc::new(Tokenizer::char_from_text(&seed_chars));
@@ -408,7 +464,7 @@ async fn main() -> anyhow::Result<()> {
 
     let curator = CuratorActor::new(512);
     let curator_ref = system.spawn(curator, "curator").await?;
-    seed_curator_from_synthetic(&curator_ref, 32).await?;
+    seed_curator_from_synthetic(&curator_ref, &challenges, 32).await?;
 
     let verifier = VerifierActor::new(domain.clone() as Arc<dyn Domain>);
     let verifier_ref = system.spawn(verifier, "verifier").await?;
@@ -532,8 +588,11 @@ async fn main() -> anyhow::Result<()> {
 /// Pre-seed the curator with synthetic correct trajectories so round 0
 /// has training material even if the model's first generations all fail
 /// cargo. Same trajectory format as what GeneratorActor would emit.
+/// `chs` filters which challenges' slots are used — specialist mode
+/// passes a 1-element list, generalist passes all of CHALLENGES.
 async fn seed_curator_from_synthetic(
     curator: &pekko_actor::ActorRef<CuratorActor>,
+    chs: &[(&'static str, &'static [&'static str])],
     n: usize,
 ) -> anyhow::Result<()> {
     use rand::rngs::StdRng;
@@ -542,11 +601,11 @@ async fn seed_curator_from_synthetic(
     let mut rng = StdRng::seed_from_u64(0xC0DE);
     let mut items: Vec<VerifiedTrajectory> = Vec::with_capacity(n);
     for _ in 0..n {
-        let (prompt, slots) = CHALLENGES.choose(&mut rng).expect("non-empty");
+        let (prompt, slots) = chs.choose(&mut rng).expect("non-empty");
         let slot = slots.choose(&mut rng).expect("non-empty");
         items.push(VerifiedTrajectory {
             trajectory: Trajectory {
-                prompt: prompt.to_string(),
+                prompt: (*prompt).to_string(),
                 completion: format!("{slot}\n"),
                 source: "synthetic-seed".to_string(),
             },
