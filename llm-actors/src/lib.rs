@@ -8,6 +8,7 @@
 //! - `supervisor::run_round` — Gen → Verify → Curate → Train → Reload → Eval
 
 pub mod agentic_generator_actor;
+pub mod critic;
 pub mod curator_actor;
 pub mod domain;
 pub mod ensemble;
@@ -31,6 +32,7 @@ pub use inference_server_actor::{
 pub use tool_executor_actor::{ToolExecutorActor, ToolExecutorMessage};
 pub use tools::{Tool, ToolCall, ToolError, ToolRegistry};
 
+pub use critic::{AlwaysCorrectCritic, Critic, RandomCritic};
 pub use curator_actor::{CuratorActor, CuratorAddReport, CuratorMessage, EnsembleItem};
 pub use ensemble::{ensemble_generate, EnsembleActors, EnsembleConfig};
 pub use evaluator_actor::{EvalReport, EvaluatorActor, EvaluatorMessage};

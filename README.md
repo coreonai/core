@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**81 unit tests, 14 worked examples, 11 phases (Phase 5 Session 1+2+3 landed). CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**85 unit tests, 14 worked examples, 11 phases (Phase 5 done; Phase 6 S1 specialists + S-C scaffolding landed). CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -99,7 +99,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**81 unit tests, 14 worked examples, 11 phases (Phase 5 Session 1+2+3 landed). See the run-order list below.**
+**85 unit tests, 14 worked examples, 11 phases (Phase 5 done; Phase 6 S1 specialists + S-C scaffolding landed). See the run-order list below.**
 
 ## What it does
 
@@ -542,6 +542,34 @@ optimizer vars by name (`*lora*`).
 - All examples accept `--seed`. `random_batch`, `synth_corpus`, agent
   trajectories, and evolution operators are deterministic in `seed`.
 - Saved checkpoints are vanilla safetensors; tokenizer is HF JSON.
+
+## Phase 6 Session 1-C — Adversarial critic (Shape C, scaffolding only)
+
+`docs/phase6-shape-c.md` is the design document for Shape C —
+**a learned critic acts as a cheap pre-filter for the expensive cargo
+verifier**, letting the self-improve loop afford more candidates per
+round without proportionally more cargo invocations. Bets on a
+different mechanism than Shape B's specialization (which Phase 6
+Session 1 below showed didn't pay off at compute parity).
+
+`llm-actors/src/critic.rs` provides the `Critic` trait + two
+trivial implementations (`AlwaysCorrectCritic` = no filter,
+`RandomCritic { seed }` = deterministic random scoring as a negative
+baseline). 4 unit tests cover trait API + dyn dispatch.
+
+The plan:
+
+- **Session 2 (next)**: `LogitCritic` — use the existing K9 generator's
+  own per-token negative log-likelihood as a "free" critic. If the
+  model's own log-prob of a completion correlates with cargo's verdict
+  (AUC ≥ 0.6 on harvested K9 data), Shape C pays its way without
+  training a separate model.
+- **Session 3**: integration into `self_improve_rust` via
+  `--critic-threshold`, oversample → critic-rank → cargo on top-K.
+- **Session 4 (only if S2 fails)**: train a dedicated critic head
+  on top of the LM's hidden states.
+
+See `docs/phase6-shape-c.md` for acceptance criteria and risks.
 
 ## Phase 6 Session 1 — Specialist routing (Shape B)
 
