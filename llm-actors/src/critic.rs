@@ -72,10 +72,30 @@ impl Critic for RandomCritic {
 /// "how confident am I in this completion?", and if that confidence
 /// correlates with the verifier's verdict we get the critic for free.
 ///
-/// Score is the **mean log-probability per completion token** (so it's
-/// length-invariant and easier to threshold). Higher (less negative)
-/// = more confident. By convention the trait wants higher = better,
-/// which this satisfies.
+/// Two scoring regimes — pick by the domain's completion-length
+/// distribution:
+///
+/// - **mean** (default, `normalize_by_length = true`): score is
+///   `sum_t log P(c_t | ...) / len(c)`. Length-invariant, works on
+///   length-uniform domains (Phase 6 K9 RustCode AUC 0.727). Has a
+///   **fatal short-bias on length-varying domains** — empty / 1-token
+///   completions get artificially high mean log-prob because there's
+///   no opportunity for low-confidence tokens to drag the average down.
+///   Phase 7 S1 measured this: arithmetic mean-AUC 0.445, F=16 lift
+///   0.04× (catastrophic).
+///
+/// - **sum** (`normalize_by_length = false`): score is the raw
+///   `sum_t log P(c_t | ...)`. Penalizes longer completions by
+///   accumulating more negative log-probs. Robust on length-varying
+///   domains *iff the model has sufficient confidence calibration*.
+///   Phase 7 S2 measured this: arithmetic sum-AUC crossed 0.6 at 5000
+///   pretrain steps even while pass rate stayed at chance baseline.
+///
+/// **The right gate is held-out sum-AUC ≥ 0.6**, not pass rate. See
+/// `docs/phase7-design.md` for the full decision tree. Use
+/// [`LogitCritic::sum_scoring`] / [`LogitCritic::sum_scoring_from_checkpoint`]
+/// for the sum variant; defaults are mean for backward compatibility
+/// with the Phase 6 K9 measurement.
 ///
 /// `LogitCritic` owns a `VarMap` + `GPT` so it can be used standalone
 /// for measurement (e.g. `examples/critic_baseline.rs`). For a
@@ -88,8 +108,9 @@ pub struct LogitCritic {
     model: GPT,
     tokenizer: Arc<Tokenizer>,
     device: Device,
-    /// When true (default), score = sum_log_prob / completion_len —
-    /// per-token mean. When false, raw sum (favors short completions).
+    /// `true` (default) = mean log-prob per token; `false` = raw sum.
+    /// **Use `false` (sum) on length-varying domains.** See type-level
+    /// docs and `docs/phase7-design.md`.
     pub normalize_by_length: bool,
 }
 
@@ -112,6 +133,33 @@ impl LogitCritic {
             device,
             normalize_by_length: true,
         })
+    }
+
+    /// Phase 7 ergonomic helper: load with `normalize_by_length = false`
+    /// (sum log-prob) for length-varying domains. Equivalent to calling
+    /// `from_checkpoint` and then setting `normalize_by_length = false`,
+    /// but the constructor name documents intent at the call site.
+    pub fn sum_scoring_from_checkpoint(
+        cfg: GPTConfig,
+        tokenizer: Arc<Tokenizer>,
+        device: Device,
+        path: &Path,
+    ) -> anyhow::Result<Self> {
+        let mut me = Self::from_checkpoint(cfg, tokenizer, device, path)?;
+        me.normalize_by_length = false;
+        Ok(me)
+    }
+
+    /// Sum-variant of [`LogitCritic::from_model`].
+    pub fn sum_scoring_from_model(
+        varmap: VarMap,
+        model: GPT,
+        tokenizer: Arc<Tokenizer>,
+        device: Device,
+    ) -> Self {
+        let mut me = Self::from_model(varmap, model, tokenizer, device);
+        me.normalize_by_length = false;
+        me
     }
 
     /// Wrap an already-built model. Caller is responsible for keeping
@@ -303,5 +351,87 @@ mod tests {
     fn auc_degenerate_one_class_is_nan() {
         let pairs: Vec<(f32, bool)> = vec![(0.1, true), (0.5, true)];
         assert!(roc_auc(&pairs).is_nan());
+    }
+
+    /// Phase 7 ergonomic API: the sum-scoring constructor produces a
+    /// LogitCritic with `normalize_by_length = false`. We test the
+    /// invariant via from_model (which doesn't require a real
+    /// checkpoint on disk) — the from_checkpoint variant is the same
+    /// pattern, validated indirectly when examples run.
+    #[test]
+    fn sum_scoring_constructor_disables_length_normalization() {
+        use candle_core::{DType, Device};
+        use candle_nn::{VarBuilder, VarMap};
+        use nanogpt_rs::config::{ActivationKind, GPTConfig, NormKind, NormPosition};
+
+        let cfg = GPTConfig {
+            vocab_size: 8,
+            block_size: 4,
+            n_layer: 2,
+            n_head: 2,
+            n_embd: 16,
+            dropout: 0.0,
+            bias: false,
+            ffn_mult: 2,
+            use_rope: false,
+            rope_base: 10_000.0,
+            n_kv_head: 2,
+            n_experts: 1,
+            moe_top_k: 0,
+            moe_aux_weight: 0.0,
+            activation: ActivationKind::Gelu,
+            weight_tying: true,
+            norm_kind: NormKind::LayerNorm,
+            norm_position: NormPosition::Pre,
+            lora_rank: 0,
+            lora_alpha: 16.0,
+        };
+        let device = Device::Cpu;
+        let varmap = VarMap::new();
+        let vb = VarBuilder::from_varmap(&varmap, DType::F32, &device);
+        let model = nanogpt_rs::model::GPT::new(cfg, vb).unwrap();
+        let tk = Arc::new(Tokenizer::char_from_text("abcdefgh"));
+
+        let mean_critic = LogitCritic::from_model(VarMap::new(), model, tk.clone(), device.clone());
+        assert!(
+            mean_critic.normalize_by_length,
+            "default constructor must produce mean variant"
+        );
+
+        // sum_scoring_from_model needs its own VarMap+model, since
+        // mean_critic took ownership of the previous one.
+        let varmap2 = VarMap::new();
+        let vb2 = VarBuilder::from_varmap(&varmap2, DType::F32, &device);
+        let model2 = nanogpt_rs::model::GPT::new(
+            GPTConfig {
+                vocab_size: 8,
+                block_size: 4,
+                n_layer: 2,
+                n_head: 2,
+                n_embd: 16,
+                dropout: 0.0,
+                bias: false,
+                ffn_mult: 2,
+                use_rope: false,
+                rope_base: 10_000.0,
+                n_kv_head: 2,
+                n_experts: 1,
+                moe_top_k: 0,
+                moe_aux_weight: 0.0,
+                activation: ActivationKind::Gelu,
+                weight_tying: true,
+                norm_kind: NormKind::LayerNorm,
+                norm_position: NormPosition::Pre,
+                lora_rank: 0,
+                lora_alpha: 16.0,
+            },
+            vb2,
+        )
+        .unwrap();
+        let sum_critic = LogitCritic::sum_scoring_from_model(varmap2, model2, tk, device);
+        assert!(
+            !sum_critic.normalize_by_length,
+            "sum_scoring constructor must disable length normalization"
+        );
     }
 }
