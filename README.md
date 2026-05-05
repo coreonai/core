@@ -309,14 +309,20 @@ mismatch. Sample run from this repo:
 
 | Checkpoint                        | val_loss | perplexity | params |
 |-----------------------------------|---------:|-----------:|-------:|
-| kowiki_50m_clean (teacher)        |   7.5062 |   1819     | 46.8M  |
-| kowiki_distill_student            | **7.6488** | **2098** |   12M  |
-| kowiki_distill_baseline           | **7.4610** | **1739** |   12M  |
+| kowiki_50m_clean (5K teacher)     |   7.4648 |   1746     | 46.8M  |
+| kowiki_50m_30k (30K teacher)      | **7.4267** | **1680** | 46.8M  |
+| kowiki_distill_student            |   7.6121 |   2023     | 12M    |
+| kowiki_distill_baseline           | **7.4982** | **1805** | 12M    |
 
-Honest finding: at this scale (4K-step student training, 7.5-loss
-teacher) the from-scratch baseline outperforms the distilled student
-by 0.19 nats. Distillation pays off when the teacher is meaningfully
-stronger; under-converged teachers don't carry useful soft labels.
+Honest finding: even at 30K teacher steps, the 50M teacher only beats
+the 12M from-scratch baseline by **0.07 nats** (val_loss 7.43 vs 7.50).
+With that small a gap, soft targets carry mostly noise, and the
+distilled student ends up **0.11 nats worse than the from-scratch
+baseline**. See `docs/distillation-postmortem.md` for the full
+diagnosis and the decision rule we adopted (`gap < 0.3 nats → don't
+distill`). Distillation pays off when the teacher is meaningfully
+stronger; on this saturated 21M-token corpus the 50M teacher does
+not have enough advantage to share.
 
 ### 9. Knowledge distillation: 50M teacher → 12M student
 
@@ -424,11 +430,11 @@ This is engineering infrastructure, not a state-of-the-art model.
   baseline) but doesn't generate fluent prose. Both are dataset-/scale-limited,
   not infrastructure-limited.
 - **Distillation**: `train_with_teacher` is fully validated end-to-end
-  with the KL `(B*T)` normalization fix. At the scale tested (4K-step
-  student, 7.5-loss teacher) the from-scratch baseline still beats the
-  distilled student by 0.19 nats — distillation pays off only when the
-  teacher is meaningfully stronger than the baseline can reach in the
-  same compute budget. See example 8 for the eval table.
+  with the KL `(B*T)` normalization fix. The infrastructure works; the
+  binding constraint is the data, not the code. With teacher / baseline
+  val_loss within 0.07 nats on KoWiki, soft targets carry mostly noise,
+  so the distilled student loses to a from-scratch baseline by 0.11
+  nats. See `docs/distillation-postmortem.md` for the full diagnosis.
 - **CUDA toolchain**: requires CUDA 12.5 (driver 555 limit). The cuda-12.9
   toolkit produces PTX the driver rejects.
 
