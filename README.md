@@ -579,12 +579,37 @@ local minima), spawned via `EnsembleActors`, and iterated through
 `generate (ensemble_generate) → verify (cargo) → consensus curate
 (AddEnsemble) → train each member on shared corpus → reload → eval
 each`. Per-round summary prints per-member eval before/after,
-consensus-kept count, and the ensemble-max eval. Build is CPU-only;
-end-to-end run requires GPU because cargo-verify is slow and N×G
-trajectories per round amplifies the cost.
+consensus-kept count, and the ensemble-max eval.
 
-Session 4 (single-model-vs-ensemble comparison at fixed compute)
-remains.
+**Session 4 (compute-matched comparison) — honest negative result.**
+Ensemble N=3 (3×400 train steps/round) vs single 1M (1×1200
+train steps/round), same total compute, both with LoRA r=32 α=64:
+
+| Metric | Single 1M | Ensemble N=3 |
+|---|---:|---:|
+| Peak greedy eval | 15/21 (71%) | **21/21 (100%)** ← round 2 |
+| Round 3 eval | 8/21 (38%) | 8/21 (38%) |
+| Stochastic gen peak | **13/24 (54%)** ← round 3 | 0/72 throughout |
+| Wall-clock per round | 17s | 37s (~2× slower) |
+
+The ensemble briefly hits 100% greedy eval — but only because *one*
+of its 3 random-init members got lucky at round 2; the consensus
+filter never activated (`kept = 0` every round, even with
+`--min-agreement 1`) because all 3 members had `gen-correct = 0/24`
+across all rounds at this `samples_per_model = 1` configuration.
+The single model, training on a curator buffer that actually
+turned over (gen 9/24 then 13/24), maintained a richer stochastic
+distribution and reached 54% gen-pass.
+
+Net: the ensemble's win is a "3 lottery tickets" effect rather
+than the consensus mechanism itself. Phase 5 design doc's
+contingency applies — **multi-actor consensus alone isn't enough
+at this smoke scale; Phase 6 should look toward Shape B (specialist
+routing) or C (adversarial co-evolution)**, not more consensus
+tuning.
+
+Sessions 5+ (heterogeneous-architecture ensembles, larger
+`samples_per_model` for richer consensus signal) deferred.
 
 ## Honest limitations
 
