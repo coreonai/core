@@ -302,23 +302,30 @@ the stochastic-gen 37.5% signal that previously only full-FT reached.
 High rank gives the model enough parameters to find a generalizing
 solution rather than a brittle fixed point.
 
-Pushing r=32 α=64 to **10 rounds** uncovers the strongest self-improve
-signal in the project:
+Pushing r=32 α=64 longer reveals a strong but oscillating
+stochastic-gen signal:
 
 ```
-round 6: gen 18/24 (75.0%)  eval 0 → 15   Δ=+15
-round 9: gen 24/24 (100.0%) eval 15 → 14  Δ=-1
+10-round seed: gen-pass 0/0/37.5/0/33.3/0/75/0/37.5/100  (peak 100%)
+20-round seed: gen-pass 16.7/33.3/37.5/0/33.3/25/33.3/20.8/70.8/41.7/
+                        33.3/37.5/0/0/54.2/33.3/33.3/37.5/20.8/20.8
 ```
 
-**Round 9: stochastic gen 24/24 = 100% pass rate** — every
-random-sampled (temp 0.8 top_k 10) completion compiles and passes its
-cargo assertion. Eval (greedy) caps at 15/21 (71%) because some
-prompts have greedy fixed points that don't pass; stochastic
-sampling escapes those collapses. This is the cleanest empirical
-demonstration that a small char-level transformer can reach
-provably-correct novel programs across multiple distinct programming
-tasks under a closed continual-fine-tune loop with cargo as the
-only ground truth.
+The 10-round run hit 100% gen-pass at round 9 — every random-sampled
+(temp 0.8 top_k 10) completion compiled and passed cargo. A re-run
+at 20 rounds didn't reproduce the 100% mark (peak 70.8% at round 8)
+but maintained a sustained 25–55% gen-pass band across rounds. The
+TrainerActor's per-step RNG isn't externally seeded so different
+runs see different gradient sequences; the 100% spike was real but
+not reproducible at the seed level.
+
+Eval (greedy) consistently caps at 15/21 (71%) — six prompts have
+greedy fixed points that don't pass cargo. Stochastic sampling
+escapes those collapses, which is why gen-pass exceeds eval. This
+is the cleanest empirical demonstration that a small char-level
+transformer can reach provably-correct novel programs across
+multiple distinct programming tasks under a closed continual-fine-
+tune loop with cargo as the only ground truth.
 
 ### 5b. KoreanCompletion self-improve (after a KoWiki pretrain)
 
