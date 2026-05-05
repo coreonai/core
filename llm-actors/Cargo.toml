@@ -76,3 +76,8 @@ required-features = []
 name = "self_improve_rust"
 path = "examples/self_improve_rust.rs"
 required-features = []
+
+[[example]]
+name = "self_improve_ensemble_rust"
+path = "examples/self_improve_ensemble_rust.rs"
+required-features = []

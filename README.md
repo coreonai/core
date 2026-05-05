@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**81 unit tests, 13 worked examples, 11 phases (Phase 5 Session 1+2 landed). CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**81 unit tests, 14 worked examples, 11 phases (Phase 5 Session 1+2+3 landed). CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -99,7 +99,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**81 unit tests, 13 worked examples, 11 phases (Phase 5 Session 1+2 landed). See the run-order list below.**
+**81 unit tests, 14 worked examples, 11 phases (Phase 5 Session 1+2+3 landed). See the run-order list below.**
 
 ## What it does
 
@@ -564,9 +564,20 @@ canonical example, dedup-same-model, all-3-correct (weight 1.0),
 strict-majority filtering, and the disable-filter (`min_agreement=1`)
 escape hatch.
 
-Sessions 3+ (`self_improve_ensemble_rust` example,
-single-model-vs-ensemble comparison at fixed compute) remain in the
-design doc.
+**Session 3 (ensemble self-improve example) landed.**
+`examples/self_improve_ensemble_rust.rs` ties Sessions 1+2 together:
+N members are pretrained from the same corpus with different RNG
+seeds (per-member training-sample sequence diverges → independent
+local minima), spawned via `EnsembleActors`, and iterated through
+`generate (ensemble_generate) → verify (cargo) → consensus curate
+(AddEnsemble) → train each member on shared corpus → reload → eval
+each`. Per-round summary prints per-member eval before/after,
+consensus-kept count, and the ensemble-max eval. Build is CPU-only;
+end-to-end run requires GPU because cargo-verify is slow and N×G
+trajectories per round amplifies the cost.
+
+Session 4 (single-model-vs-ensemble comparison at fixed compute)
+remains.
 
 ## Honest limitations
 
