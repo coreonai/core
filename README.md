@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**89 unit tests, 15 worked examples, 11 phases (Phase 5 done; Phase 6 S1 + S-C 1-2 landed; LogitCritic AUC 0.727 PASSES the acceptance gate). CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**89 unit tests, 16 worked examples, 11 phases (Phase 5 + 6 done; Phase 7 S1: Shape C transfer test). LogitCritic AUC: 0.727 on RustCode (PASS), 0.447 on Arithmetic (FAIL — Shape C amplifies competence, doesn't create it). CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -99,7 +99,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**89 unit tests, 15 worked examples, 11 phases (Phase 5 done; Phase 6 S1 + S-C 1-2 landed). See the run-order list below.**
+**89 unit tests, 16 worked examples, 11 phases + Phase 5/6/7 sessions. See the run-order list below.**
 
 ## What it does
 
@@ -542,6 +542,45 @@ optimizer vars by name (`*lora*`).
 - All examples accept `--seed`. `random_batch`, `synth_corpus`, agent
   trajectories, and evolution operators are deterministic in `seed`.
 - Saved checkpoints are vanilla safetensors; tokenizer is HF JSON.
+
+## Phase 7 Session 1 — Shape C transfer test (honest negative)
+
+`examples/critic_baseline_arithmetic.rs` repeats the Phase 6 Shape C
+measurement protocol on `ArithmeticDomain` (single-digit addition,
+parse-then-compare verifier) instead of `RustCodeDomain` (cargo).
+
+Result: **Shape C does NOT cleanly transfer.**
+
+| Domain | LogitCritic AUC | F=4 lift | F=16 lift | Verdict |
+|--------|---:|---:|---:|:---|
+| RustCode (Phase 6) | 0.727 | 1.22× | 0.41× | PASS |
+| Arithmetic (mean log-prob) | 0.447 | 0.75× | 0.04× | FAIL |
+| Arithmetic (sum log-prob) | <0.6 | 0.93× | 0.23× | FAIL |
+
+Both length-normalization variants (mean and sum) fail. Top-5 by
+score in Arithmetic are all wrong: empty completions and truncated
+single-digit guesses. Bottom-5 are also wrong (rambling like
+`"5+2=" → "5+2="` echoing the prompt). The critic can't distinguish
+correct from incorrect because the *model itself* doesn't know
+arithmetic well enough — harvest pass-rate is 7.8%, near the random
+baseline of ~9% (1 of ~11 plausible digits).
+
+**Refined claim about Shape C** (updates Phase 6's framing):
+
+> Shape C **amplifies existing model competence**; it doesn't
+> *create* it. When the base model is genuinely at random-baseline
+> on the task (no internal signal that distinguishes correct from
+> incorrect), the LogitCritic has no signal to filter. K9
+> RustCode's 19% harvest pass-rate (twice random) was already
+> evidence the model knew its slot space; Shape C extracted that
+> latent knowledge into selection. Arithmetic's 7.8% says the
+> model doesn't know — and a critic built on that ignorance just
+> ranks ignorance.
+
+Practical implication: Shape C should be treated as a **post-
+training compute amplifier**, not a substitute for proper task
+training. Apply it on top of a model that's already shown
+≥ ~2× chance pass rate on the verifier.
 
 ## Phase 6 Session 1-C — Adversarial critic (Shape C, scaffolding only)
 
