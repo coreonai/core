@@ -313,5 +313,139 @@ fn main() -> anyhow::Result<()> {
         );
     }
 
+    // ---- Phase 6 Shape C Session 3 measurement:
+    // Critic-vs-random selection at oversample factor F.
+    //
+    // The actual Shape C bet: for each prompt, draw F random
+    // candidates, then pick top-1 by LogitCritic score and run
+    // cargo only on that one. Compare to randomly picking 1 of F
+    // (= no critic). Does the critic-selected one pass cargo more
+    // often than the random one, at the same #cargo invocations?
+    //
+    // We average over many trials of subset-of-F to get a smooth
+    // estimate without re-running the harvest.
+    println!("\n=== Phase 6 Shape C Session 3 — selection at oversample F ===");
+    println!("(per-prompt: draw F random samples, compare random-pick-1 vs critic-pick-top-1)\n");
+    println!("  F  random_pass  critic_pass    Δ      lift");
+    println!("  -  -----------  -----------  ------   -----");
+    let prompts_unique: Vec<String> = {
+        use std::collections::HashSet;
+        let mut seen: HashSet<String> = HashSet::new();
+        samples
+            .iter()
+            .filter_map(|(p, _, _, _, _)| {
+                if seen.insert(p.clone()) {
+                    Some(p.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    };
+    let n_trials = 1000;
+    for &factor in &[1, 2, 4, 8, 16] {
+        if factor > args.samples_per_prompt {
+            continue;
+        }
+        let (random_pass, critic_pass) = bake_off(
+            &samples,
+            &prompts_unique,
+            factor,
+            n_trials,
+            0xB00B + factor as u64,
+        );
+        let delta = critic_pass - random_pass;
+        let lift = if random_pass > 1e-6 {
+            critic_pass / random_pass
+        } else {
+            f32::INFINITY
+        };
+        println!("  {factor:>1}    {random_pass:>9.3}    {critic_pass:>9.3}   {delta:+.3}   {lift:>4.2}×");
+    }
+    println!();
+    println!("Cargo cost is constant (1 invocation per prompt) at every F. Wall-clock");
+    println!("scales as O(F) for gen+critic but cargo dominates so larger F is mostly free.");
+    println!();
+    println!("Acceptance gate (docs/phase6-shape-c.md):");
+    println!("  • Same gen-pass at ≤ 80% wall-clock, OR");
+    println!("  • Gen-pass ≥ 1.2× at the same wall-clock");
+    println!("Use the lift column above — F ≥ some threshold should hit ≥ 1.2×.");
+
     Ok(())
+}
+
+/// For each prompt, draw `factor` random samples (without replacement,
+/// or with — both are valid; here we use without). The random arm
+/// picks 1 uniformly from those `factor`; the critic arm picks the
+/// argmax of `factor` by LogitCritic score (column 3 of `samples`).
+/// Average over `n_trials` of the random subset to smooth out
+/// per-trial variance.
+///
+/// Returns `(random_pass_rate, critic_pass_rate)` averaged across
+/// prompts and trials.
+fn bake_off(
+    samples: &[(String, String, bool, f32, f32)],
+    prompts: &[String],
+    factor: usize,
+    n_trials: usize,
+    seed: u64,
+) -> (f32, f32) {
+    use rand::rngs::StdRng;
+    use rand::seq::SliceRandom;
+    use rand::SeedableRng;
+
+    // Group sample indices by prompt for fast subset draws.
+    let cohorts: Vec<Vec<usize>> = prompts
+        .iter()
+        .map(|p| {
+            samples
+                .iter()
+                .enumerate()
+                .filter(|(_, s)| &s.0 == p)
+                .map(|(i, _)| i)
+                .collect()
+        })
+        .collect();
+
+    let mut rng = StdRng::seed_from_u64(seed);
+    let mut random_correct = 0u64;
+    let mut critic_correct = 0u64;
+    let mut total = 0u64;
+
+    for _ in 0..n_trials {
+        for cohort in &cohorts {
+            if cohort.len() < factor {
+                continue;
+            }
+            // Pick `factor` distinct indices from this prompt's pool.
+            let picks: Vec<usize> = cohort.choose_multiple(&mut rng, factor).copied().collect();
+            // Random arm: first pick is "random selection" (we already
+            // shuffled, so picks[0] is uniform random among the F).
+            if samples[picks[0]].2 {
+                random_correct += 1;
+            }
+            // Critic arm: argmax LogitCritic score.
+            let best = picks
+                .iter()
+                .max_by(|&&a, &&b| {
+                    samples[a]
+                        .3
+                        .partial_cmp(&samples[b].3)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .copied()
+                .expect("non-empty picks");
+            if samples[best].2 {
+                critic_correct += 1;
+            }
+            total += 1;
+        }
+    }
+    if total == 0 {
+        return (f32::NAN, f32::NAN);
+    }
+    (
+        random_correct as f32 / total as f32,
+        critic_correct as f32 / total as f32,
+    )
 }

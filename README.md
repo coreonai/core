@@ -577,11 +577,35 @@ string-length challenge); bottom-scored are mostly hallucinated
 junk (`"3 1 + 23"`, `"6 = * 3 1"`). Acceptance gate from
 `docs/phase6-shape-c.md` (≥ 0.6) passes.
 
-**Session 3 (next, deferred)**: integration into `self_improve_rust`
-via `--critic-threshold`. Oversample candidates per round, rank by
-LogitCritic score, and only run cargo on the top-K. Goal:
-≥ 1.2× gen-pass-rate at the same wall-clock OR same gen-pass at
-≤ 0.8× wall-clock.
+**Session 3 result (sweet-spot at F=4):**
+
+`critic_baseline.rs` extended with a critic-vs-random selection
+sweep. Per-prompt, draw F random samples and compare:
+- Random arm: pick 1 of the F uniformly at random (= no critic).
+- Critic arm: pick the F's argmax LogitCritic score.
+
+| F  | Random pass | Critic pass | Lift |
+|---:|------------:|------------:|-----:|
+|  1 |       0.199 |       0.199 |  1.00× (no choice) |
+|  2 |       0.193 |       0.207 |  1.07× |
+| **4** | **0.181** | **0.221** | **1.22×** ★ |
+|  8 |       0.181 |       0.207 |  1.14× |
+| 16 |       0.192 |       0.079 | **0.41×** ← inverts! |
+
+At F=4, critic-rerank meets the ≥ 1.2× acceptance gate. But at F=16,
+the critic is *worse* than random — the model heavily rewards a few
+high-prob-but-cargo-rejected outliers (e.g., incomplete `"\""`
+strings that look "very stringy" but fail s.len() = 5), and
+oversampling pulls those into every cohort. AUC ≥ 0.7 doesn't
+guarantee argmax-is-correct: the top-tail can be poisoned by
+specific high-prob failure modes.
+
+**Implication for Phase 6 Shape C in production**: use F=2–8, not
+F=large. For real (slow) cargo invocations the wall-clock saving
+is meaningful at F=4; for our toy fast-cargo setup the savings are
+borderline since gen is so cheap. The mechanism is clean and
+generalizes — full integration into `self_improve_rust` (the actual
+`--critic-threshold` flag wiring) is the natural Session 4.
 
 **Session 4 (only if a stronger signal is needed)**: train a
 dedicated critic head on top of the LM's hidden states. Skipped
