@@ -6,9 +6,10 @@
 //! children on failure, halt on regression, etc).
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
 
-use nanogpt_rs::{generate::GenerateConfig, train::TrainConfig};
+use nanogpt_rs::{ewc::WeightAnchor, generate::GenerateConfig, train::TrainConfig};
 use pekko_actor::ActorRef;
 use tokio::sync::oneshot;
 use tracing::info;
@@ -49,6 +50,10 @@ pub struct RoundConfig {
     /// Seed for the corpus-rendering RNG (only used when `sample_mode` is
     /// `Priority`).
     pub corpus_seed: Option<u64>,
+    /// Optional EWC-style weight anchor passed through to the trainer.
+    /// `None` (default) is plain continual fine-tune; `Some` adds the
+    /// anchor's penalty term to every step's loss.
+    pub anchor: Option<Arc<WeightAnchor>>,
 }
 
 pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result<RoundReport> {
@@ -154,7 +159,7 @@ pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result
             save_path: cfg.save_path.clone(),
             init_from: cfg.init_from,
             train_cfg: cfg.train_cfg.clone(),
-            anchor: None,
+            anchor: cfg.anchor.clone(),
             freeze_base: false,
             reply: tx,
         })

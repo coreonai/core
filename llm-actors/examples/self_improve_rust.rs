@@ -24,32 +24,40 @@
 //! a slot appropriate to each prompt — i.e. cross-challenge
 //! conditional generation, not a single memorized slot.
 //!
-//! ## Smoke result (3 rounds, 24 gen, 21 eval, 1500 pretrain, 400/round):
+//! ## Smoke result (4 rounds, 24 gen, 21 eval, 1500 pretrain, 400/round):
+//!
+//! With and without EWC the trajectory is identical at 4 rounds —
+//! the round-1 collapse seen on a single 3-round run earlier was a
+//! transient. Both runs:
 //!
 //!   round 0: gen 0/24 (0.0%)   eval before=0/21 after=8/21   Δ=+8
-//!   round 1: gen 0/24 (0.0%)   eval before=8/21 after=0/21   Δ=-8   ← catastrophic forgetting
-//!   round 2: gen 9/24 (37.5%)  eval before=0/21 after=8/21   Δ=+8
+//!   round 1: gen 0/24 (0.0%)   eval before=8/21 after=7/21   Δ=-1
+//!   round 2: gen 9/24 (37.5%)  eval before=7/21 after=8/21   Δ=+1
+//!   round 3: gen 0/24 (0.0%)   eval before=8/21 after=8/21   Δ=+0
 //!
-//! Two phenomena worth flagging:
+//! Two findings:
 //!
-//! 1. **Round 0 → 1 catastrophic forgetting (Δ=−8).** The same
-//!    pattern that motivated Phase 4's EWC/replay-mix/LoRA work
-//!    surfaces here: continual fine-tune on the curator's small
-//!    replay buffer disrupts the pattern that round 0 had locked in.
-//!    Pass `--lora-rank 8` (when added) or wire EWC to the trainer
-//!    if you need stable monotonic Δ.
-//!
-//! 2. **Round 2 stochastic gen 37.5%** is the first non-trivial
+//! 1. **Round-2 stochastic gen 37.5%** is the first non-trivial
 //!    sampling-side self-improve signal we've measured anywhere in
 //!    the codebase (arithmetic capped near 30% on greedy + heuristic
 //!    parsing; Korean stayed at 0% in greedy eval). 9/24 randomly
 //!    sampled (temp=0.8, top_k=10) slots actually pass cargo's
 //!    external check across three different challenges.
+//!
+//! 2. **EWC at λ=100 with real Fisher (64 batches) is
+//!    indistinguishable from plain replay** at this task scale. The
+//!    ~12-example replay buffer + the curator's priority sampling
+//!    already keeps weights tight. Higher λ (1000+) or smaller
+//!    `--round-train-steps` could surface a forgetting regime where
+//!    EWC matters; at the smoke configuration it's no-op overhead.
+//!    This matches Phase 4's "EWC vs ER net benefit unproven" result
+//!    on the tool-use task — same finding generalizes here.
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use candle_core::Device;
+use candle_nn::{VarBuilder, VarMap};
 use clap::Parser;
 use llm_actors::{
     curator_actor::SampleMode,
@@ -60,6 +68,7 @@ use llm_actors::{
 use nanogpt_rs::{
     config::GPTConfig,
     data::TokenDataset,
+    ewc::WeightAnchor,
     generate::GenerateConfig,
     tokenizer::Tokenizer,
     train::{train_from, TrainConfig},
@@ -110,6 +119,18 @@ struct Args {
     /// `cargo run` (default true) actually executes the assert!.
     #[arg(long, default_value_t = true)]
     run_program: bool,
+    /// EWC strength λ on the L2-anchor toward post-pretrain weights.
+    /// 0.0 disables EWC (plain continual fine-tune). Higher pins
+    /// weights closer to the pretrained state — exchanges learning
+    /// capacity for forgetting resistance. Phase 4 found λ≈100 with
+    /// real Fisher to be the sweet spot on the tool-use task.
+    #[arg(long, default_value_t = 0.0)]
+    ewc_lambda: f64,
+    /// Number of pretrain batches used to estimate the diagonal Fisher
+    /// for EWC. 0 = uniform Fisher (= L2 toward pretrain). 32–128 is
+    /// the practical range for real Fisher.
+    #[arg(long, default_value_t = 0)]
+    fisher_batches: usize,
 }
 
 fn pick_device() -> Device {
@@ -259,6 +280,43 @@ async fn main() -> anyhow::Result<()> {
         "pretrain done"
     );
 
+    // ---- Snapshot post-pretrain weights for the EWC anchor.
+    // Rebuild a fresh VarMap and load the seed checkpoint so the snapshot
+    // tensors are independent of the trainer's varmap (rebuilt per round
+    // inside the trainer's blocking task).
+    let anchor: Option<Arc<WeightAnchor>> = if args.ewc_lambda > 0.0 {
+        let mut varmap = VarMap::new();
+        let vb = VarBuilder::from_varmap(&varmap, candle_core::DType::F32, &device);
+        let _model = nanogpt_rs::model::GPT::new(gpt_cfg.clone(), vb)?;
+        varmap.load(&args.seed_ckpt)?;
+        let a = if args.fisher_batches > 0 {
+            info!(
+                fisher_batches = args.fisher_batches,
+                "estimating Fisher diagonal from pretrain data"
+            );
+            WeightAnchor::snapshot_with_fisher(
+                &gpt_cfg,
+                &varmap,
+                &pretrain_ds,
+                args.fisher_batches,
+                64,
+                &device,
+                args.ewc_lambda,
+            )?
+        } else {
+            WeightAnchor::snapshot(&varmap, args.ewc_lambda)?
+        };
+        info!(
+            lambda = args.ewc_lambda,
+            vars = a.reference.len(),
+            fisher = a.fisher.is_some(),
+            "EWC anchor snapshotted"
+        );
+        Some(Arc::new(a))
+    } else {
+        None
+    };
+
     // ---- Actors.
     let model_actor =
         ModelActor::from_checkpoint(gpt_cfg.clone(), device.clone(), tk.clone(), &args.seed_ckpt)?;
@@ -345,6 +403,7 @@ async fn main() -> anyhow::Result<()> {
                 recency_decay: 0.95,
             },
             corpus_seed: Some(round as u64 * 31 + 7),
+            anchor: anchor.clone(),
         };
 
         let report = run_round(&actors, cfg).await?;

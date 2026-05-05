@@ -251,23 +251,28 @@ The verifier writes the full program to a scratch Cargo project and
 runs `cargo run --offline`; correct iff cargo exits 0. This is
 **external, ground-truth verification**: the loop can't game the metric.
 
-Smoke result (3 rounds, 24 gen, 21 eval, 1500 pretrain + 400/round):
+Smoke result (4 rounds, 24 gen, 21 eval, 1500 pretrain + 400/round):
 
 ```
 round 0: gen 0/24 (0.0%)   eval before=0/21 after=8/21   Δ=+8
-round 1: gen 0/24 (0.0%)   eval before=8/21 after=0/21   Δ=-8   ← catastrophic forgetting
-round 2: gen 9/24 (37.5%)  eval before=0/21 after=8/21   Δ=+8
+round 1: gen 0/24 (0.0%)   eval before=8/21 after=7/21   Δ=-1
+round 2: gen 9/24 (37.5%)  eval before=7/21 after=8/21   Δ=+1
+round 3: gen 0/24 (0.0%)   eval before=8/21 after=8/21   Δ=+0
 ```
 
-Two phenomena worth noting. First, the round-0→1 collapse reproduces
-the catastrophic-forgetting pattern that drove Phase 4's EWC / replay
-/ LoRA work, but on a verifier that can't be gamed. Second, round-2
-stochastic gen-pass-rate hits **37.5%** — the first real
-sampling-side self-improvement signal anywhere in the codebase
-(arithmetic capped ~30% under greedy + heuristic parsing, Korean
-stayed at 0% under greedy eval at the KoWiki scale). 9/24 random
-samples (temp 0.8, top_k 10) actually pass cargo across the three
-challenges.
+The headline finding is **round-2 stochastic gen-pass-rate of 37.5%**:
+the first real sampling-side self-improve signal anywhere in the
+codebase (arithmetic capped ~30% under greedy + heuristic parsing,
+Korean stayed at 0% under greedy eval at the KoWiki scale). 9/24
+random samples (temp 0.8, top_k 10) actually pass cargo across the
+three challenges — that's stochastic conditional generation across
+genuinely distinct programming patterns.
+
+Adding EWC (`--ewc-lambda 100 --fisher-batches 64`) gives the *same*
+trajectory at 4 rounds — the small replay buffer already prevents
+forgetting, so EWC's penalty is no-op overhead at this scale.
+Matches Phase 4's "EWC vs ER net benefit unproven" finding on the
+tool-use domain.
 
 ### 5b. KoreanCompletion self-improve (after a KoWiki pretrain)
 

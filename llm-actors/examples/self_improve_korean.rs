@@ -331,6 +331,7 @@ async fn main() -> anyhow::Result<()> {
                 recency_decay: 0.95,
             },
             corpus_seed: Some(round as u64 * 31 + 7),
+            anchor: None,
         };
 
         let report = run_round(&actors, cfg).await?;
