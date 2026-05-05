@@ -40,7 +40,7 @@ pub enum NormPosition {
     Post,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GPTConfig {
     pub vocab_size: usize,
     pub block_size: usize,

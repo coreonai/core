@@ -397,3 +397,182 @@ pub fn train_with_teacher(
         last_val_loss,
     })
 }
+
+#[cfg(test)]
+mod cfg_persistence_tests {
+    //! Round-trip tests for the `<ckpt>.cfg.json` sibling that
+    //! `train_from_full` and `train_with_teacher` write next to the
+    //! `.safetensors`. `eval_kowiki`, `self_improve_korean`, and
+    //! `distill_kowiki` all rely on this file to load checkpoints
+    //! whose architecture differs from any of the named presets, so
+    //! a regression here silently breaks those examples.
+    use super::*;
+    use crate::config::{ActivationKind, GPTConfig, NormKind, NormPosition};
+
+    /// 8-vocab / 16-dim toy config — small enough to train a few steps on CPU.
+    fn toy_cfg() -> GPTConfig {
+        GPTConfig {
+            vocab_size: 8,
+            block_size: 4,
+            n_layer: 2,
+            n_head: 2,
+            n_embd: 16,
+            dropout: 0.0,
+            bias: false,
+            ffn_mult: 2,
+            use_rope: false,
+            rope_base: 10_000.0,
+            n_kv_head: 2,
+            n_experts: 1,
+            moe_top_k: 0,
+            moe_aux_weight: 0.0,
+            activation: ActivationKind::Gelu,
+            weight_tying: true,
+            norm_kind: NormKind::LayerNorm,
+            norm_position: NormPosition::Pre,
+            lora_rank: 0,
+            lora_alpha: 16.0,
+        }
+    }
+
+    fn temp_dir(tag: &str) -> std::path::PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("workllm-train-cfg-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        dir
+    }
+
+    fn toy_dataset(cfg: &GPTConfig) -> TokenDataset {
+        // 64 token-ids cycling through the vocab — long enough to allow a few
+        // sliding-window samples at block_size=4.
+        let ids: Vec<u32> = (0..64).map(|i| i % cfg.vocab_size as u32).collect();
+        TokenDataset::new(ids, cfg.block_size)
+    }
+
+    fn tiny_train_cfg() -> TrainConfig {
+        TrainConfig {
+            max_steps: 2,
+            batch_size: 2,
+            eval_interval: 100,
+            eval_iters: 1,
+            lr: 1e-3,
+            min_lr: 1e-4,
+            warmup_steps: 1,
+            weight_decay: 0.0,
+            grad_clip: 1.0,
+            dtype: DType::F32,
+        }
+    }
+
+    #[test]
+    fn train_from_writes_cfg_json_sibling_that_round_trips() {
+        let dir = temp_dir("train-from");
+        let ckpt = dir.join("toy.safetensors");
+        let cfg = toy_cfg();
+        let ds = toy_dataset(&cfg);
+        let device = Device::Cpu;
+
+        train_from(
+            &cfg,
+            &ds,
+            None,
+            &tiny_train_cfg(),
+            &device,
+            Some(&ckpt),
+            None,
+        )
+        .expect("train_from");
+
+        // Both files must exist.
+        assert!(ckpt.exists(), "missing .safetensors at {ckpt:?}");
+        let cfg_path = ckpt.with_extension("cfg.json");
+        assert!(cfg_path.exists(), "missing .cfg.json at {cfg_path:?}");
+
+        // .cfg.json must deserialize back to the exact GPTConfig we passed.
+        let s = std::fs::read_to_string(&cfg_path).expect("read cfg.json");
+        let round: GPTConfig = serde_json::from_str(&s).expect("parse cfg.json");
+        assert_eq!(round, cfg, "cfg.json round-trip mismatch");
+    }
+
+    #[test]
+    fn train_with_teacher_writes_student_cfg_json() {
+        let dir = temp_dir("train-with-teacher");
+        let teacher_ckpt = dir.join("teacher.safetensors");
+        let student_ckpt = dir.join("student.safetensors");
+        let teacher_cfg = toy_cfg();
+        let student_cfg = toy_cfg();
+        let device = Device::Cpu;
+
+        // First train (then save) a teacher so train_with_teacher can load it.
+        let ds = toy_dataset(&teacher_cfg);
+        train_from(
+            &teacher_cfg,
+            &ds,
+            None,
+            &tiny_train_cfg(),
+            &device,
+            Some(&teacher_ckpt),
+            None,
+        )
+        .expect("train teacher");
+
+        // Now distill.
+        let distill = DistillConfig::default();
+        train_with_teacher(
+            &student_cfg,
+            &teacher_cfg,
+            &teacher_ckpt,
+            &ds,
+            None,
+            &tiny_train_cfg(),
+            &distill,
+            &device,
+            Some(&student_ckpt),
+            None,
+        )
+        .expect("train_with_teacher");
+
+        // Both student artifacts must exist.
+        assert!(student_ckpt.exists(), "missing student.safetensors");
+        let student_cfg_path = student_ckpt.with_extension("cfg.json");
+        assert!(
+            student_cfg_path.exists(),
+            "missing student.cfg.json at {student_cfg_path:?} — the K8 eval flow \
+             relies on this file to know the student's architecture"
+        );
+
+        // The persisted cfg must be the STUDENT's, not the teacher's.
+        let s = std::fs::read_to_string(&student_cfg_path).expect("read");
+        let round: GPTConfig = serde_json::from_str(&s).expect("parse");
+        assert_eq!(round, student_cfg);
+    }
+
+    #[test]
+    fn save_path_with_no_extension_still_writes_cfg_json() {
+        // `path.with_extension("cfg.json")` does the right thing even if the
+        // input has no extension — `eval_kowiki` callers occasionally pass
+        // "checkpoints/foo" without `.safetensors`. Lock in this contract.
+        let dir = temp_dir("no-ext");
+        let ckpt = dir.join("toy"); // no .safetensors
+        let cfg = toy_cfg();
+        let ds = toy_dataset(&cfg);
+
+        train_from(
+            &cfg,
+            &ds,
+            None,
+            &tiny_train_cfg(),
+            &Device::Cpu,
+            Some(&ckpt),
+            None,
+        )
+        .expect("train_from");
+
+        let cfg_path = ckpt.with_extension("cfg.json");
+        assert!(
+            cfg_path.exists(),
+            "expected cfg.json next to extensionless save path"
+        );
+    }
+}

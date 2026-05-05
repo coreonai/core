@@ -195,9 +195,9 @@ in-domain compression, HF wins on coverage).
 
 ## Testing strategy
 
-- 63 unit tests are exhaustive on what's deterministic (parsing,
+- 69 unit tests are exhaustive on what's deterministic (parsing,
   domain verification, evolution operators, EWC penalty math, LoRA
-  output shape).
+  output shape, RustCodeDomain dispatch, cfg.json round-trip).
 - Integration validation is via the worked-out examples in
   `nanogpt-rs/examples/` and `llm-actors/examples/`. Each example
   asserts something concrete (correct count, non-zero gradient, etc.).
