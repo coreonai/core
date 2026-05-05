@@ -565,22 +565,40 @@ correct from incorrect because the *model itself* doesn't know
 arithmetic well enough — harvest pass-rate is 7.8%, near the random
 baseline of ~9% (1 of ~11 plausible digits).
 
-**Refined claim about Shape C** (updates Phase 6's framing):
+**Refined claim about Shape C** (Phase 7 S2 falsifier test
+overturned the initial S1 framing):
 
-> Shape C **amplifies existing model competence**; it doesn't
-> *create* it. When the base model is genuinely at random-baseline
-> on the task (no internal signal that distinguishes correct from
-> incorrect), the LogitCritic has no signal to filter. K9
-> RustCode's 19% harvest pass-rate (twice random) was already
-> evidence the model knew its slot space; Shape C extracted that
-> latent knowledge into selection. Arithmetic's 7.8% says the
-> model doesn't know — and a critic built on that ignorance just
-> ranks ignorance.
+Phase 7 S2 swept pretrain budget (800 → 10000 steps) and measured
+both AUC and harvest pass rate at each:
 
-Practical implication: Shape C should be treated as a **post-
-training compute amplifier**, not a substitute for proper task
-training. Apply it on top of a model that's already shown
-≥ ~2× chance pass rate on the verifier.
+| Pretrain | Pass rate | Mean AUC | **Sum AUC** | Verdict |
+|---------:|----------:|---------:|------------:|:--------|
+|     800  |     7.6%  |   0.445  |    0.545    | FAIL both |
+|    2000  |     8.6%  |   0.509  |    0.581    | FAIL both |
+|    5000  |     9.8%  |   0.564  |  **0.632**  | **PASS sum** |
+|   10000  |     9.9%  |   0.569  |    0.658    | PASS sum |
+
+The S1 claim was that Shape C needs ≥ 2× chance pass rate. S2
+falsifies that: pass rate stays at chance baseline (~9%) across
+12.5× compute, but **sum log-prob AUC crosses 0.6 by 5000 pretrain
+steps**. The model's *accuracy* plateaus while its *confidence
+calibration* keeps improving.
+
+Corrected framing:
+
+> Shape C-**sum** requires sufficient *confidence calibration* in
+> the base model, not necessarily task accuracy. A model stuck at
+> chance pass rate can still develop reliable confidence ranking
+> with more pretraining. Shape C-**mean** is a different story —
+> on length-varying domains its short-bias is fatal at any
+> pretrain budget.
+
+Practical:
+- **Length-varying domains** (Arithmetic, Korean, math): use sum.
+- **Length-uniform domains** (K9 slot-fill): mean ≈ sum, either works.
+- **Acceptance gate**: measure sum-AUC on a held-out harvest;
+  apply Shape C iff sum-AUC ≥ 0.6.
+- Pass rate is informative but not deciding — calibration matters more.
 
 ## Phase 6 Session 1-C — Adversarial critic (Shape C, scaffolding only)
 
