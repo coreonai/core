@@ -66,3 +66,8 @@ required-features = []
 name = "serve_inference"
 path = "examples/serve_inference.rs"
 required-features = []
+
+[[example]]
+name = "self_improve_korean"
+path = "examples/self_improve_korean.rs"
+required-features = []

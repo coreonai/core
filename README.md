@@ -232,6 +232,33 @@ verified ones, and the trainer fine-tunes with EWC + replay mixing
 real Fisher EWC; LoRA r=8 gives perfect stability (Δ=0) at the cost of
 learning capacity.
 
+### 5b. KoreanCompletion self-improve (after a KoWiki pretrain)
+
+```bash
+cargo run -p llm-actors --example self_improve_korean --features cuda --release -- \
+    --init checkpoints/kowiki_50m_30k.safetensors \
+    --tokenizer data/kowiki/kowiki_bpe.json \
+    --corpus data/kowiki/kowiki_clean.txt \
+    --rounds 3 --gen-n 64 --eval-n 32
+```
+
+The Korean analogue of example 5: Phase-3-Llama-recipe 50M model
+(loaded from a `train_kowiki` checkpoint) runs the
+Gen → Verify → Curate → Train → Reload → Eval loop with the
+`KoreanCompletionDomain` heuristic verifier (Hangul + Korean
+sentence-ending + length window). The curator is seeded from KoWiki
+itself: lines that already pass the heuristic become the round-0
+training corpus.
+
+At the K8 30K-step checkpoint scale (val_loss 7.43), the smoke run
+shows a real **generation-phase signal** (gen pass-rate 0% → 6.2%
+after one round) but **eval-phase still 0/16** because greedy decode
+collapses on a high-loss model. The eval metric becomes informative
+once the underlying KM has reached fluent-Korean territory —
+likely ~150–300M params or much more diverse data. Until then, the
+generation Δ is the honest indicator. See the docstring at the top
+of `examples/self_improve_korean.rs` for the full caveat.
+
 ### 6. HTTP-fronted inference server
 
 ```bash
