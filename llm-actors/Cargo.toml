@@ -101,3 +101,8 @@ required-features = []
 name = "critic_baseline_python"
 path = "examples/critic_baseline_python.rs"
 required-features = []
+
+[[example]]
+name = "critic_baseline_multi_assert"
+path = "examples/critic_baseline_multi_assert.rs"
+required-features = []

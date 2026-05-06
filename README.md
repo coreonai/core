@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**96 unit tests, 18 worked examples, 11 phases (Phase 5/6/7 done; Phase 8 S1+S2: Shape C playbook on Korean + Python). Phase 7 + 8 4-domain matrix: K9 Rust deploy (1.22×), Python AUC PASS but selection no-op (high-pass-rate outlier ceiling), Arithmetic threshold-dependent, Korean anti-calibrated. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**96 unit tests, 19 worked examples, 11 phases + Phase 5/6/7/8/9 sessions. Phase 9 S3 multi-assert hits matrix's best F=4 lift (1.32×). Phase 9 S2 falsifies Phase 7 S2's "more pretrain = better calibration" claim — K8 Korean 100K is *more* anti-calibrated than 30K (sum-AUC 0.363 → 0.307). 5-domain matrix maps the 5–15% pass-rate selection sweet spot. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -99,7 +99,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**96 unit tests, 18 worked examples, 11 phases + Phase 5/6/7/8 sessions. See the run-order list below.**
+**96 unit tests, 19 worked examples, 11 phases + Phase 5/6/7/8/9 sessions. See the run-order list below.**
 
 ## What it does
 

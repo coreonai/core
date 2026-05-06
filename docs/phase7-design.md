@@ -162,6 +162,32 @@ verifier-V and domain-D:
    pass 35.6%, AUC 0.848, F=4 lift 1.00×. Higher AUC but no
    improvement in expected pass-per-cargo-call.
 
+9. **NEW: More pretrain can WORSEN calibration on multi-epoch
+   regimes** (Phase 9 S2 measurement on K8 100K vs 30K Korean).
+   Phase 7 S2's headline ("calibration improves with pretrain
+   even when accuracy plateaus") was measured on char-level
+   Arithmetic with a small finite (a,b) corpus — multi-epoch
+   reinforced the (a,b)→a+b distribution. Phase 9 S2 measured
+   the opposite direction on BPE Korean: K8 100K (val_loss 7.44,
+   ~6 epochs over 21M unique tokens) has sum-AUC **0.307**,
+   *worse* than K8 30K's 0.363. The same model on the same data
+   with more steps developed *deeper* anti-calibration (mode
+   collapse onto `\n` repetition strengthened).
+
+   Why Phase 7 S2 vs Phase 9 S2 disagree: data uniqueness × epochs.
+   - Arithmetic: 100 unique pairs, multi-epoch is *necessary*
+     to memorize the table. Calibration tracks accuracy.
+   - KoWiki: 21M unique tokens, multi-epoch is *over-fitting*
+     into the empirical token-frequency mode (heavily-weighted
+     `\n` and common particles). Calibration drifts away from
+     verifier-aligned distribution.
+
+   Updated rule: **measure, don't assume.** Pretrain budget is
+   not always net-positive for calibration. Re-measure sum-AUC
+   at intervals during training; if it drops, the run is
+   over-fitting in a way that hurts Shape C even though val_loss
+   is stable.
+
    Mechanism: at high pass rate, random sampling already finds
    correct candidates often. The critic can only beat random if
    the ranking is *qualitative* enough at the top tail to avoid
