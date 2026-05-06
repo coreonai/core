@@ -1,0 +1,251 @@
+{
+  "model": "Qwen/Qwen2.5-Coder-0.5B",
+  "rounds": 3,
+  "samples": 8,
+  "lora_r": 16,
+  "lora_alpha": 32,
+  "train_steps": 60,
+  "lr": 0.0002,
+  "history": [
+    {
+      "label": "round-0",
+      "n": 88,
+      "n_pass": 35,
+      "pass_rate": 0.3977272727272727,
+      "F2_rand": 0.3890909090909091,
+      "F2_crit": 0.3709090909090909,
+      "F4_rand": 0.3845454545454545,
+      "F4_crit": 0.31272727272727274,
+      "F4_lift": 0.8132387706855793,
+      "F8_rand": 0.38545454545454544,
+      "F8_crit": 0.2727272727272727,
+      "F8_lift": 0.7075471698113207,
+      "per_challenge": {
+        "equals_5": {
+          "pass": 1,
+          "total": 8
+        },
+        "equals_14_via_doubling": {
+          "pass": 0,
+          "total": 8
+        },
+        "len_5_string": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_plus_to_5": {
+          "pass": 3,
+          "total": 8
+        },
+        "ten_minus_to_3": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_pow_to_8": {
+          "pass": 2,
+          "total": 8
+        },
+        "is_even": {
+          "pass": 7,
+          "total": 8
+        },
+        "list_sum": {
+          "pass": 4,
+          "total": 8
+        },
+        "is_positive": {
+          "pass": 8,
+          "total": 8
+        },
+        "count_chars": {
+          "pass": 2,
+          "total": 8
+        },
+        "double_it": {
+          "pass": 8,
+          "total": 8
+        }
+      }
+    },
+    {
+      "label": "round-1",
+      "n": 88,
+      "n_pass": 64,
+      "pass_rate": 0.7272727272727273,
+      "F2_rand": 0.7272727272727273,
+      "F2_crit": 0.7272727272727273,
+      "F4_rand": 0.7272727272727273,
+      "F4_crit": 0.7272727272727273,
+      "F4_lift": 1.0,
+      "F8_rand": 0.7272727272727273,
+      "F8_crit": 0.7272727272727273,
+      "F8_lift": 1.0,
+      "per_challenge": {
+        "equals_5": {
+          "pass": 8,
+          "total": 8
+        },
+        "equals_14_via_doubling": {
+          "pass": 0,
+          "total": 8
+        },
+        "len_5_string": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_plus_to_5": {
+          "pass": 8,
+          "total": 8
+        },
+        "ten_minus_to_3": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_pow_to_8": {
+          "pass": 8,
+          "total": 8
+        },
+        "is_even": {
+          "pass": 8,
+          "total": 8
+        },
+        "list_sum": {
+          "pass": 8,
+          "total": 8
+        },
+        "is_positive": {
+          "pass": 8,
+          "total": 8
+        },
+        "count_chars": {
+          "pass": 8,
+          "total": 8
+        },
+        "double_it": {
+          "pass": 8,
+          "total": 8
+        }
+      }
+    },
+    {
+      "label": "round-2",
+      "n": 88,
+      "n_pass": 64,
+      "pass_rate": 0.7272727272727273,
+      "F2_rand": 0.7272727272727273,
+      "F2_crit": 0.7272727272727273,
+      "F4_rand": 0.7272727272727273,
+      "F4_crit": 0.7272727272727273,
+      "F4_lift": 1.0,
+      "F8_rand": 0.7272727272727273,
+      "F8_crit": 0.7272727272727273,
+      "F8_lift": 1.0,
+      "per_challenge": {
+        "equals_5": {
+          "pass": 8,
+          "total": 8
+        },
+        "equals_14_via_doubling": {
+          "pass": 0,
+          "total": 8
+        },
+        "len_5_string": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_plus_to_5": {
+          "pass": 8,
+          "total": 8
+        },
+        "ten_minus_to_3": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_pow_to_8": {
+          "pass": 8,
+          "total": 8
+        },
+        "is_even": {
+          "pass": 8,
+          "total": 8
+        },
+        "list_sum": {
+          "pass": 8,
+          "total": 8
+        },
+        "is_positive": {
+          "pass": 8,
+          "total": 8
+        },
+        "count_chars": {
+          "pass": 8,
+          "total": 8
+        },
+        "double_it": {
+          "pass": 8,
+          "total": 8
+        }
+      }
+    },
+    {
+      "label": "final-3",
+      "n": 88,
+      "n_pass": 64,
+      "pass_rate": 0.7272727272727273,
+      "F2_rand": 0.7272727272727273,
+      "F2_crit": 0.7272727272727273,
+      "F4_rand": 0.7272727272727273,
+      "F4_crit": 0.7272727272727273,
+      "F4_lift": 1.0,
+      "F8_rand": 0.7272727272727273,
+      "F8_crit": 0.7272727272727273,
+      "F8_lift": 1.0,
+      "per_challenge": {
+        "equals_5": {
+          "pass": 8,
+          "total": 8
+        },
+        "equals_14_via_doubling": {
+          "pass": 0,
+          "total": 8
+        },
+        "len_5_string": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_plus_to_5": {
+          "pass": 8,
+          "total": 8
+        },
+        "ten_minus_to_3": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_pow_to_8": {
+          "pass": 8,
+          "total": 8
+        },
+        "is_even": {
+          "pass": 8,
+          "total": 8
+        },
+        "list_sum": {
+          "pass": 8,
+          "total": 8
+        },
+        "is_positive": {
+          "pass": 8,
+          "total": 8
+        },
+        "count_chars": {
+          "pass": 8,
+          "total": 8
+        },
+        "double_it": {
+          "pass": 8,
+          "total": 8
+        }
+      }
+    }
+  ]
+}

@@ -230,6 +230,32 @@ verifier-V and domain-D:
     `scripts/phase9_s4/` for the harvest+analyze scripts that
     reproduce the measurement on any HF model.
 
+11. **NEW: Cold-start dominates the per-challenge fate** (Phase 9
+    S5 measurement). End-to-end self-improve loop on
+    Qwen2.5-Coder-0.5B + LoRA on 11 challenges (6 S4 slot-fill +
+    5 HumanEval-style function bodies) saturated in **1 round**:
+    pass rate 39.8% → 72.7% (+33 pp). 8 of 11 challenges hit 100%.
+    The 3 that never improved had **0 verifier-passed samples in
+    round 0**; LoRA on the other 8's pairs did not transfer.
+
+    Implication: per-challenge self-improvability is gated by
+    whether the base model produces *any* passing seed at round 0.
+    Below the seed threshold, more rounds, more LoRA capacity, and
+    larger critic budgets all do nothing — the loop is starved.
+
+    Mitigations (when round-0 pass rate per challenge is 0):
+    - Curriculum: introduce an easier variant of the same task
+      first (e.g., `assert f() == 5` with `def f(): return ` is
+      reachable; `assert f() == 14` with `def f(): return 2 * (`
+      requires the rare `7)` token, was unreachable here).
+    - Few-shot: prepend one solved example to the prompt.
+    - Bootstrap injection: add one hand-written ground-truth
+      (prompt, completion) into round-0 training set.
+    - Skip Shape C for that challenge — the loop cannot fix it.
+
+    See `scripts/phase9_s5/` for the loop, run.json results, and
+    per-challenge breakdown.
+
 ## What "Phase 7 done" means
 
 Phase 7 is a consolidation phase, not an implementation phase. Its
