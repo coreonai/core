@@ -210,6 +210,26 @@ verifier-V and domain-D:
    decision: only integrate Shape C if F=2 or F=4 lift ≥ 1.10×
    on a held-out sample. AUC alone misses the outlier-ceiling case.
 
+10. **NEW: External-scale validation (Phase 9 S4 measurement on
+    Qwen2.5-Coder-0.5B / 1.5B).** The decision tree carries to a
+    real HF model with its own BPE: 0.5B-Coder lands sum-AUC 0.702,
+    F=8 lift **1.95×** (strongest in the matrix). 1.5B-Coder on the
+    same six challenges drops to sum-AUC 0.474, F≥2 lift below 1.0.
+
+    This is the same direction as risk #9: a *bigger* / more-trained
+    model can be **worse** for Shape C because priors over-fit to
+    common patterns (`s = 0`, `return 1`) at the expense of rare
+    verifier-aligned completions (`"hello"`, `5`). The mean-vs-sum
+    split also holds — mean-AUC is at chance (0.502) on
+    length-varying slot completions; only sum captures the signal.
+
+    Operational implication: **always smoke-test a candidate model
+    before deploying Shape C, regardless of nominal scale.** A
+    smaller, less-confident base model can be a better Shape C
+    target than a larger fine-tuned one. See
+    `scripts/phase9_s4/` for the harvest+analyze scripts that
+    reproduce the measurement on any HF model.
+
 ## What "Phase 7 done" means
 
 Phase 7 is a consolidation phase, not an implementation phase. Its

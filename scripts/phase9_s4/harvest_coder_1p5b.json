@@ -1,0 +1,1742 @@
+{
+  "model": "Qwen/Qwen2.5-Coder-1.5B",
+  "samples_per_prompt": 32,
+  "challenges": [
+    "equals_5",
+    "equals_14_via_doubling",
+    "len_5_string",
+    "two_plus_to_5",
+    "ten_minus_to_3",
+    "two_pow_to_8"
+  ],
+  "samples": [
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.4845091104507446,
+      "mean_logp": -0.7422545552253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.4845091104507446,
+      "mean_logp": -0.7422545552253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1, 2",
+      "n_tokens": 5,
+      "sum_logp": -4.689889550209045,
+      "mean_logp": -0.9379779100418091,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1, 2, 3",
+      "n_tokens": 8,
+      "sum_logp": -4.26244130730629,
+      "mean_logp": -0.5328051634132862,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "10",
+      "n_tokens": 3,
+      "sum_logp": -3.6125515699386597,
+      "mean_logp": -1.20418385664622,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "5",
+      "n_tokens": 2,
+      "sum_logp": -3.996403932571411,
+      "mean_logp": -1.9982019662857056,
+      "verdict": true
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -4.350801706314087,
+      "mean_logp": -2.1754008531570435,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.4845091104507446,
+      "mean_logp": -0.7422545552253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.3868528604507446,
+      "mean_logp": -0.6934264302253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "2",
+      "n_tokens": 2,
+      "sum_logp": -4.04786479473114,
+      "mean_logp": -2.02393239736557,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1,2,3",
+      "n_tokens": 6,
+      "sum_logp": -4.999378576874733,
+      "mean_logp": -0.8332297628124555,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.3868528604507446,
+      "mean_logp": -0.6934264302253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.4845091104507446,
+      "mean_logp": -0.7422545552253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -2.226696729660034,
+      "mean_logp": -1.113348364830017,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -2.226696729660034,
+      "mean_logp": -1.113348364830017,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "42",
+      "n_tokens": 3,
+      "sum_logp": -5.397587418556213,
+      "mean_logp": -1.7991958061854045,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "5",
+      "n_tokens": 2,
+      "sum_logp": -5.090153932571411,
+      "mean_logp": -2.5450769662857056,
+      "verdict": true
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -2.226696729660034,
+      "mean_logp": -1.113348364830017,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.4845091104507446,
+      "mean_logp": -0.7422545552253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.3868528604507446,
+      "mean_logp": -0.6934264302253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.4845091104507446,
+      "mean_logp": -0.7422545552253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1, 2",
+      "n_tokens": 5,
+      "sum_logp": -4.689889550209045,
+      "mean_logp": -0.9379779100418091,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "123",
+      "n_tokens": 4,
+      "sum_logp": -5.038690984249115,
+      "mean_logp": -1.2596727460622787,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.3868528604507446,
+      "mean_logp": -0.6934264302253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.3868528604507446,
+      "mean_logp": -0.6934264302253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.3868528604507446,
+      "mean_logp": -0.6934264302253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -4.311739206314087,
+      "mean_logp": -2.1558696031570435,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.3868528604507446,
+      "mean_logp": -0.6934264302253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -4.350801706314087,
+      "mean_logp": -2.1754008531570435,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "2",
+      "n_tokens": 2,
+      "sum_logp": -4.04786479473114,
+      "mean_logp": -2.02393239736557,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.4845091104507446,
+      "mean_logp": -0.7422545552253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_5",
+      "prompt": "def f():\n    return ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -1.3868528604507446,
+      "mean_logp": -0.6934264302253723,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "10 / 5)",
+      "n_tokens": 6,
+      "sum_logp": -7.965202689170837,
+      "mean_logp": -1.327533781528473,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "5 + 10 ** 2) + 3",
+      "n_tokens": 13,
+      "sum_logp": -15.411830857396126,
+      "mean_logp": -1.1855254505689328,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "1, 2, 3)",
+      "n_tokens": 8,
+      "sum_logp": -7.17348675429821,
+      "mean_logp": -0.8966858442872763,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "1 + 2)",
+      "n_tokens": 6,
+      "sum_logp": -4.450906157493591,
+      "mean_logp": -0.7418176929155985,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "1 + 2)",
+      "n_tokens": 5,
+      "sum_logp": -3.845504105091095,
+      "mean_logp": -0.769100821018219,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "2 + 4)",
+      "n_tokens": 5,
+      "sum_logp": -6.807503819465637,
+      "mean_logp": -1.3615007638931274,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "4 + 2)",
+      "n_tokens": 5,
+      "sum_logp": -7.044355273246765,
+      "mean_logp": -1.408871054649353,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "1 + 3)",
+      "n_tokens": 5,
+      "sum_logp": -5.13831090927124,
+      "mean_logp": -1.027662181854248,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "x + 1)",
+      "n_tokens": 6,
+      "sum_logp": -5.715373307466507,
+      "mean_logp": -0.9525622179110845,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "7 ** 4) - 3",
+      "n_tokens": 9,
+      "sum_logp": -15.980140052735806,
+      "mean_logp": -1.775571116970645,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "13 ** 2)",
+      "n_tokens": 6,
+      "sum_logp": -11.394580334424973,
+      "mean_logp": -1.8990967224041622,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "5 + 3)",
+      "n_tokens": 5,
+      "sum_logp": -6.199510365724564,
+      "mean_logp": -1.2399020731449126,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "a + b) ** 2 - (3 * (a + b) + 2) ** 3",
+      "n_tokens": 24,
+      "sum_logp": -23.34275610744953,
+      "mean_logp": -0.9726148378103971,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "x + 1) - 1",
+      "n_tokens": 9,
+      "sum_logp": -9.366373181343079,
+      "mean_logp": -1.0407081312603421,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "2 / 4) ** 3",
+      "n_tokens": 9,
+      "sum_logp": -13.761934533715248,
+      "mean_logp": -1.529103837079472,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "4 + 5 * 7)",
+      "n_tokens": 9,
+      "sum_logp": -12.695601612329483,
+      "mean_logp": -1.4106224013699427,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "2 * 2)",
+      "n_tokens": 6,
+      "sum_logp": -7.4506794810295105,
+      "mean_logp": -1.2417799135049183,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "input('Enter a number: '))",
+      "n_tokens": 8,
+      "sum_logp": -9.023169003427029,
+      "mean_logp": -1.1278961254283786,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "10 * 15)",
+      "n_tokens": 8,
+      "sum_logp": -13.242904238402843,
+      "mean_logp": -1.6553630298003554,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "5 + 2 * 3)",
+      "n_tokens": 9,
+      "sum_logp": -10.565244987607002,
+      "mean_logp": -1.1739161097341113,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "3 + 4) ** 2",
+      "n_tokens": 9,
+      "sum_logp": -8.335110604763031,
+      "mean_logp": -0.9261234005292257,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "5 + 5)",
+      "n_tokens": 5,
+      "sum_logp": -7.05471733212471,
+      "mean_logp": -1.410943466424942,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "x ** 2 - y) + 3 * z + 4",
+      "n_tokens": 16,
+      "sum_logp": -20.548695653676987,
+      "mean_logp": -1.2842934783548117,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "1 + 2)",
+      "n_tokens": 6,
+      "sum_logp": -4.450906157493591,
+      "mean_logp": -0.7418176929155985,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "1 + (1 + 2) ** 0.5) + 1 + (1 + (1 +",
+      "n_tokens": 24,
+      "sum_logp": -23.425320889800787,
+      "mean_logp": -0.9760550370750328,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "10/4)",
+      "n_tokens": 5,
+      "sum_logp": -11.304861187934875,
+      "mean_logp": -2.260972237586975,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "x + 2) ** 2 + 5 - 2",
+      "n_tokens": 15,
+      "sum_logp": -18.669374361634254,
+      "mean_logp": -1.2446249574422836,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "2 ** 2)",
+      "n_tokens": 6,
+      "sum_logp": -6.474331736564636,
+      "mean_logp": -1.0790552894274394,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "2 + 3) * 5",
+      "n_tokens": 9,
+      "sum_logp": -9.715194568037987,
+      "mean_logp": -1.0794660631153319,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "2 ** 2)",
+      "n_tokens": 5,
+      "sum_logp": -6.500420331954956,
+      "mean_logp": -1.3000840663909912,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "1 + 10)",
+      "n_tokens": 6,
+      "sum_logp": -9.032991886138916,
+      "mean_logp": -1.5054986476898193,
+      "verdict": false
+    },
+    {
+      "challenge": "equals_14_via_doubling",
+      "prompt": "def f():\n    return 2 * (",
+      "completion": "x + 1)",
+      "n_tokens": 5,
+      "sum_logp": -4.914136677980423,
+      "mean_logp": -0.9828273355960846,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0\r",
+      "n_tokens": 3,
+      "sum_logp": -4.111648440361023,
+      "mean_logp": -1.370549480120341,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "123.4567",
+      "n_tokens": 9,
+      "sum_logp": -10.554346740245819,
+      "mean_logp": -1.1727051933606465,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0\r",
+      "n_tokens": 2,
+      "sum_logp": -2.373367190361023,
+      "mean_logp": -1.1866835951805115,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0\r",
+      "n_tokens": 2,
+      "sum_logp": -2.373367190361023,
+      "mean_logp": -1.1866835951805115,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "len_5_string",
+      "prompt": "s = ",
+      "completion": "0",
+      "n_tokens": 2,
+      "sum_logp": -0.16633600741624832,
+      "mean_logp": -0.08316800370812416,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "4j",
+      "n_tokens": 3,
+      "sum_logp": -6.394889265298843,
+      "mean_logp": -2.1316297550996146,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "2",
+      "n_tokens": 2,
+      "sum_logp": -1.3127853274345398,
+      "mean_logp": -0.6563926637172699,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3 * 4",
+      "n_tokens": 5,
+      "sum_logp": -1.676512598991394,
+      "mean_logp": -0.3353025197982788,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "2 * 2 #This will not be executed, because in python there is an higher precedence to * and + then",
+      "n_tokens": 24,
+      "sum_logp": -49.46161360293627,
+      "mean_logp": -2.060900566789011,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "2 * 2",
+      "n_tokens": 5,
+      "sum_logp": -3.514207787811756,
+      "mean_logp": -0.7028415575623512,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -2.246310830116272,
+      "mean_logp": -1.123155415058136,
+      "verdict": true
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -2.246310830116272,
+      "mean_logp": -1.123155415058136,
+      "verdict": true
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "2",
+      "n_tokens": 2,
+      "sum_logp": -1.3127853274345398,
+      "mean_logp": -0.6563926637172699,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "2",
+      "n_tokens": 2,
+      "sum_logp": -1.3127853274345398,
+      "mean_logp": -0.6563926637172699,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3 * 4 / 5 + 6",
+      "n_tokens": 11,
+      "sum_logp": -7.7131029069423676,
+      "mean_logp": -0.7011911733583971,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3 * 4 / 5 ** 6",
+      "n_tokens": 11,
+      "sum_logp": -5.375574141740799,
+      "mean_logp": -0.48868855834007263,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -2.246310830116272,
+      "mean_logp": -1.123155415058136,
+      "verdict": true
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3 ** 2 // 4",
+      "n_tokens": 8,
+      "sum_logp": -8.408867195248604,
+      "mean_logp": -1.0511083994060755,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -2.246310830116272,
+      "mean_logp": -1.123155415058136,
+      "verdict": true
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "2",
+      "n_tokens": 2,
+      "sum_logp": -1.3127853274345398,
+      "mean_logp": -0.6563926637172699,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "2",
+      "n_tokens": 2,
+      "sum_logp": -1.3127853274345398,
+      "mean_logp": -0.6563926637172699,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "1",
+      "n_tokens": 2,
+      "sum_logp": -4.091498017311096,
+      "mean_logp": -2.045749008655548,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "2",
+      "n_tokens": 2,
+      "sum_logp": -1.3127853274345398,
+      "mean_logp": -0.6563926637172699,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "12",
+      "n_tokens": 3,
+      "sum_logp": -7.757290601730347,
+      "mean_logp": -2.5857635339101157,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3 * 4",
+      "n_tokens": 5,
+      "sum_logp": -1.676512598991394,
+      "mean_logp": -0.3353025197982788,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3 * 5",
+      "n_tokens": 5,
+      "sum_logp": -3.5701727271080017,
+      "mean_logp": -0.7140345454216004,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3 * 4",
+      "n_tokens": 5,
+      "sum_logp": -1.676512598991394,
+      "mean_logp": -0.3353025197982788,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "2",
+      "n_tokens": 2,
+      "sum_logp": -1.3127853274345398,
+      "mean_logp": -0.6563926637172699,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3 * 4 - 7 / 2",
+      "n_tokens": 11,
+      "sum_logp": -6.905336380004883,
+      "mean_logp": -0.6277578527277167,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3 * 4",
+      "n_tokens": 5,
+      "sum_logp": -1.676512598991394,
+      "mean_logp": -0.3353025197982788,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3 * 4 + 5 # 23\r",
+      "n_tokens": 12,
+      "sum_logp": -11.662141129374504,
+      "mean_logp": -0.971845094114542,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "2\r\n\r",
+      "n_tokens": 2,
+      "sum_logp": -5.570598006248474,
+      "mean_logp": -2.785299003124237,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "1  # 3",
+      "n_tokens": 6,
+      "sum_logp": -6.014927834272385,
+      "mean_logp": -1.0024879723787308,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3 * 4",
+      "n_tokens": 5,
+      "sum_logp": -1.676512598991394,
+      "mean_logp": -0.3353025197982788,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "3 * 4",
+      "n_tokens": 5,
+      "sum_logp": -1.676512598991394,
+      "mean_logp": -0.3353025197982788,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "10 * (3-1)/(2-1)",
+      "n_tokens": 13,
+      "sum_logp": -10.804349228739738,
+      "mean_logp": -0.8311037868261337,
+      "verdict": false
+    },
+    {
+      "challenge": "two_plus_to_5",
+      "prompt": "x = 2 + ",
+      "completion": "2",
+      "n_tokens": 2,
+      "sum_logp": -1.3127853274345398,
+      "mean_logp": -0.6563926637172699,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "5.5",
+      "n_tokens": 4,
+      "sum_logp": -5.314012721180916,
+      "mean_logp": -1.328503180295229,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "12",
+      "n_tokens": 3,
+      "sum_logp": -5.2620514035224915,
+      "mean_logp": -1.754017134507497,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "3 * 2",
+      "n_tokens": 5,
+      "sum_logp": -3.882331006228924,
+      "mean_logp": -0.7764662012457848,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "5 * 2",
+      "n_tokens": 5,
+      "sum_logp": -3.5702967643737793,
+      "mean_logp": -0.7140593528747559,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "5",
+      "n_tokens": 2,
+      "sum_logp": -1.8799983263015747,
+      "mean_logp": -0.9399991631507874,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "5*2",
+      "n_tokens": 4,
+      "sum_logp": -5.603414058685303,
+      "mean_logp": -1.4008535146713257,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "10 - 10",
+      "n_tokens": 7,
+      "sum_logp": -7.536733649671078,
+      "mean_logp": -1.0766762356672968,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "12",
+      "n_tokens": 3,
+      "sum_logp": -5.2620514035224915,
+      "mean_logp": -1.754017134507497,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "3 * 2",
+      "n_tokens": 5,
+      "sum_logp": -3.882331006228924,
+      "mean_logp": -0.7764662012457848,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "4 - 2 + 5 - 1 - 7",
+      "n_tokens": 14,
+      "sum_logp": -20.977024495601654,
+      "mean_logp": -1.4983588925429754,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "10",
+      "n_tokens": 3,
+      "sum_logp": -3.220746397972107,
+      "mean_logp": -1.073582132657369,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "5 > 5 + 2",
+      "n_tokens": 8,
+      "sum_logp": -10.319293409585953,
+      "mean_logp": -1.289911676198244,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "10 / 5 * 3 + 2",
+      "n_tokens": 12,
+      "sum_logp": -6.89598024636507,
+      "mean_logp": -0.5746650205304226,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "3.5",
+      "n_tokens": 4,
+      "sum_logp": -7.5600336492061615,
+      "mean_logp": -1.8900084123015404,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "7\r",
+      "n_tokens": 3,
+      "sum_logp": -7.970659255981445,
+      "mean_logp": -2.656886418660482,
+      "verdict": true
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "2 * 3",
+      "n_tokens": 5,
+      "sum_logp": -3.2305056750774384,
+      "mean_logp": -0.6461011350154877,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "2*3",
+      "n_tokens": 4,
+      "sum_logp": -6.8261494636535645,
+      "mean_logp": -1.7065373659133911,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -2.8827820420265198,
+      "mean_logp": -1.4413910210132599,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -2.8827820420265198,
+      "mean_logp": -1.4413910210132599,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "5",
+      "n_tokens": 2,
+      "sum_logp": -1.8799983263015747,
+      "mean_logp": -0.9399991631507874,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "5",
+      "n_tokens": 2,
+      "sum_logp": -1.8799983263015747,
+      "mean_logp": -0.9399991631507874,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "5  # subtrai 5 do 10, o resultado ser\u00e1 5",
+      "n_tokens": 19,
+      "sum_logp": -18.343635324388742,
+      "mean_logp": -0.9654544907573023,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "2\r",
+      "n_tokens": 2,
+      "sum_logp": -4.755430817604065,
+      "mean_logp": -2.3777154088020325,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "3 * 2",
+      "n_tokens": 5,
+      "sum_logp": -3.882331006228924,
+      "mean_logp": -0.7764662012457848,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "6",
+      "n_tokens": 2,
+      "sum_logp": -4.013313949108124,
+      "mean_logp": -2.006656974554062,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "5",
+      "n_tokens": 2,
+      "sum_logp": -1.8799983263015747,
+      "mean_logp": -0.9399991631507874,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "2 * 3",
+      "n_tokens": 5,
+      "sum_logp": -3.2305056750774384,
+      "mean_logp": -0.6461011350154877,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "2 * 3\r\n\r",
+      "n_tokens": 5,
+      "sum_logp": -7.312536805868149,
+      "mean_logp": -1.4625073611736297,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -2.8827820420265198,
+      "mean_logp": -1.4413910210132599,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "100 + 20 + 100",
+      "n_tokens": 13,
+      "sum_logp": -14.193770676851273,
+      "mean_logp": -1.091828513603944,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "5 * 2 + 10",
+      "n_tokens": 9,
+      "sum_logp": -6.9068683087825775,
+      "mean_logp": -0.767429812086953,
+      "verdict": false
+    },
+    {
+      "challenge": "ten_minus_to_3",
+      "prompt": "x = 10 - ",
+      "completion": "3.5",
+      "n_tokens": 4,
+      "sum_logp": -5.450658559799194,
+      "mean_logp": -1.3626646399497986,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "100",
+      "n_tokens": 4,
+      "sum_logp": -4.089989587664604,
+      "mean_logp": -1.022497396916151,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "4",
+      "n_tokens": 2,
+      "sum_logp": -3.465819537639618,
+      "mean_logp": -1.732909768819809,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "1000",
+      "n_tokens": 5,
+      "sum_logp": -1.5477298498153687,
+      "mean_logp": -0.3095459699630737,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -2.1343232095241547,
+      "mean_logp": -1.0671616047620773,
+      "verdict": true
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "1000",
+      "n_tokens": 5,
+      "sum_logp": -3.0321049094200134,
+      "mean_logp": -0.6064209818840027,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -2.1343232095241547,
+      "mean_logp": -1.0671616047620773,
+      "verdict": true
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "5",
+      "n_tokens": 2,
+      "sum_logp": -2.185182899236679,
+      "mean_logp": -1.0925914496183395,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "2",
+      "n_tokens": 2,
+      "sum_logp": -2.275822699069977,
+      "mean_logp": -1.1379113495349884,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "1000",
+      "n_tokens": 5,
+      "sum_logp": -1.5477298498153687,
+      "mean_logp": -0.3095459699630737,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "1000",
+      "n_tokens": 5,
+      "sum_logp": -1.5477298498153687,
+      "mean_logp": -0.3095459699630737,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -5.415573239326477,
+      "mean_logp": -2.7077866196632385,
+      "verdict": true
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "1000",
+      "n_tokens": 5,
+      "sum_logp": -1.5477298498153687,
+      "mean_logp": -0.3095459699630737,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "0.5  # the same as x = math.sqrt(2)",
+      "n_tokens": 15,
+      "sum_logp": -18.550307154655457,
+      "mean_logp": -1.236687143643697,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -2.1343232095241547,
+      "mean_logp": -1.0671616047620773,
+      "verdict": true
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "1000  # x is 2^1000",
+      "n_tokens": 16,
+      "sum_logp": -11.088695868849754,
+      "mean_logp": -0.6930434918031096,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "1000",
+      "n_tokens": 5,
+      "sum_logp": -1.5477298498153687,
+      "mean_logp": -0.3095459699630737,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "10",
+      "n_tokens": 3,
+      "sum_logp": -2.8434921503067017,
+      "mean_logp": -0.9478307167689005,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "3",
+      "n_tokens": 2,
+      "sum_logp": -2.1343232095241547,
+      "mean_logp": -1.0671616047620773,
+      "verdict": true
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "4",
+      "n_tokens": 2,
+      "sum_logp": -3.465819537639618,
+      "mean_logp": -1.732909768819809,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "10",
+      "n_tokens": 3,
+      "sum_logp": -2.8434921503067017,
+      "mean_logp": -0.9478307167689005,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "2\r",
+      "n_tokens": 2,
+      "sum_logp": -4.678166508674622,
+      "mean_logp": -2.339083254337311,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "3 ** 2",
+      "n_tokens": 5,
+      "sum_logp": -5.459151014685631,
+      "mean_logp": -1.091830202937126,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "1000",
+      "n_tokens": 5,
+      "sum_logp": -1.5477298498153687,
+      "mean_logp": -0.3095459699630737,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "10",
+      "n_tokens": 3,
+      "sum_logp": -2.8434921503067017,
+      "mean_logp": -0.9478307167689005,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "5  # 32",
+      "n_tokens": 7,
+      "sum_logp": -6.514895543456078,
+      "mean_logp": -0.9306993633508682,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "10",
+      "n_tokens": 3,
+      "sum_logp": -2.8434921503067017,
+      "mean_logp": -0.9478307167689005,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "1000",
+      "n_tokens": 5,
+      "sum_logp": -1.5477298498153687,
+      "mean_logp": -0.3095459699630737,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "4",
+      "n_tokens": 2,
+      "sum_logp": -3.465819537639618,
+      "mean_logp": -1.732909768819809,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "5",
+      "n_tokens": 2,
+      "sum_logp": -2.185182899236679,
+      "mean_logp": -1.0925914496183395,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "4",
+      "n_tokens": 2,
+      "sum_logp": -3.465819537639618,
+      "mean_logp": -1.732909768819809,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "1000\r",
+      "n_tokens": 5,
+      "sum_logp": -4.379761159420013,
+      "mean_logp": -0.8759522318840027,
+      "verdict": false
+    },
+    {
+      "challenge": "two_pow_to_8",
+      "prompt": "x = 2 ** ",
+      "completion": "3 #exponencia\u00e7\u00e3o",
+      "n_tokens": 7,
+      "sum_logp": -13.393410295248032,
+      "mean_logp": -1.913344327892576,
+      "verdict": true
+    }
+  ]
+}

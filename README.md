@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**96 unit tests, 19 worked examples, 11 phases + Phase 5/6/7/8/9 sessions. Phase 9 S3 multi-assert hits matrix's best F=4 lift (1.32×). Phase 9 S2 falsifies Phase 7 S2's "more pretrain = better calibration" claim — K8 Korean 100K is *more* anti-calibrated than 30K (sum-AUC 0.363 → 0.307). 5-domain matrix maps the 5–15% pass-rate selection sweet spot. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**96 unit tests, 19 worked examples, 11 phases + Phase 5/6/7/8/9 sessions. Phase 9 S4 validates the decision tree externally — Qwen2.5-Coder-0.5B sum-AUC 0.702 + F=8 lift 1.95× (PASS, strongest in matrix); 1.5B-Coder degrades to 0.474 + 0.19× lift (NO SIGNAL). Same direction as Phase 9 S2: more capacity ≠ better calibration. Phase 9 S3 multi-assert hits 1.32× lift at F=4. 5-domain matrix maps the 5–15% pass-rate selection sweet spot. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
