@@ -62,6 +62,11 @@ struct Args {
     /// Future-token offset for JEPA target.
     #[arg(long, default_value_t = 8)]
     jepa_offset: usize,
+    /// Phase 10 S2: optional EMA decay for a separate target encoder
+    /// (BYOL/I-JEPA style). `None` (default) uses single-encoder
+    /// stop-gradient. Typical values: 0.99 – 0.999.
+    #[arg(long)]
+    jepa_ema_decay: Option<f32>,
     #[arg(long, default_value_t = 200)]
     sample_tokens: usize,
     #[arg(long, default_value = "대한민국의 수도는 ")]
@@ -127,11 +132,13 @@ fn main() -> anyhow::Result<()> {
     tcfg.weight_decay = 0.1;
     tcfg.jepa_lambda = args.jepa_lambda;
     tcfg.jepa_offset = args.jepa_offset;
+    tcfg.jepa_ema_decay = args.jepa_ema_decay;
     tracing::info!(
         steps = tcfg.max_steps,
         lr = tcfg.lr,
         jepa_lambda = tcfg.jepa_lambda,
         jepa_offset = tcfg.jepa_offset,
+        jepa_ema_decay = ?tcfg.jepa_ema_decay,
         "training..."
     );
 

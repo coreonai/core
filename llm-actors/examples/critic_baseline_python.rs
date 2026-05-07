@@ -59,6 +59,13 @@ struct Args {
     max_new_tokens: usize,
     #[arg(long, default_value = "checkpoints/critic_baseline_python.safetensors")]
     seed_ckpt: PathBuf,
+    /// Phase 10 S2: JEPA aux loss weight on the pretraining stage.
+    /// `0.0` = standard CE only (matches Phase 8 S2 setup).
+    #[arg(long, default_value_t = 0.0)]
+    jepa_lambda: f32,
+    /// JEPA future-token offset.
+    #[arg(long, default_value_t = 4)]
+    jepa_offset: usize,
 }
 
 fn pick_device() -> Device {
@@ -174,6 +181,16 @@ fn main() -> anyhow::Result<()> {
     tcfg.lr = 3e-3;
     tcfg.min_lr = 3e-4;
     tcfg.warmup_steps = 50;
+    // Phase 10 S2: optional JEPA aux loss during pretraining.
+    tcfg.jepa_lambda = args.jepa_lambda;
+    tcfg.jepa_offset = args.jepa_offset;
+    if args.jepa_lambda > 0.0 {
+        info!(
+            jepa_lambda = args.jepa_lambda,
+            jepa_offset = args.jepa_offset,
+            "JEPA aux active during pretraining"
+        );
+    }
     let outcome = train_from(
         &gpt_cfg,
         &ds,

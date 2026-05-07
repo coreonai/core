@@ -36,6 +36,14 @@ pub struct TrainConfig {
     /// position `i` predicts hidden state at `i + jepa_offset`.
     /// Ignored when `jepa_lambda == 0.0`. Must be `< block_size`.
     pub jepa_offset: usize,
+    /// Phase 10 S2: EMA decay for a separate target encoder
+    /// (BYOL/I-JEPA style). When `Some(decay)`, a parallel GPT is
+    /// maintained whose weights are an exponential moving average of
+    /// the main model: `target = decay * target + (1 - decay) * main`.
+    /// JEPA target hidden states come from this slow encoder.
+    /// `None` (default) keeps the single-encoder stop-gradient style
+    /// from Phase 10 S1. Typical values: 0.99 – 0.999.
+    pub jepa_ema_decay: Option<f32>,
 }
 
 impl TrainConfig {
@@ -53,8 +61,41 @@ impl TrainConfig {
             dtype: DType::F32,
             jepa_lambda: 0.0,
             jepa_offset: 4,
+            jepa_ema_decay: None,
         }
     }
+}
+
+/// Phase 10 S2 helper: copy every Var in `src` into the matching-name
+/// Var in `dst`. Used to initialize the EMA target encoder (so it
+/// starts identical to the main encoder).
+fn varmap_snapshot(src: &VarMap, dst: &VarMap) -> Result<()> {
+    let src_data = src.data().lock().expect("src varmap mutex");
+    let dst_data = dst.data().lock().expect("dst varmap mutex");
+    for (name, src_var) in src_data.iter() {
+        if let Some(dst_var) = dst_data.get(name) {
+            dst_var.set(src_var.as_tensor())?;
+        }
+    }
+    Ok(())
+}
+
+/// Phase 10 S2 helper: in-place EMA update
+/// `dst <- decay * dst + (1 - decay) * src` for every matching-name
+/// Var. Vars present in `src` but not `dst` (e.g. the predictor) are
+/// skipped.
+fn varmap_ema_update(src: &VarMap, dst: &VarMap, decay: f64) -> Result<()> {
+    let src_data = src.data().lock().expect("src varmap mutex");
+    let dst_data = dst.data().lock().expect("dst varmap mutex");
+    for (name, src_var) in src_data.iter() {
+        if let Some(dst_var) = dst_data.get(name) {
+            let s = src_var.as_tensor();
+            let d = dst_var.as_tensor();
+            let updated = ((d * decay)? + (s * (1.0 - decay))?)?;
+            dst_var.set(&updated)?;
+        }
+    }
+    Ok(())
 }
 
 fn cosine_lr(step: usize, cfg: &TrainConfig) -> f64 {
@@ -168,9 +209,37 @@ pub fn train_from_full(
     } else {
         None
     };
+    // Phase 10 S2: optional EMA target encoder. When `jepa_ema_decay`
+    // is `Some(d)`, build a parallel GPT in its own VarMap and
+    // initialize its weights as a snapshot of the main model. After
+    // every optimizer step, the target's vars EMA-update toward the
+    // main vars: `target = d * target + (1 - d) * main`. JEPA target
+    // hidden states come from this slow encoder.
+    let target_setup = if cfg.jepa_lambda > 0.0 && cfg.jepa_ema_decay.is_some() {
+        let decay = cfg.jepa_ema_decay.expect("checked");
+        if !(0.0..1.0).contains(&decay) {
+            return Err(crate::error::Error::Config(format!(
+                "jepa_ema_decay={decay} must be in [0.0, 1.0)"
+            )));
+        }
+        let target_varmap = VarMap::new();
+        let target_vb = VarBuilder::from_varmap(&target_varmap, cfg.dtype, device);
+        let target_model = GPT::new(gpt_cfg.clone(), target_vb)?;
+        Some((target_varmap, target_model, decay as f64))
+    } else {
+        None
+    };
     if let Some(path) = init_from {
         varmap.load(path)?;
         tracing::info!(?path, "loaded init weights for continual training");
+    }
+    // Initialize target ≡ main *after* loading init weights.
+    if let Some((tvm, _, _)) = &target_setup {
+        varmap_snapshot(&varmap, tvm)?;
+        tracing::info!(
+            decay = cfg.jepa_ema_decay.unwrap(),
+            "EMA target encoder initialized from main"
+        );
     }
 
     let params = ParamsAdamW {
@@ -222,12 +291,25 @@ pub fn train_from_full(
         let task_loss = if let Some(predictor) = &jepa_predictor {
             // JEPA branch: one forward pass yields both logits and
             // hidden states; CE + λ·JEPA shares the backward.
-            let (logits, hidden) = model.forward_with_hidden(&x)?;
+            let (logits, hidden_main) = model.forward_with_hidden(&x)?;
             let (b, t, v) = logits.dims3()?;
             let logits_flat = logits.reshape((b * t, v))?;
             let targets_flat = y.reshape(b * t)?.to_dtype(DType::U32)?;
             let ce = candle_nn::loss::cross_entropy(&logits_flat, &targets_flat)?;
-            let jl = jepa_loss(predictor, &hidden, cfg.jepa_offset)?;
+            let jl = if let Some((_, target_model, _)) = &target_setup {
+                // Phase 10 S2: EMA case — target hidden comes from a
+                // slow-moving second encoder; main contributes only
+                // through the context branch.
+                let hidden_target = target_model.forward_with_hidden(&x)?.1.detach();
+                let context = hidden_main.narrow(1, 0, t - cfg.jepa_offset)?;
+                let target = hidden_target.narrow(1, cfg.jepa_offset, t - cfg.jepa_offset)?;
+                let predicted = predictor.forward(&context)?;
+                let diff = (predicted - target)?;
+                diff.sqr()?.mean_all()?
+            } else {
+                // Phase 10 S1: single-encoder stop-gradient case.
+                jepa_loss(predictor, &hidden_main, cfg.jepa_offset)?
+            };
             last_jepa_loss = Some(jl.to_scalar::<f32>()?);
             (ce + (jl * cfg.jepa_lambda as f64)?)?
         } else {
@@ -240,6 +322,10 @@ pub fn train_from_full(
         };
         opt.backward_step(&total)?;
         last_train_loss = total.to_scalar::<f32>()?;
+        // Phase 10 S2: EMA-update the target encoder (if active).
+        if let Some((tvm, _, decay)) = &target_setup {
+            varmap_ema_update(&varmap, tvm, *decay)?;
+        }
 
         if (step + 1) % cfg.eval_interval == 0 {
             if let Some(val) = val_ds {
@@ -522,6 +608,7 @@ mod cfg_persistence_tests {
             dtype: DType::F32,
             jepa_lambda: 0.0,
             jepa_offset: 4,
+            jepa_ema_decay: None,
         }
     }
 
@@ -706,5 +793,55 @@ mod cfg_persistence_tests {
             true, // freeze_base + JEPA = config error
         );
         assert!(res.is_err(), "expected config error for jepa+freeze_base");
+    }
+
+    #[test]
+    fn jepa_with_ema_decay_runs_end_to_end() {
+        // Phase 10 S2 smoke: jepa_lambda > 0 with jepa_ema_decay = Some
+        // should build the target encoder and run the EMA update path
+        // without errors. The checkpoint should still round-trip.
+        let dir = temp_dir("jepa-ema-smoke");
+        let ckpt = dir.join("jepa_ema.safetensors");
+        let cfg = toy_cfg();
+        let ds = toy_dataset(&cfg);
+        let mut tcfg = tiny_train_cfg();
+        tcfg.jepa_lambda = 0.1;
+        tcfg.jepa_offset = 1;
+        tcfg.jepa_ema_decay = Some(0.99);
+        train_from_full(
+            &cfg,
+            &ds,
+            None,
+            &tcfg,
+            &Device::Cpu,
+            Some(&ckpt),
+            None,
+            None,
+            false,
+        )
+        .expect("train_from_full with JEPA + EMA");
+        assert!(ckpt.exists(), "missing checkpoint after EMA run");
+    }
+
+    #[test]
+    fn jepa_ema_decay_out_of_range_errors() {
+        let cfg = toy_cfg();
+        let ds = toy_dataset(&cfg);
+        let mut tcfg = tiny_train_cfg();
+        tcfg.jepa_lambda = 0.1;
+        tcfg.jepa_offset = 1;
+        tcfg.jepa_ema_decay = Some(1.5); // >= 1.0 must error
+        let res = train_from_full(
+            &cfg,
+            &ds,
+            None,
+            &tcfg,
+            &Device::Cpu,
+            None,
+            None,
+            None,
+            false,
+        );
+        assert!(res.is_err(), "expected error for jepa_ema_decay >= 1.0");
     }
 }

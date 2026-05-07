@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**102 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10 sessions. Phase 10 S1 LLM-JEPA aux on K8 — top-1 mass −33% (mode collapse weaker), pass rate +50%, but sum-AUC drops 0.421→0.238 (anti-cal); diversity ≠ calibration (risk #12). Phase 9 S5 closed the external loop — Qwen2.5-Coder-0.5B + LoRA self-improves +33 pp (39.8%→72.7%) in 1 round on 11 mixed challenges; 8 of 11 saturate, 3 stay at 0/8 (cold-start). Phase 9 S4 validated the decision tree on the same model (sum-AUC 0.702, F=8 lift 1.95×). CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**104 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10 sessions. Phase 10 S2 LLM-JEPA sweeps — sum-AUC is U-shaped in λ on K8 (worst at λ=0.1 k=8, recovered at λ=0.3 or k=2); EMA target gives the lowest top-1 mass (0.049) but doesn't recover calibration; on PythonCodeDomain all variants keep sum-AUC ≈0.86. S1's "JEPA breaks Shape-C" was a single-point artifact; risk #12 reframed (HP- and domain-sensitive). Phase 9 S5 closed the external loop — Qwen2.5-Coder-0.5B + LoRA self-improves +33 pp in 1 round; 8 of 11 saturate, 3 stay at 0/8 (cold-start). Phase 9 S4 validated the decision tree on the same model (sum-AUC 0.702, F=8 lift 1.95×). CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -99,7 +99,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**102 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10 sessions. See the run-order list below.**
+**104 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10 sessions. See the run-order list below.**
 
 ## What it does
 

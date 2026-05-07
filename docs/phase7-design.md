@@ -256,33 +256,51 @@ verifier-V and domain-D:
     See `scripts/phase9_s5/` for the loop, run.json results, and
     per-challenge breakdown.
 
-12. **NEW: Anti-mode-collapse aux losses can WORSEN Shape-C
-    calibration** (Phase 10 S1 measurement on K8 + LLM-JEPA).
-    Adding a JEPA-style latent-prediction auxiliary loss
-    (λ=0.1, offset k=8) to K8 5K-step pretraining did exactly
-    what its proponents claim — top-1 softmax mass dropped 33%
-    (0.146 → 0.097), and verifier pass rate rose 50%
-    (2.2% → 3.3%) — but **sum-AUC fell from 0.421 to 0.238**.
-    F=4 selection lift halved (0.54× → 0.21×); F=16 collapsed
-    to 0.00×.
+12. **NEW: JEPA-style aux losses interact non-trivially with
+    Shape-C calibration; the interaction is HP- and domain-
+    sensitive** (Phase 10 S1 single-point + S2 sweeps on K8 and
+    PythonCodeDomain).
 
-    Mechanism: JEPA's latent objective rewards distinctive hidden
-    states (so future-position prediction is feasible). That
-    distinctiveness is orthogonal to — and at this regime
-    antagonistic with — verifier-aligned confidence. The model
-    emits a wider distribution of tokens, but its log-prob is no
-    longer a useful proxy for "will the verifier accept this?".
+    S1 single-point (λ=0.1, k=8 on K8): top-1 mass −33%
+    (0.146 → 0.097), pass rate +50%, but **sum-AUC 0.421 → 0.238**.
+    Read in isolation, this looked like a blanket "diversity ≠
+    calibration" rule.
 
-    Generalized: **diversity ≠ calibration**. An auxiliary loss
-    that improves one downstream metric (mode-collapse, pass rate)
-    can degrade another (Shape-C critic AUC). Measure both before
-    deciding the aux loss is "helping."
+    S2 sweeps overturned the blanket reading:
+    - **K8 λ sweep at k=8**: sum-AUC is U-shaped — 0.421 (baseline)
+      → 0.342 (λ=0.01) → 0.291 (λ=0.03) → **0.238 (λ=0.1, worst)** →
+      **0.433 (λ=0.3, recovered, slight win over baseline)**.
+    - **K8 k sweep at λ=0.1**: shorter k recovers calibration —
+      k=8 → 0.238, k=4 → 0.396, **k=2 → 0.432** (recovered).
+    - **K8 EMA target encoder (decay=0.99) at λ=0.1, k=8**:
+      sum-AUC 0.292 — gives the strongest mode-collapse mitigation
+      (top1 0.049, lowest in matrix) but does NOT recover
+      calibration. EMA-vs-self difference is on diversity, not
+      verifier alignment.
+    - **PythonCodeDomain at λ ∈ {0, 0.03, 0.1}**: ALL sum-AUCs
+      ≈ 0.86 (PASS gate). λ=0.1 even posts the highest F=4
+      selection lift (1.05×). The K8 anti-cal pathology does not
+      transfer.
 
-    Operational: if you intend to deploy Shape C downstream, hold
-    the calibration metric (sum-AUC, F-sweep lift) as the primary
-    gate, even when other diversity metrics improve. See
-    `docs/phase10-s1-jepa.md` for the full result table and
-    candidate follow-ups.
+    Mechanism (refined): JEPA's latent objective rewards
+    distinctive hidden states. Whether that distinctiveness is
+    orthogonal-to or antagonistic-with verifier-aligned confidence
+    depends on (a) λ — too low gives noisy gradients that hurt
+    without enough push to be a useful regularizer; too high
+    becomes a strong regularizer that doesn't fight CE; (b) k —
+    short hops keep the predictor's job close to next-token
+    coherence, long hops force semantic abstraction that doesn't
+    track verifier verdicts; (c) domain — K8's `\n`-mode pathology
+    makes the model especially eager to follow JEPA away from
+    verifier-aligned tokens, while Python's verifier-tight slot-
+    fill resists that drift.
+
+    Operational: don't deploy JEPA from a single (λ, k) point.
+    Sweep at least 3 points across λ and k, plot sum-AUC, prefer
+    either tail of the U. EMA target encoder is *not* a free
+    upgrade for calibration. See `docs/phase10-s2-jepa.md` for
+    the full sweep tables, the practical recipe, and the
+    reproduction commands.
 
 ## What "Phase 7 done" means
 
