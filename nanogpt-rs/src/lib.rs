@@ -14,6 +14,7 @@ pub mod data;
 pub mod error;
 pub mod ewc;
 pub mod generate;
+pub mod jepa;
 pub mod model;
 pub mod tokenizer;
 pub mod train;

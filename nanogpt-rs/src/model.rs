@@ -773,6 +773,34 @@ impl GPT {
         let (_b, t, _v) = logits.dims3()?;
         logits.i((.., t - 1, ..))
     }
+
+    /// Forward returning both logits and the post-`ln_f` hidden states
+    /// `[B, T, n_embd]`. Used by the JEPA auxiliary loss in `train.rs`,
+    /// which predicts hidden state at offset `+k` from hidden state at
+    /// offset `i`.
+    pub fn forward_with_hidden(&self, idx: &Tensor) -> CResult<(Tensor, Tensor)> {
+        let (_b, t) = idx.dims2()?;
+        if t > self.cfg.block_size {
+            candle_core::bail!(
+                "sequence length {t} exceeds block_size {}",
+                self.cfg.block_size
+            );
+        }
+        let tok_emb = self.wte.forward(idx)?;
+        let mut x = if let Some(wpe) = &self.wpe {
+            let pos = Tensor::arange(0u32, t as u32, &self.device)?;
+            let pos_emb = wpe.forward(&pos)?.unsqueeze(0)?;
+            tok_emb.broadcast_add(&pos_emb)?
+        } else {
+            tok_emb
+        };
+        for blk in &self.blocks {
+            x = blk.forward(&x)?;
+        }
+        let hidden = self.ln_f.forward(&x)?;
+        let logits = self.head_logits(&hidden)?;
+        Ok((logits, hidden))
+    }
 }
 
 #[allow(dead_code)]

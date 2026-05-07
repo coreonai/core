@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**96 unit tests, 19 worked examples, 11 phases + Phase 5/6/7/8/9 sessions. Phase 9 S5 closes the external loop — Qwen2.5-Coder-0.5B + LoRA self-improves +33 pp (39.8%→72.7%) in 1 round on 11 mixed challenges (S4 + HumanEval-style); 8 of 11 saturate to 100%, 3 stay at 0/8 (cold-start). Phase 9 S4 validated the decision tree on the same model (sum-AUC 0.702, F=8 lift 1.95×). 5-domain matrix maps the 5–15% pass-rate selection sweet spot. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**102 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10 sessions. Phase 10 S1 LLM-JEPA aux on K8 — top-1 mass −33% (mode collapse weaker), pass rate +50%, but sum-AUC drops 0.421→0.238 (anti-cal); diversity ≠ calibration (risk #12). Phase 9 S5 closed the external loop — Qwen2.5-Coder-0.5B + LoRA self-improves +33 pp (39.8%→72.7%) in 1 round on 11 mixed challenges; 8 of 11 saturate, 3 stay at 0/8 (cold-start). Phase 9 S4 validated the decision tree on the same model (sum-AUC 0.702, F=8 lift 1.95×). CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -99,7 +99,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**96 unit tests, 19 worked examples, 11 phases + Phase 5/6/7/8/9 sessions. See the run-order list below.**
+**102 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10 sessions. See the run-order list below.**
 
 ## What it does
 

@@ -256,6 +256,34 @@ verifier-V and domain-D:
     See `scripts/phase9_s5/` for the loop, run.json results, and
     per-challenge breakdown.
 
+12. **NEW: Anti-mode-collapse aux losses can WORSEN Shape-C
+    calibration** (Phase 10 S1 measurement on K8 + LLM-JEPA).
+    Adding a JEPA-style latent-prediction auxiliary loss
+    (λ=0.1, offset k=8) to K8 5K-step pretraining did exactly
+    what its proponents claim — top-1 softmax mass dropped 33%
+    (0.146 → 0.097), and verifier pass rate rose 50%
+    (2.2% → 3.3%) — but **sum-AUC fell from 0.421 to 0.238**.
+    F=4 selection lift halved (0.54× → 0.21×); F=16 collapsed
+    to 0.00×.
+
+    Mechanism: JEPA's latent objective rewards distinctive hidden
+    states (so future-position prediction is feasible). That
+    distinctiveness is orthogonal to — and at this regime
+    antagonistic with — verifier-aligned confidence. The model
+    emits a wider distribution of tokens, but its log-prob is no
+    longer a useful proxy for "will the verifier accept this?".
+
+    Generalized: **diversity ≠ calibration**. An auxiliary loss
+    that improves one downstream metric (mode-collapse, pass rate)
+    can degrade another (Shape-C critic AUC). Measure both before
+    deciding the aux loss is "helping."
+
+    Operational: if you intend to deploy Shape C downstream, hold
+    the calibration metric (sum-AUC, F-sweep lift) as the primary
+    gate, even when other diversity metrics improve. See
+    `docs/phase10-s1-jepa.md` for the full result table and
+    candidate follow-ups.
+
 ## What "Phase 7 done" means
 
 Phase 7 is a consolidation phase, not an implementation phase. Its

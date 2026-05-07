@@ -53,3 +53,7 @@ path = "examples/compare_tokenizers.rs"
 [[example]]
 name = "eval_kowiki"
 path = "examples/eval_kowiki.rs"
+
+[[example]]
+name = "train_kowiki_jepa"
+path = "examples/train_kowiki_jepa.rs"

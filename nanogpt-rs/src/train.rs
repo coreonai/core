@@ -13,6 +13,7 @@ use tracing::info;
 use crate::config::GPTConfig;
 use crate::data::TokenDataset;
 use crate::error::Result;
+use crate::jepa::{jepa_loss, JepaPredictor};
 use crate::model::GPT;
 
 #[derive(Debug, Clone)]
@@ -27,6 +28,14 @@ pub struct TrainConfig {
     pub weight_decay: f64,
     pub grad_clip: f64,
     pub dtype: DType,
+    /// Phase 10 S1: weight on the JEPA auxiliary loss. `0.0` disables
+    /// it entirely (predictor is not built; existing call sites are
+    /// unaffected). Typical values: 0.05 – 0.5.
+    pub jepa_lambda: f32,
+    /// Future-position offset `k` for JEPA target. Hidden state at
+    /// position `i` predicts hidden state at `i + jepa_offset`.
+    /// Ignored when `jepa_lambda == 0.0`. Must be `< block_size`.
+    pub jepa_offset: usize,
 }
 
 impl TrainConfig {
@@ -42,6 +51,8 @@ impl TrainConfig {
             weight_decay: 0.1,
             grad_clip: 1.0,
             dtype: DType::F32,
+            jepa_lambda: 0.0,
+            jepa_offset: 4,
         }
     }
 }
@@ -129,7 +140,34 @@ pub fn train_from_full(
 ) -> Result<TrainOutcome> {
     let mut varmap = VarMap::new();
     let vb = VarBuilder::from_varmap(&varmap, cfg.dtype, device);
-    let model = GPT::new(gpt_cfg.clone(), vb)?;
+    let model = GPT::new(gpt_cfg.clone(), vb.clone())?;
+    // Phase 10 S1: optional JEPA predictor. Only built when
+    // `jepa_lambda > 0`, so existing call sites incur zero overhead.
+    let jepa_predictor = if cfg.jepa_lambda > 0.0 {
+        if freeze_base {
+            return Err(crate::error::Error::Config(
+                "jepa_lambda > 0 with freeze_base=true is not supported \
+                 (JEPA is a pretraining objective; freeze_base is for LoRA fine-tune)"
+                    .into(),
+            ));
+        }
+        if cfg.jepa_offset == 0 || cfg.jepa_offset >= gpt_cfg.block_size {
+            return Err(crate::error::Error::Config(format!(
+                "jepa_offset={} must satisfy 0 < offset < block_size={}",
+                cfg.jepa_offset, gpt_cfg.block_size
+            )));
+        }
+        if gpt_cfg.n_experts > 1 {
+            return Err(crate::error::Error::Config(
+                "jepa_lambda > 0 is not yet wired to combine with MoE aux loss \
+                 (would need to use forward_with_aux instead of forward_with_hidden)"
+                    .into(),
+            ));
+        }
+        Some(JepaPredictor::new(gpt_cfg.n_embd, vb.pp("jepa_predictor"))?)
+    } else {
+        None
+    };
     if let Some(path) = init_from {
         varmap.load(path)?;
         tracing::info!(?path, "loaded init weights for continual training");
@@ -174,13 +212,27 @@ pub fn train_from_full(
 
     let mut last_train_loss = f32::NAN;
     let mut last_val_loss: Option<f32> = None;
+    let mut last_jepa_loss: Option<f32> = None;
 
     for step in 0..cfg.max_steps {
         let lr = cosine_lr(step, cfg);
         opt.set_learning_rate(lr);
 
         let (x, y) = train_ds.random_batch(cfg.batch_size, device)?;
-        let task_loss = model.loss(&x, &y)?;
+        let task_loss = if let Some(predictor) = &jepa_predictor {
+            // JEPA branch: one forward pass yields both logits and
+            // hidden states; CE + λ·JEPA shares the backward.
+            let (logits, hidden) = model.forward_with_hidden(&x)?;
+            let (b, t, v) = logits.dims3()?;
+            let logits_flat = logits.reshape((b * t, v))?;
+            let targets_flat = y.reshape(b * t)?.to_dtype(DType::U32)?;
+            let ce = candle_nn::loss::cross_entropy(&logits_flat, &targets_flat)?;
+            let jl = jepa_loss(predictor, &hidden, cfg.jepa_offset)?;
+            last_jepa_loss = Some(jl.to_scalar::<f32>()?);
+            (ce + (jl * cfg.jepa_lambda as f64)?)?
+        } else {
+            model.loss(&x, &y)?
+        };
         let total = if let Some(a) = anchor {
             (&task_loss + a.penalty(&varmap)?)?
         } else {
@@ -203,6 +255,7 @@ pub fn train_from_full(
                     step = step + 1,
                     train = last_train_loss,
                     val = mean,
+                    jepa = last_jepa_loss.unwrap_or(f32::NAN),
                     lr,
                     "eval"
                 );
@@ -211,6 +264,11 @@ pub fn train_from_full(
                     last_train_loss, mean, lr
                 ));
             }
+        } else if let Some(jl) = last_jepa_loss {
+            pb.set_message(format!(
+                "loss={:.4} jepa={:.4} lr={:.2e}",
+                last_train_loss, jl, lr
+            ));
         } else {
             pb.set_message(format!("loss={:.4} lr={:.2e}", last_train_loss, lr));
         }
@@ -462,6 +520,8 @@ mod cfg_persistence_tests {
             weight_decay: 0.0,
             grad_clip: 1.0,
             dtype: DType::F32,
+            jepa_lambda: 0.0,
+            jepa_offset: 4,
         }
     }
 
@@ -574,5 +634,77 @@ mod cfg_persistence_tests {
             cfg_path.exists(),
             "expected cfg.json next to extensionless save path"
         );
+    }
+
+    #[test]
+    fn jepa_lambda_positive_runs_end_to_end_and_writes_predictor_vars() {
+        // Smoke: train_from_full with jepa_lambda > 0 should run, the
+        // checkpoint should round-trip, and the saved safetensors must
+        // include the predictor's vars (under `jepa_predictor.*`).
+        let dir = temp_dir("jepa-smoke");
+        let ckpt = dir.join("jepa.safetensors");
+        let cfg = toy_cfg();
+        let ds = toy_dataset(&cfg);
+        let mut tcfg = tiny_train_cfg();
+        tcfg.jepa_lambda = 0.1;
+        tcfg.jepa_offset = 1; // toy_cfg has block_size=4, so offset must be < 4
+        train_from_full(
+            &cfg,
+            &ds,
+            None,
+            &tcfg,
+            &Device::Cpu,
+            Some(&ckpt),
+            None,
+            None,
+            false,
+        )
+        .expect("train_from_full with JEPA");
+
+        // Inspect the saved tensors to confirm jepa_predictor.* is present.
+        let mut vm = VarMap::new();
+        let _vb = VarBuilder::from_varmap(&vm, DType::F32, &Device::Cpu);
+        // Re-create model + predictor to register their Vars in the same
+        // namespace, then load the checkpoint.
+        let _gpt = GPT::new(
+            cfg.clone(),
+            VarBuilder::from_varmap(&vm, DType::F32, &Device::Cpu),
+        )
+        .expect("build gpt");
+        let _pred = JepaPredictor::new(
+            cfg.n_embd,
+            VarBuilder::from_varmap(&vm, DType::F32, &Device::Cpu).pp("jepa_predictor"),
+        )
+        .expect("build predictor");
+        vm.load(&ckpt).expect("load");
+        let names: Vec<String> = {
+            let data = vm.data().lock().expect("varmap mutex");
+            data.keys().cloned().collect()
+        };
+        assert!(
+            names.iter().any(|n| n.starts_with("jepa_predictor")),
+            "expected jepa_predictor.* vars in checkpoint, got: {names:?}"
+        );
+    }
+
+    #[test]
+    fn jepa_lambda_with_freeze_base_errors() {
+        let cfg = toy_cfg();
+        let ds = toy_dataset(&cfg);
+        let mut tcfg = tiny_train_cfg();
+        tcfg.jepa_lambda = 0.1;
+        tcfg.jepa_offset = 1;
+        let res = train_from_full(
+            &cfg,
+            &ds,
+            None,
+            &tcfg,
+            &Device::Cpu,
+            None,
+            None,
+            None,
+            true, // freeze_base + JEPA = config error
+        );
+        assert!(res.is_err(), "expected config error for jepa+freeze_base");
     }
 }
