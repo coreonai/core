@@ -1,0 +1,43 @@
+[2m2026-05-08T01:56:59.961266Z[0m [32m INFO[0m [2mcritic_baseline_korean[0m[2m:[0m device [3mdevice[0m[2m=[0mCuda(CudaDevice(DeviceId(1)))
+[2m2026-05-08T01:56:59.961375Z[0m [32m INFO[0m [2mcritic_baseline_korean[0m[2m:[0m loaded model config from K8 30K checkpoint [3mparams[0m[2m=[0m46801408 [3mn_layer[0m[2m=[0m8 [3mn_embd[0m[2m=[0m512 [3mblock_size[0m[2m=[0m256 [3mvocab[0m[2m=[0m16000
+[2m2026-05-08T01:56:59.986666Z[0m [32m INFO[0m [2mcritic_baseline_korean[0m[2m:[0m tokenizer loaded [3mvocab[0m[2m=[0m16000
+[2m2026-05-08T01:57:00.202877Z[0m [32m INFO[0m [2mcritic_baseline_korean[0m[2m:[0m harvesting candidates from K8 model [3mn_prompts[0m[2m=[0m30 [3msamples_per_prompt[0m[2m=[0m20
+[2m2026-05-08T02:02:06.133496Z[0m [32m INFO[0m [2mcritic_baseline_korean[0m[2m:[0m harvest done [3mtotal_attempts[0m[2m=[0m600 [3mtotal_correct[0m[2m=[0m13 [3mpass_rate[0m[2m=[0m0.021666666492819786
+
+=== Phase 8 S1 — Shape C on KoreanCompletionDomain (K8 30K) ===
+samples:           600 (13 correct, 587 incorrect)
+LogitCritic mean:  0.321   (Phase 7 predicts: FAIL on length-varying)
+LogitCritic sum:   0.363   ★ PRIMARY GATE (Phase 7 design)
+RandomCritic:      0.583   (sampling variance, ~0.5)
+AlwaysCritic:      0.500   (constant → all ties)
+
+Phase 7 acceptance gate: sum-AUC ≥ 0.6
+=> FAIL — Shape C gate not met.
+        Either (a) train KoWiki LM longer for better calibration
+                    (Phase 7 S2 showed sum-AUC climbs with pretrain),
+        or (b) skip Shape C for Korean and use Shape B at 50M scale.
+
+=== Top 5 by sum log-prob ===
+  [no] -79.14  "고려는 " → "\n을2,,\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n -\n\n\n\n\n\n\n\n\n\n\n\n\n\n3\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n..."
+  [no] -81.47  "고려는 " → "의)을\n\n)\n오\n(\n)\n\n\n\n이\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n..."
+  [no] -82.56  "고려는 " → "\n\n\n\n\n\n\n스\n \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n..."
+  [no] -86.01  "고려는 " → "am에게,년\n\n \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n -\n\n\n..."
+  [no] -96.57  "고려는 " → "에\n의\n\n\n\n\n\n\n\n\n\n\n\n부\n대한민\n\n\n\n\n.\n\n\n\n\n\n\n\n\n\n오\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n미\n\n\n\n\n년\n..."
+
+=== Bottom 5 by sum log-prob ===
+  [no] -2175.87  "한국 전쟁은 " → "��dt���� }}��������������������������{������������\\���������..."
+  [no] -2014.75  "한국 전쟁은 " → "�� 아니라컵�� w(��ice der������ till� \\\\�ism�����크래프트�ins�������..."
+  [no] -1309.43  "한반도는 " → "� 스튜디오т 서버z� 따라���ויש·부의� \u{5c9}행�\u{5cb}점에�고속도로\u{5c9}א� �리즈화하기지고\u{5cb}\u{5cb}����� 사람들..."
+  [no] -1295.70  "한국의 경제는 " → "� 되었다� 대한�서를о� 사용될��к� EBS 다큐났고일�о 전철י��부는�부의��יפ�צ��멸�о�멸�а..."
+  [no] -1290.58  "한국의 경제는 " → "�� 준공окст �т� �� 준공р�른다йкоту�ко��аство 준공 ||и�구가:{{{� ||�회담a..."
+
+=== Selection sweep (sum log-prob critic) ===
+  F  random_pass  critic_pass    Δ      lift
+  -  -----------  -----------  ------   -----
+  1        0.028        0.028   +0.000   1.00×
+  2        0.023        0.022   -0.000   0.99×
+  4        0.025        0.021   -0.004   0.83×
+  8        0.025        0.019   -0.006   0.75×
+  16        0.024        0.015   -0.009   0.64×
+
+Phase 6 RustCode reference: F=4 lift 1.22×, F=16 lift 0.41× (top-tail poison at high F).

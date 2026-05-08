@@ -302,6 +302,23 @@ verifier-V and domain-D:
     the full sweep tables, the practical recipe, and the
     reproduction commands.
 
+    **Phase 10 S3 update — recovery is not scale-stable.** Re-running
+    S2's two winners (λ=0.3 k=8, λ=0.1 k=2) at K8 **30K steps**
+    instead of 5K shows both fall *below* the baseline 30K
+    sum-AUC of 0.363:
+
+      baseline 30K     0.363
+      λ=0.3, k=8 30K   0.289   (Δ −0.074)
+      λ=0.1, k=2 30K   0.330   (Δ −0.033)
+
+    JEPA's latent distinctiveness becomes a stronger force at
+    longer training, and calibration loses again. **S2's 5K
+    "recovery" was transient.** Practical implication added to
+    operational rule: don't decide JEPA hyperparameters on a 5K
+    sweep — measure at ≥ 50% of the target training budget. For
+    K8/Korean BPE pretrain, JEPA stays off as the default. See
+    `docs/phase10-s3-jepa-longrun.md` for the full S3 result.
+
 ## What "Phase 7 done" means
 
 Phase 7 is a consolidation phase, not an implementation phase. Its
