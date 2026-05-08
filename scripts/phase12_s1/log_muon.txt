@@ -1,0 +1,27 @@
+=== Phase 12 S1 — K9 Muon (4 rounds) ===
+[2m2026-05-08T22:55:42.973445Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: generate [3mround[0m[2m=[0m3
+[2m2026-05-08T22:55:43.587843Z[0m [32m INFO[0m [2mllm_actors::generator_actor[0m[2m:[0m GeneratorActor batch done [3mgenerated[0m[2m=[0m24 [3merrors[0m[2m=[0m0 [3moversample[0m[2m=[0m1
+[2m2026-05-08T22:55:43.587882Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: verify [3mround[0m[2m=[0m3
+[2m2026-05-08T22:55:46.344163Z[0m [32m INFO[0m [2mllm_actors::verifier_actor[0m[2m:[0m VerifierActor batch done [3mverified[0m[2m=[0m24 [3mcorrect[0m[2m=[0m0
+[2m2026-05-08T22:55:46.344212Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: curate [3mround[0m[2m=[0m3
+[2m2026-05-08T22:55:46.344338Z[0m [32m INFO[0m [2mllm_actors::curator_actor[0m[2m:[0m curator add [3maccepted[0m[2m=[0m0 [3mrejected_incorrect[0m[2m=[0m24 [3mrejected_duplicate[0m[2m=[0m0 [3mbuffer[0m[2m=[0m18
+[2m2026-05-08T22:55:46.344400Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m padded corpus [3mround[0m[2m=[0m3 [3mcorpus_chars[0m[2m=[0m4655 [3mfactor[0m[2m=[0m7
+[2m2026-05-08T22:55:46.344406Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: train (SFT) [3mround[0m[2m=[0m3
+[2m2026-05-08T22:55:46.344425Z[0m [32m INFO[0m [2mllm_actors::trainer_actor[0m[2m:[0m TrainerActor: launching blocking training [3mcorpus_chars[0m[2m=[0m4655 [3msave_path[0m[2m=[0m"checkpoints/p12s1_muon.r3.safetensors" [3minit_from[0m[2m=[0mSome("checkpoints/p12s1_muon.r2.safetensors") [3msteps[0m[2m=[0m400 [3mewc[0m[2m=[0mfalse [3mfreeze_base[0m[2m=[0mfalse
+[2m2026-05-08T22:55:46.346482Z[0m [32m INFO[0m [2mnanogpt_rs::train[0m[2m:[0m loaded init weights for continual training [3mpath[0m[2m=[0m"checkpoints/p12s1_muon.r2.safetensors"
+[2m2026-05-08T22:55:46.346496Z[0m [32m INFO[0m [2mnanogpt_rs::train[0m[2m:[0m using Muon optimizer (Phase 12 S1) [3mmuon_cfg[0m[2m=[0mMuonConfig { lr: 0.0005, momentum: 0.95, weight_decay: 0.1, ns_steps: 5, fallback_momentum: 0.9 }
+[2m2026-05-08T22:55:48.111798Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: reload [3mround[0m[2m=[0m3
+[2m2026-05-08T22:55:48.113012Z[0m [32m INFO[0m [2mllm_actors::model_actor[0m[2m:[0m checkpoint reloaded [3mpath[0m[2m=[0m"checkpoints/p12s1_muon.r3.safetensors"
+[2m2026-05-08T22:55:48.113038Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: eval-after [3mround[0m[2m=[0m3
+[2m2026-05-08T22:55:50.905275Z[0m [32m INFO[0m [2mllm_actors::evaluator_actor[0m[2m:[0m EvaluatorActor done [3mtotal[0m[2m=[0m24 [3mcorrect[0m[2m=[0m0 [3mpass_rate[0m[2m=[0m0.0
+[2m2026-05-08T22:55:50.905322Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m0 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m) * { asert_eq!(
+[2m2026-05-08T22:55:50.905343Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m1 [3mprompt[0m[2m=[0mfn main() { assert_eq!(2 * ( [3mcompletion[0m[2m=[0m) * main() { ase
+[2m2026-05-08T22:55:50.905348Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m) * { asert_eq!(
+[round 3] gen_correct=0/24 (0.0%)  eval before=0/24  after=0/24  Δ=+0  loss=Some(0.86161345)  t=10800ms
+
+=== history ===
+round 0: gen=6/24 (25.0%)  eval before=0/24 after=0/24  Δ=+0
+round 1: gen=4/24 (16.7%)  eval before=0/24 after=2/24  Δ=+2
+round 2: gen=6/24 (25.0%)  eval before=0/24 after=0/24  Δ=+0
+round 3: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+=== p12s1_muon done ===

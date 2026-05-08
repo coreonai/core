@@ -17,6 +17,8 @@ pub mod ewc;
 pub mod generate;
 pub mod jepa;
 pub mod model;
+pub mod muon;
+pub mod opd;
 pub mod tokenizer;
 pub mod train;
 

@@ -15,6 +15,31 @@ use crate::data::TokenDataset;
 use crate::error::Result;
 use crate::jepa::{jepa_loss, JepaPredictor};
 use crate::model::GPT;
+use crate::muon::{Muon, MuonConfig};
+
+/// Phase 12 S1: enum wrapper around the two optimizer kinds. Lets
+/// `train_from_full` dispatch to either AdamW (default, established)
+/// or Muon (DeepSeek V4 style) without trait-object machinery.
+enum AnyOpt {
+    Adam(AdamW),
+    Muon(Muon),
+}
+
+impl AnyOpt {
+    fn set_learning_rate(&mut self, lr: f64) {
+        match self {
+            Self::Adam(o) => o.set_learning_rate(lr),
+            Self::Muon(o) => o.set_learning_rate(lr),
+        }
+    }
+
+    fn backward_step(&mut self, loss: &Tensor) -> candle_core::Result<()> {
+        match self {
+            Self::Adam(o) => o.backward_step(loss),
+            Self::Muon(o) => o.backward_step(loss),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct TrainConfig {
@@ -44,6 +69,17 @@ pub struct TrainConfig {
     /// `None` (default) keeps the single-encoder stop-gradient style
     /// from Phase 10 S1. Typical values: 0.99 – 0.999.
     pub jepa_ema_decay: Option<f32>,
+    /// Phase 12 S1: optimizer choice. `Adam` (default) keeps the
+    /// existing AdamW behavior; `Muon` swaps in the Newton-Schulz
+    /// orthogonalized SGD-momentum optimizer (DeepSeek V4 style).
+    pub optimizer: OptimizerKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OptimizerKind {
+    #[default]
+    Adam,
+    Muon,
 }
 
 impl TrainConfig {
@@ -62,6 +98,7 @@ impl TrainConfig {
             jepa_lambda: 0.0,
             jepa_offset: 4,
             jepa_ema_decay: None,
+            optimizer: OptimizerKind::Adam,
         }
     }
 }
@@ -271,7 +308,18 @@ pub fn train_from_full(
     } else {
         varmap.all_vars()
     };
-    let mut opt = AdamW::new(trainable_vars, params)?;
+    let mut opt = match cfg.optimizer {
+        OptimizerKind::Adam => AnyOpt::Adam(AdamW::new(trainable_vars, params)?),
+        OptimizerKind::Muon => {
+            let muon_cfg = MuonConfig {
+                lr: cfg.lr,
+                weight_decay: cfg.weight_decay,
+                ..MuonConfig::default()
+            };
+            tracing::info!(?muon_cfg, "using Muon optimizer (Phase 12 S1)");
+            AnyOpt::Muon(Muon::new(trainable_vars, muon_cfg)?)
+        }
+    };
 
     let pb = ProgressBar::new(cfg.max_steps as u64);
     pb.set_style(
@@ -787,6 +835,7 @@ mod cfg_persistence_tests {
             jepa_lambda: 0.0,
             jepa_offset: 4,
             jepa_ema_decay: None,
+            optimizer: OptimizerKind::Adam,
         }
     }
 
@@ -1277,5 +1326,30 @@ mod cfg_persistence_tests {
             res.is_err(),
             "expected error for sft_anchor_weight outside [0, 1]"
         );
+    }
+
+    #[test]
+    fn train_from_full_runs_with_muon_optimizer() {
+        // Phase 12 S1 smoke: TrainConfig.optimizer = Muon should run
+        // train_from_full to completion and write a checkpoint.
+        let dir = temp_dir("muon-smoke");
+        let ckpt = dir.join("toy_muon.safetensors");
+        let cfg = toy_cfg();
+        let ds = toy_dataset(&cfg);
+        let mut tcfg = tiny_train_cfg();
+        tcfg.optimizer = OptimizerKind::Muon;
+        train_from_full(
+            &cfg,
+            &ds,
+            None,
+            &tcfg,
+            &Device::Cpu,
+            Some(&ckpt),
+            None,
+            None,
+            false,
+        )
+        .expect("train_from_full with Muon");
+        assert!(ckpt.exists(), "missing checkpoint after Muon run");
     }
 }

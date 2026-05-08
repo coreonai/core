@@ -31,7 +31,7 @@ use nanogpt_rs::{
     jepa::top1_mass,
     model::GPT,
     tokenizer::Tokenizer,
-    train::{train_from_full, TrainConfig},
+    train::{train_from_full, OptimizerKind, TrainConfig},
 };
 
 #[derive(Parser, Debug)]
@@ -67,6 +67,11 @@ struct Args {
     /// stop-gradient. Typical values: 0.99 – 0.999.
     #[arg(long)]
     jepa_ema_decay: Option<f32>,
+    /// Phase 12 S1: optimizer choice. `adam` (default) or `muon`.
+    /// Muon is the DeepSeek V4 style Newton-Schulz orthogonalized
+    /// SGD-momentum optimizer.
+    #[arg(long, default_value = "adam")]
+    optimizer: String,
     #[arg(long, default_value_t = 200)]
     sample_tokens: usize,
     #[arg(long, default_value = "대한민국의 수도는 ")]
@@ -133,12 +138,18 @@ fn main() -> anyhow::Result<()> {
     tcfg.jepa_lambda = args.jepa_lambda;
     tcfg.jepa_offset = args.jepa_offset;
     tcfg.jepa_ema_decay = args.jepa_ema_decay;
+    tcfg.optimizer = match args.optimizer.to_lowercase().as_str() {
+        "muon" => OptimizerKind::Muon,
+        "adam" | "adamw" => OptimizerKind::Adam,
+        other => anyhow::bail!("unknown optimizer {other:?}; expected adam or muon"),
+    };
     tracing::info!(
         steps = tcfg.max_steps,
         lr = tcfg.lr,
         jepa_lambda = tcfg.jepa_lambda,
         jepa_offset = tcfg.jepa_offset,
         jepa_ema_decay = ?tcfg.jepa_ema_decay,
+        optimizer = ?tcfg.optimizer,
         "training..."
     );
 

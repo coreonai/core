@@ -131,7 +131,7 @@ use nanogpt_rs::{
     ewc::WeightAnchor,
     generate::GenerateConfig,
     tokenizer::Tokenizer,
-    train::{train_from, TrainConfig},
+    train::{train_from, OptimizerKind, TrainConfig},
 };
 use pekko_actor::ActorSystem;
 use tokio::sync::oneshot;
@@ -260,6 +260,11 @@ struct Args {
     /// without exposing rounds 1+ to the multi-round collapse.
     #[arg(long)]
     dpo_round_zero_only: bool,
+    /// Phase 12 S1: optimizer choice for both pretrain and per-round
+    /// fine-tune. `adam` (default) or `muon`. Muon is the DeepSeek V4
+    /// style Newton-Schulz orthogonalized SGD-momentum optimizer.
+    #[arg(long, default_value = "adam")]
+    optimizer: String,
 }
 
 fn pick_device() -> Device {
@@ -449,6 +454,11 @@ async fn main() -> anyhow::Result<()> {
     pre_cfg.lr = 3e-3;
     pre_cfg.min_lr = 3e-4;
     pre_cfg.warmup_steps = 50;
+    pre_cfg.optimizer = match args.optimizer.to_lowercase().as_str() {
+        "muon" => OptimizerKind::Muon,
+        "adam" | "adamw" => OptimizerKind::Adam,
+        other => anyhow::bail!("unknown optimizer {other:?}; expected adam or muon"),
+    };
     let pre_outcome = train_from(
         &gpt_cfg,
         &pretrain_ds,
@@ -557,6 +567,7 @@ async fn main() -> anyhow::Result<()> {
         train_cfg.eval_interval = args.round_train_steps;
         train_cfg.lr = 5e-4;
         train_cfg.min_lr = 5e-5;
+        train_cfg.optimizer = pre_cfg.optimizer;
         train_cfg.warmup_steps = 20;
 
         let cfg = RoundConfig {

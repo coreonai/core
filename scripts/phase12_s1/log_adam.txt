@@ -1,0 +1,27 @@
+=== Phase 12 S1 — K9 AdamW (control, 4 rounds) ===
+[2m2026-05-08T22:55:33.824673Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"before" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 * + + 6\n
+[2m2026-05-08T22:55:33.824678Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: generate [3mround[0m[2m=[0m3
+[2m2026-05-08T22:55:34.436300Z[0m [32m INFO[0m [2mllm_actors::generator_actor[0m[2m:[0m GeneratorActor batch done [3mgenerated[0m[2m=[0m24 [3merrors[0m[2m=[0m0 [3moversample[0m[2m=[0m1
+[2m2026-05-08T22:55:34.436322Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: verify [3mround[0m[2m=[0m3
+[2m2026-05-08T22:55:37.011612Z[0m [32m INFO[0m [2mllm_actors::verifier_actor[0m[2m:[0m VerifierActor batch done [3mverified[0m[2m=[0m24 [3mcorrect[0m[2m=[0m0
+[2m2026-05-08T22:55:37.011644Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: curate [3mround[0m[2m=[0m3
+[2m2026-05-08T22:55:37.011725Z[0m [32m INFO[0m [2mllm_actors::curator_actor[0m[2m:[0m curator add [3maccepted[0m[2m=[0m0 [3mrejected_incorrect[0m[2m=[0m24 [3mrejected_duplicate[0m[2m=[0m0 [3mbuffer[0m[2m=[0m12
+[2m2026-05-08T22:55:37.011777Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m padded corpus [3mround[0m[2m=[0m3 [3mcorpus_chars[0m[2m=[0m4257 [3mfactor[0m[2m=[0m11
+[2m2026-05-08T22:55:37.011782Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: train (SFT) [3mround[0m[2m=[0m3
+[2m2026-05-08T22:55:37.011797Z[0m [32m INFO[0m [2mllm_actors::trainer_actor[0m[2m:[0m TrainerActor: launching blocking training [3mcorpus_chars[0m[2m=[0m4257 [3msave_path[0m[2m=[0m"checkpoints/p12s1_adam.r3.safetensors" [3minit_from[0m[2m=[0mSome("checkpoints/p12s1_adam.r2.safetensors") [3msteps[0m[2m=[0m400 [3mewc[0m[2m=[0mfalse [3mfreeze_base[0m[2m=[0mfalse
+[2m2026-05-08T22:55:37.013870Z[0m [32m INFO[0m [2mnanogpt_rs::train[0m[2m:[0m loaded init weights for continual training [3mpath[0m[2m=[0m"checkpoints/p12s1_adam.r2.safetensors"
+[2m2026-05-08T22:55:38.650218Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: reload [3mround[0m[2m=[0m3
+[2m2026-05-08T22:55:38.651729Z[0m [32m INFO[0m [2mllm_actors::model_actor[0m[2m:[0m checkpoint reloaded [3mpath[0m[2m=[0m"checkpoints/p12s1_adam.r3.safetensors"
+[2m2026-05-08T22:55:38.651758Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: eval-after [3mround[0m[2m=[0m3
+[2m2026-05-08T22:55:41.514825Z[0m [32m INFO[0m [2mllm_actors::evaluator_actor[0m[2m:[0m EvaluatorActor done [3mtotal[0m[2m=[0m24 [3mcorrect[0m[2m=[0m0 [3mpass_rate[0m[2m=[0m0.0
+[2m2026-05-08T22:55:41.514873Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m0 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 * + + 4\n
+[2m2026-05-08T22:55:41.514893Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m1 [3mprompt[0m[2m=[0mfn main() { assert_eq!(2 * ( [3mcompletion[0m[2m=[0m1 + + 4\n
+[2m2026-05-08T22:55:41.514896Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 * + + 4\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=5/24  after=0/24  Δ=-5  loss=Some(0.51245236)  t=10619ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=3/24  Δ=+3
+round 1: gen=0/24 (0.0%)  eval before=5/24 after=0/24  Δ=-5
+round 2: gen=9/24 (37.5%)  eval before=1/24 after=2/24  Δ=+1
+round 3: gen=0/24 (0.0%)  eval before=5/24 after=0/24  Δ=-5
+=== p12s1_adam done ===
