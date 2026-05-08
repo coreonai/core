@@ -319,6 +319,32 @@ verifier-V and domain-D:
     K8/Korean BPE pretrain, JEPA stays off as the default. See
     `docs/phase10-s3-jepa-longrun.md` for the full S3 result.
 
+13. **NEW: DPO multi-round dynamics differ from single-round**
+    (Phase 11 S3 measurement on K9 RustCode). At round 0, DPO
+    β=0.1 with reference frozen at seed posted gen-pass **41.7%**
+    vs SFT's **0.0%** — a +41.7pp lift, the strongest single-round
+    signal in the project. But round 1 catastrophically collapsed:
+    eval went from 7/24 to **0/24**, and rounds 2-3 stayed at
+    0/24/0/24. Sample inspection showed mode collapse onto
+    repetitive `-` tokens.
+
+    Mechanism candidates:
+    - β=0.1 too aggressive at 1M scale.
+    - Frozen reference at seed: as policy drifts, `(π − π_ref)`
+      grows unboundedly, amplifying the implicit reward gradient.
+    - 400 train steps × β=0.1 = excessive effective drift budget
+      per round.
+
+    Operational: DPO is **not a drop-in SFT replacement** at this
+    scale without further hyperparameter / reference work. New
+    deployments must measure ≥ 4 rounds before declaring
+    success on round-0 numbers. Candidate fixes for Phase 11 S4:
+    β sweep (0.01-0.05), rolling reference (snapshot per round),
+    fewer train steps per round, hybrid SFT+DPO loss.
+
+    See `docs/phase11-s3-dpo-vs-sft.md` for the full result and
+    follow-up plan.
+
 ## What "Phase 7 done" means
 
 Phase 7 is a consolidation phase, not an implementation phase. Its

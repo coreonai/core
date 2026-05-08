@@ -1,0 +1,62 @@
+=== Phase 11 S3 — K9 DPO β=0.1 (4 rounds) ===
+[2m2026-05-08T03:59:48.095669Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m10 + + main { le
+[round 1] gen_correct=0/24 (0.0%)  eval before=7/24  after=0/24  Δ=-7  loss=Some(0.08772487)  t=221121ms
+[2m2026-05-08T03:59:48.095701Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: eval-before [3mround[0m[2m=[0m2
+[2m2026-05-08T03:59:51.021288Z[0m [32m INFO[0m [2mllm_actors::evaluator_actor[0m[2m:[0m EvaluatorActor done [3mtotal[0m[2m=[0m24 [3mcorrect[0m[2m=[0m0 [3mpass_rate[0m[2m=[0m0.0
+[2m2026-05-08T03:59:51.021331Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m eval-before done [3mround[0m[2m=[0m2 [3mbefore_correct[0m[2m=[0m0 [3mtotal[0m[2m=[0m24
+[2m2026-05-08T03:59:51.021345Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"before" [3mi[0m[2m=[0m0 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m10 + + main { le
+[2m2026-05-08T03:59:51.021352Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"before" [3mi[0m[2m=[0m1 [3mprompt[0m[2m=[0mfn main() { assert_eq!(2 * ( [3mcompletion[0m[2m=[0m1 + + 4\n
+[2m2026-05-08T03:59:51.021356Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"before" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m10 + + main { le
+[2m2026-05-08T03:59:51.021359Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: generate [3mround[0m[2m=[0m2
+[2m2026-05-08T03:59:51.627953Z[0m [32m INFO[0m [2mllm_actors::generator_actor[0m[2m:[0m GeneratorActor batch done [3mgenerated[0m[2m=[0m24 [3merrors[0m[2m=[0m0 [3moversample[0m[2m=[0m1
+[2m2026-05-08T03:59:51.627996Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: verify [3mround[0m[2m=[0m2
+[2m2026-05-08T03:59:54.138244Z[0m [32m INFO[0m [2mllm_actors::verifier_actor[0m[2m:[0m VerifierActor batch done [3mverified[0m[2m=[0m24 [3mcorrect[0m[2m=[0m0
+[2m2026-05-08T03:59:54.138287Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: curate [3mround[0m[2m=[0m2
+[2m2026-05-08T03:59:54.138433Z[0m [32m INFO[0m [2mllm_actors::curator_actor[0m[2m:[0m curator add [3maccepted[0m[2m=[0m0 [3mrejected_incorrect[0m[2m=[0m24 [3mrejected_duplicate[0m[2m=[0m0 [3mbuffer[0m[2m=[0m15
+[2m2026-05-08T03:59:54.138485Z[0m [32m INFO[0m [2mllm_actors::curator_actor[0m[2m:[0m curator render-preference-pairs [3mn_pairs[0m[2m=[0m12 [3mmax_per_prompt[0m[2m=[0m4 [3mn_successes[0m[2m=[0m15 [3mn_prompts_with_failures[0m[2m=[0m3
+[2m2026-05-08T03:59:54.138496Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: train (DPO) [3mround[0m[2m=[0m2 [3mn_pairs[0m[2m=[0m12 [3mbeta[0m[2m=[0m0.1
+[2m2026-05-08T03:59:54.138514Z[0m [32m INFO[0m [2mllm_actors::trainer_actor[0m[2m:[0m TrainerActor: launching DPO training [3mn_pairs[0m[2m=[0m12 [3msave_path[0m[2m=[0m"checkpoints/p11s3_dpo.r2.safetensors" [3minit_from[0m[2m=[0m"checkpoints/p11s3_dpo.r1.safetensors" [3mreference_path[0m[2m=[0m"checkpoints/rust_seed.safetensors" [3msteps[0m[2m=[0m400 [3mbeta[0m[2m=[0m0.1
+[2m2026-05-08T03:59:54.140937Z[0m [32m INFO[0m [2mnanogpt_rs::train[0m[2m:[0m DPO policy loaded [3minit_from[0m[2m=[0m"checkpoints/p11s3_dpo.r1.safetensors"
+[2m2026-05-08T03:59:54.142704Z[0m [32m INFO[0m [2mnanogpt_rs::train[0m[2m:[0m DPO reference loaded (frozen) [3mreference_path[0m[2m=[0m"checkpoints/rust_seed.safetensors"
+[2m2026-05-08T04:03:25.765791Z[0m [32m INFO[0m [2mnanogpt_rs::train[0m[2m:[0m dpo eval [3mstep[0m[2m=[0m400 [3mdpo_loss[0m[2m=[0m0.3131643533706665 [3mlr[0m[2m=[0m5.000768922556072e-5
+[2m2026-05-08T04:03:25.772733Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: reload [3mround[0m[2m=[0m2
+[2m2026-05-08T04:03:25.775091Z[0m [32m INFO[0m [2mllm_actors::model_actor[0m[2m:[0m checkpoint reloaded [3mpath[0m[2m=[0m"checkpoints/p11s3_dpo.r2.safetensors"
+[2m2026-05-08T04:03:25.775114Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: eval-after [3mround[0m[2m=[0m2
+[2m2026-05-08T04:03:28.671431Z[0m [32m INFO[0m [2mllm_actors::evaluator_actor[0m[2m:[0m EvaluatorActor done [3mtotal[0m[2m=[0m24 [3mcorrect[0m[2m=[0m0 [3mpass_rate[0m[2m=[0m0.0
+[2m2026-05-08T04:03:28.671497Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m0 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m5 + + + 6\n
+[2m2026-05-08T04:03:28.671523Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m1 [3mprompt[0m[2m=[0mfn main() { assert_eq!(2 * ( [3mcompletion[0m[2m=[0m5 + + + 6\n
+[2m2026-05-08T04:03:28.671531Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m5 + + + 6\n
+[round 2] gen_correct=0/24 (0.0%)  eval before=0/24  after=0/24  Δ=+0  loss=Some(0.31316435)  t=220575ms
+[2m2026-05-08T04:03:28.671570Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: eval-before [3mround[0m[2m=[0m3
+[2m2026-05-08T04:03:31.556182Z[0m [32m INFO[0m [2mllm_actors::evaluator_actor[0m[2m:[0m EvaluatorActor done [3mtotal[0m[2m=[0m24 [3mcorrect[0m[2m=[0m0 [3mpass_rate[0m[2m=[0m0.0
+[2m2026-05-08T04:03:31.556223Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m eval-before done [3mround[0m[2m=[0m3 [3mbefore_correct[0m[2m=[0m0 [3mtotal[0m[2m=[0m24
+[2m2026-05-08T04:03:31.556244Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"before" [3mi[0m[2m=[0m0 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m5 + + + 6\n
+[2m2026-05-08T04:03:31.556249Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"before" [3mi[0m[2m=[0m1 [3mprompt[0m[2m=[0mfn main() { assert_eq!(2 * ( [3mcompletion[0m[2m=[0m5 + + + 6\n
+[2m2026-05-08T04:03:31.556253Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"before" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m5 + + + 6\n
+[2m2026-05-08T04:03:31.556256Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: generate [3mround[0m[2m=[0m3
+[2m2026-05-08T04:03:32.159322Z[0m [32m INFO[0m [2mllm_actors::generator_actor[0m[2m:[0m GeneratorActor batch done [3mgenerated[0m[2m=[0m24 [3merrors[0m[2m=[0m0 [3moversample[0m[2m=[0m1
+[2m2026-05-08T04:03:32.159351Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: verify [3mround[0m[2m=[0m3
+[2m2026-05-08T04:03:34.430140Z[0m [32m INFO[0m [2mllm_actors::verifier_actor[0m[2m:[0m VerifierActor batch done [3mverified[0m[2m=[0m24 [3mcorrect[0m[2m=[0m0
+[2m2026-05-08T04:03:34.430186Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: curate [3mround[0m[2m=[0m3
+[2m2026-05-08T04:03:34.430316Z[0m [32m INFO[0m [2mllm_actors::curator_actor[0m[2m:[0m curator add [3maccepted[0m[2m=[0m0 [3mrejected_incorrect[0m[2m=[0m24 [3mrejected_duplicate[0m[2m=[0m0 [3mbuffer[0m[2m=[0m15
+[2m2026-05-08T04:03:34.430359Z[0m [32m INFO[0m [2mllm_actors::curator_actor[0m[2m:[0m curator render-preference-pairs [3mn_pairs[0m[2m=[0m12 [3mmax_per_prompt[0m[2m=[0m4 [3mn_successes[0m[2m=[0m15 [3mn_prompts_with_failures[0m[2m=[0m3
+[2m2026-05-08T04:03:34.430369Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: train (DPO) [3mround[0m[2m=[0m3 [3mn_pairs[0m[2m=[0m12 [3mbeta[0m[2m=[0m0.1
+[2m2026-05-08T04:03:34.430388Z[0m [32m INFO[0m [2mllm_actors::trainer_actor[0m[2m:[0m TrainerActor: launching DPO training [3mn_pairs[0m[2m=[0m12 [3msave_path[0m[2m=[0m"checkpoints/p11s3_dpo.r3.safetensors" [3minit_from[0m[2m=[0m"checkpoints/p11s3_dpo.r2.safetensors" [3mreference_path[0m[2m=[0m"checkpoints/rust_seed.safetensors" [3msteps[0m[2m=[0m400 [3mbeta[0m[2m=[0m0.1
+[2m2026-05-08T04:03:34.432406Z[0m [32m INFO[0m [2mnanogpt_rs::train[0m[2m:[0m DPO policy loaded [3minit_from[0m[2m=[0m"checkpoints/p11s3_dpo.r2.safetensors"
+[2m2026-05-08T04:03:34.434179Z[0m [32m INFO[0m [2mnanogpt_rs::train[0m[2m:[0m DPO reference loaded (frozen) [3mreference_path[0m[2m=[0m"checkpoints/rust_seed.safetensors"
+[2m2026-05-08T04:07:06.025111Z[0m [32m INFO[0m [2mnanogpt_rs::train[0m[2m:[0m dpo eval [3mstep[0m[2m=[0m400 [3mdpo_loss[0m[2m=[0m0.015752024948596954 [3mlr[0m[2m=[0m5.000768922556072e-5
+[2m2026-05-08T04:07:06.032169Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: reload [3mround[0m[2m=[0m3
+[2m2026-05-08T04:07:06.034514Z[0m [32m INFO[0m [2mllm_actors::model_actor[0m[2m:[0m checkpoint reloaded [3mpath[0m[2m=[0m"checkpoints/p11s3_dpo.r3.safetensors"
+[2m2026-05-08T04:07:06.034541Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: eval-after [3mround[0m[2m=[0m3
+[2m2026-05-08T04:07:09.076142Z[0m [32m INFO[0m [2mllm_actors::evaluator_actor[0m[2m:[0m EvaluatorActor done [3mtotal[0m[2m=[0m24 [3mcorrect[0m[2m=[0m0 [3mpass_rate[0m[2m=[0m0.0
+[2m2026-05-08T04:07:09.076184Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m0 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m3 * - - - - - - 
+[2m2026-05-08T04:07:09.076196Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m1 [3mprompt[0m[2m=[0mfn main() { assert_eq!(2 * ( [3mcompletion[0m[2m=[0m3 - - - - - - - 
+[2m2026-05-08T04:07:09.076200Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m3 * - - - - - - 
+[round 3] gen_correct=0/24 (0.0%)  eval before=0/24  after=0/24  Δ=+0  loss=Some(0.015752025)  t=220404ms
+
+=== history ===
+round 0: gen=10/24 (41.7%)  eval before=1/24 after=7/24  Δ=+6
+round 1: gen=0/24 (0.0%)  eval before=7/24 after=0/24  Δ=-7
+round 2: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+round 3: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+=== p11s3_dpo done ===
