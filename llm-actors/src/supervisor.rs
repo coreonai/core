@@ -65,6 +65,21 @@ pub struct RoundConfig {
     /// keep the highest. Cargo budget unchanged; per-prompt selection
     /// becomes critic-driven.
     pub gen_oversample: usize,
+    /// Phase 11 S2: when `Some(beta)`, the round's training step uses
+    /// DPO — `(prompt, chosen, rejected)` triples are rendered from the
+    /// curator and fed to `train_dpo`. `None` (default) uses the
+    /// existing SFT path through `RenderCorpus` + `train_from`.
+    pub dpo_beta: Option<f64>,
+    /// Phase 11 S2: reference checkpoint for DPO. Required when
+    /// `dpo_beta` is `Some`. Held frozen during fine-tune; provides the
+    /// `π_ref` half of the DPO objective. Typically the SFT-trained
+    /// init checkpoint.
+    pub dpo_reference_path: Option<PathBuf>,
+    /// Phase 11 S2: cap on (chosen, rejected) cross-pairs per prompt
+    /// when rendering DPO training data. Defaults to 4 if unspecified.
+    /// Larger values produce more training pairs but bias toward
+    /// prompts with prolific verifier hits + misses.
+    pub dpo_max_pairs_per_prompt: usize,
 }
 
 pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result<RoundReport> {
@@ -134,49 +149,101 @@ pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;
     let _add_report = rx.await?;
 
-    // 5. Render corpus, then train
-    let (tx, rx) = oneshot::channel();
-    actors
-        .curator
-        .tell(CuratorMessage::RenderCorpus {
-            mode: cfg.sample_mode,
-            seed: cfg.corpus_seed,
-            reply: tx,
-        })
-        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
-    let mut corpus = rx.await?;
-    if !corpus.is_empty() && corpus.len() < cfg.min_corpus_chars {
-        let factor = cfg.min_corpus_chars.div_ceil(corpus.len());
-        corpus = corpus.repeat(factor);
+    // 5. Train. Phase 11 S2 fork: DPO if `dpo_beta` set, otherwise the
+    // existing SFT path (RenderCorpus + train_from).
+    let outcome = if let Some(beta) = cfg.dpo_beta {
+        let reference_path = cfg
+            .dpo_reference_path
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("dpo_beta is Some but dpo_reference_path is None"))?;
+        let init_from = cfg
+            .init_from
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("dpo_beta is Some but init_from is None"))?;
+        let max_per_prompt = if cfg.dpo_max_pairs_per_prompt == 0 {
+            4
+        } else {
+            cfg.dpo_max_pairs_per_prompt
+        };
+        let (tx, rx) = oneshot::channel();
+        actors
+            .curator
+            .tell(CuratorMessage::RenderPreferencePairs {
+                max_per_prompt,
+                reply: tx,
+            })
+            .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+        let pairs = rx.await?;
+        if pairs.is_empty() {
+            info!(
+                round = cfg.round,
+                "skip DPO training: zero pairs from curator"
+            );
+            report.elapsed_ms = t0.elapsed().as_millis();
+            return Ok(report);
+        }
         info!(
             round = cfg.round,
-            corpus_chars = corpus.len(),
-            factor,
-            "padded corpus"
+            n_pairs = pairs.len(),
+            beta,
+            "phase: train (DPO)"
         );
-    }
-
-    if corpus.is_empty() {
-        info!(round = cfg.round, "skip training: empty corpus");
-        report.elapsed_ms = t0.elapsed().as_millis();
-        return Ok(report);
-    }
-
-    info!(round = cfg.round, "phase: train");
-    let (tx, rx) = oneshot::channel();
-    actors
-        .trainer
-        .tell(TrainerMessage::Train {
-            corpus,
-            save_path: cfg.save_path.clone(),
-            init_from: cfg.init_from,
-            train_cfg: cfg.train_cfg.clone(),
-            anchor: cfg.anchor.clone(),
-            freeze_base: cfg.freeze_base,
-            reply: tx,
-        })
-        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
-    let outcome = rx.await??;
+        let (tx, rx) = oneshot::channel();
+        actors
+            .trainer
+            .tell(TrainerMessage::TrainDpo {
+                pairs,
+                save_path: cfg.save_path.clone(),
+                init_from,
+                reference_path,
+                train_cfg: cfg.train_cfg.clone(),
+                beta,
+                reply: tx,
+            })
+            .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+        rx.await??
+    } else {
+        let (tx, rx) = oneshot::channel();
+        actors
+            .curator
+            .tell(CuratorMessage::RenderCorpus {
+                mode: cfg.sample_mode,
+                seed: cfg.corpus_seed,
+                reply: tx,
+            })
+            .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+        let mut corpus = rx.await?;
+        if !corpus.is_empty() && corpus.len() < cfg.min_corpus_chars {
+            let factor = cfg.min_corpus_chars.div_ceil(corpus.len());
+            corpus = corpus.repeat(factor);
+            info!(
+                round = cfg.round,
+                corpus_chars = corpus.len(),
+                factor,
+                "padded corpus"
+            );
+        }
+        if corpus.is_empty() {
+            info!(round = cfg.round, "skip training: empty corpus");
+            report.elapsed_ms = t0.elapsed().as_millis();
+            return Ok(report);
+        }
+        info!(round = cfg.round, "phase: train (SFT)");
+        let (tx, rx) = oneshot::channel();
+        actors
+            .trainer
+            .tell(TrainerMessage::Train {
+                corpus,
+                save_path: cfg.save_path.clone(),
+                init_from: cfg.init_from.clone(),
+                train_cfg: cfg.train_cfg.clone(),
+                anchor: cfg.anchor.clone(),
+                freeze_base: cfg.freeze_base,
+                reply: tx,
+            })
+            .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+        rx.await??
+    };
     report.training_steps = outcome.final_step;
     report.last_train_loss = Some(outcome.last_train_loss);
 

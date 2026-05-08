@@ -12,7 +12,7 @@ use nanogpt_rs::{
     config::GPTConfig,
     data::TokenDataset,
     ewc::WeightAnchor,
-    train::{train_from_full, TrainConfig, TrainOutcome},
+    train::{train_dpo, train_from_full, PreferencePair, TrainConfig, TrainOutcome},
     Tokenizer,
 };
 use pekko_actor::{Actor, ActorContext};
@@ -35,6 +35,21 @@ pub enum TrainerMessage {
         /// `lora_rank > 0`. Eliminates catastrophic forgetting since base
         /// weights are immutable during the round.
         freeze_base: bool,
+        reply: oneshot::Sender<anyhow::Result<TrainOutcome>>,
+    },
+    /// Phase 11 S2: DPO fine-tune.
+    ///
+    /// `pairs` is `(prompt_text, chosen_completion_text, rejected_completion_text)`.
+    /// The trainer encodes each side with its own `tokenizer` and calls
+    /// `nanogpt_rs::train::train_dpo` on a blocking task. The reference
+    /// model is loaded from `reference_path` and held frozen.
+    TrainDpo {
+        pairs: Vec<(String, String, String)>,
+        save_path: PathBuf,
+        init_from: PathBuf,
+        reference_path: PathBuf,
+        train_cfg: TrainConfig,
+        beta: f64,
         reply: oneshot::Sender<anyhow::Result<TrainOutcome>>,
     },
 }
@@ -114,6 +129,87 @@ impl Actor for TrainerActor {
                         Err(join_err) => {
                             warn!(error = %join_err, "training task panicked");
                             Err(anyhow::anyhow!("training panicked: {join_err}"))
+                        }
+                    };
+                    let _ = reply.send(result);
+                }
+                TrainerMessage::TrainDpo {
+                    pairs,
+                    save_path,
+                    init_from,
+                    reference_path,
+                    train_cfg,
+                    beta,
+                    reply,
+                } => {
+                    let gpt_cfg = self.gpt_cfg.clone();
+                    let tokenizer = self.tokenizer.clone();
+                    let device = self.device.clone();
+                    info!(
+                        n_pairs = pairs.len(),
+                        ?save_path,
+                        ?init_from,
+                        ?reference_path,
+                        steps = train_cfg.max_steps,
+                        beta,
+                        "TrainerActor: launching DPO training"
+                    );
+                    let job = spawn_blocking(move || {
+                        // Encode (prompt, chosen, rejected) text triples
+                        // into PreferencePair token-id triples. Drop pairs
+                        // that don't fit in block_size.
+                        let mut encoded: Vec<PreferencePair> = Vec::with_capacity(pairs.len());
+                        let mut dropped = 0usize;
+                        for (prompt, chosen, rejected) in pairs {
+                            let prompt_ids =
+                                tokenizer.encode(&prompt).map_err(anyhow::Error::from)?;
+                            let chosen_ids =
+                                tokenizer.encode(&chosen).map_err(anyhow::Error::from)?;
+                            let rejected_ids =
+                                tokenizer.encode(&rejected).map_err(anyhow::Error::from)?;
+                            if prompt_ids.is_empty() {
+                                dropped += 1;
+                                continue;
+                            }
+                            let n_chosen = prompt_ids.len() + chosen_ids.len();
+                            let n_rejected = prompt_ids.len() + rejected_ids.len();
+                            if n_chosen > gpt_cfg.block_size || n_rejected > gpt_cfg.block_size {
+                                dropped += 1;
+                                continue;
+                            }
+                            encoded.push(PreferencePair {
+                                prompt_ids,
+                                chosen_ids,
+                                rejected_ids,
+                            });
+                        }
+                        if encoded.is_empty() {
+                            anyhow::bail!(
+                                "all {} DPO pairs dropped (block_size or empty prompt) — \
+                                 nothing to train on",
+                                dropped
+                            );
+                        }
+                        if dropped > 0 {
+                            tracing::warn!(dropped, kept = encoded.len(), "DPO: dropped pairs");
+                        }
+                        let outcome = train_dpo(
+                            &gpt_cfg,
+                            &encoded,
+                            &train_cfg,
+                            beta,
+                            &init_from,
+                            &reference_path,
+                            &device,
+                            Some(&save_path),
+                        )?;
+                        Ok::<TrainOutcome, anyhow::Error>(outcome)
+                    });
+                    let result = match job.await {
+                        Ok(inner) => inner,
+                        Err(join_err) => {
+                            warn!(error = %join_err, "DPO training task panicked");
+                            Err(anyhow::anyhow!("DPO training panicked: {join_err}"))
                         }
                     };
                     let _ = reply.send(result);

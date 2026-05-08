@@ -334,6 +334,9 @@ async fn main() -> anyhow::Result<()> {
             anchor: None,
             freeze_base: false,
             gen_oversample: 1,
+            dpo_beta: None,
+            dpo_reference_path: None,
+            dpo_max_pairs_per_prompt: 0,
         };
 
         let report = run_round(&actors, cfg).await?;

@@ -224,6 +224,20 @@ struct Args {
     /// Session 3's bake-off found F=4 to be the sweet spot.
     #[arg(long, default_value_t = 1)]
     critic_oversample: usize,
+    /// Phase 11 S2: when set, the round's training step uses DPO
+    /// instead of SFT. β controls the strength of the implicit reward
+    /// gap; common values are 0.1–0.5. Requires `--dpo-reference-from`
+    /// to point at the frozen reference checkpoint (typically the
+    /// pretrained / SFT-trained init checkpoint).
+    #[arg(long)]
+    dpo_beta: Option<f64>,
+    /// Phase 11 S2: reference checkpoint for DPO.
+    #[arg(long)]
+    dpo_reference_from: Option<PathBuf>,
+    /// Phase 11 S2: cap on (chosen, rejected) cross-pairs per prompt.
+    /// 0 (default) → curator's internal default of 4.
+    #[arg(long, default_value_t = 0)]
+    dpo_max_pairs_per_prompt: usize,
 }
 
 fn pick_device() -> Device {
@@ -554,6 +568,9 @@ async fn main() -> anyhow::Result<()> {
             anchor: anchor.clone(),
             freeze_base: args.lora_rank > 0,
             gen_oversample: args.critic_oversample.max(1),
+            dpo_beta: args.dpo_beta,
+            dpo_reference_path: args.dpo_reference_from.clone(),
+            dpo_max_pairs_per_prompt: args.dpo_max_pairs_per_prompt,
         };
 
         let report = run_round(&actors, cfg).await?;

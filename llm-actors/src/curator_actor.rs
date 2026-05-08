@@ -46,6 +46,15 @@ pub enum CuratorMessage {
         items: Vec<VerifiedTrajectory>,
         reply: oneshot::Sender<CuratorAddReport>,
     },
+    /// Phase 11 S2: emit `(prompt, chosen, rejected)` triples for DPO
+    /// training. For each prompt that has both correct and incorrect
+    /// trajectories observed across all `Add` calls so far, cross-pair
+    /// the recent ones (capped at `max_per_prompt` pairs per prompt to
+    /// avoid combinatorial blowup). Source for `train_dpo`'s input batch.
+    RenderPreferencePairs {
+        max_per_prompt: usize,
+        reply: oneshot::Sender<Vec<(String, String, String)>>,
+    },
     /// Insert via N-actor ensemble consensus. Items are grouped by
     /// exact `(prompt, completion)` and the count of distinct models
     /// that emitted each pair AND verdict-correct is taken; only pairs
@@ -96,6 +105,13 @@ pub struct CuratorActor {
     insert_counter: u64,
     /// Per-item insertion index (parallel to `buf`).
     insert_idx: Vec<u64>,
+    /// Phase 11 S2: per-prompt rolling buffer of incorrect completions.
+    /// Used by [`CuratorMessage::RenderPreferencePairs`] to assemble
+    /// (chosen, rejected) DPO training pairs. Each prompt's vector is
+    /// capped at `failure_cap_per_prompt` (FIFO eviction). Independent
+    /// of the main `buf`, which still only stores correct items.
+    failures: HashMap<String, Vec<VerifiedTrajectory>>,
+    failure_cap_per_prompt: usize,
 }
 
 impl CuratorActor {
@@ -107,11 +123,22 @@ impl CuratorActor {
             seen: HashSet::new(),
             insert_counter: 0,
             insert_idx: Vec::with_capacity(cap_hint),
+            failures: HashMap::new(),
+            failure_cap_per_prompt: 16,
         }
     }
 
     fn insert(&mut self, item: VerifiedTrajectory, report: &mut CuratorAddReport) {
         if !item.is_correct() {
+            // Phase 11 S2: keep incorrect items per-prompt for DPO pairing.
+            // FIFO cap so a flood of failures on one prompt doesn't crowd out
+            // recent ones from other prompts.
+            let prompt_key = item.trajectory.prompt.clone();
+            let bucket = self.failures.entry(prompt_key).or_default();
+            bucket.push(item);
+            if bucket.len() > self.failure_cap_per_prompt {
+                bucket.remove(0);
+            }
             report.rejected_incorrect += 1;
             return;
         }
@@ -130,6 +157,39 @@ impl CuratorActor {
         self.insert_idx.push(self.insert_counter);
         self.insert_counter += 1;
         report.accepted += 1;
+    }
+
+    /// Phase 11 S2: emit `(prompt, chosen, rejected)` triples by
+    /// cross-pairing recent successes from `buf` against recent failures
+    /// from `failures[prompt]`. Caps at `max_per_prompt` triples per
+    /// prompt (most-recent first on both sides) so a single prolific
+    /// prompt doesn't dominate.
+    pub fn render_preference_pairs(&self, max_per_prompt: usize) -> Vec<(String, String, String)> {
+        // Group successes by prompt (most-recent last).
+        let mut by_prompt: HashMap<&str, Vec<&VerifiedTrajectory>> = HashMap::new();
+        for it in &self.buf {
+            by_prompt
+                .entry(it.trajectory.prompt.as_str())
+                .or_default()
+                .push(it);
+        }
+        let mut out: Vec<(String, String, String)> = Vec::new();
+        for (prompt, chosens) in by_prompt {
+            let Some(failures) = self.failures.get(prompt) else {
+                continue;
+            };
+            // Walk the most-recent successes and most-recent failures.
+            let chosen_iter = chosens.iter().rev();
+            let failure_iter = failures.iter().rev();
+            for (c, r) in chosen_iter.zip(failure_iter).take(max_per_prompt) {
+                out.push((
+                    prompt.to_string(),
+                    c.trajectory.completion.clone(),
+                    r.trajectory.completion.clone(),
+                ));
+            }
+        }
+        out
     }
 
     /// Strict-majority threshold for an `n`-actor ensemble:
@@ -308,6 +368,20 @@ impl Actor for CuratorActor {
                 CuratorMessage::Size { reply } => {
                     let _ = reply.send(self.buf.len());
                 }
+                CuratorMessage::RenderPreferencePairs {
+                    max_per_prompt,
+                    reply,
+                } => {
+                    let pairs = self.render_preference_pairs(max_per_prompt);
+                    info!(
+                        n_pairs = pairs.len(),
+                        max_per_prompt,
+                        n_successes = self.buf.len(),
+                        n_prompts_with_failures = self.failures.len(),
+                        "curator render-preference-pairs"
+                    );
+                    let _ = reply.send(pairs);
+                }
             }
         })
     }
@@ -430,5 +504,121 @@ mod consensus_tests {
         let kept = CuratorActor::consensus_filter(items, 3, 1);
         assert_eq!(kept.len(), 1);
         assert!((kept[0].score - 1.0 / 3.0).abs() < 1e-6);
+    }
+}
+
+#[cfg(test)]
+mod preference_pair_tests {
+    //! Phase 11 S2: tests for the DPO preference-pair rendering path.
+    use super::*;
+
+    fn correct(prompt: &str, completion: &str) -> VerifiedTrajectory {
+        VerifiedTrajectory {
+            trajectory: Trajectory {
+                prompt: prompt.into(),
+                completion: completion.into(),
+                source: "test".into(),
+            },
+            verdict: Verdict::Correct,
+            score: 1.0,
+        }
+    }
+    fn wrong(prompt: &str, completion: &str) -> VerifiedTrajectory {
+        VerifiedTrajectory {
+            trajectory: Trajectory {
+                prompt: prompt.into(),
+                completion: completion.into(),
+                source: "test".into(),
+            },
+            verdict: Verdict::Incorrect {
+                reason: "test".into(),
+            },
+            score: 0.0,
+        }
+    }
+
+    #[test]
+    fn pairs_emit_chosen_from_buf_and_rejected_from_failures() {
+        let mut c = CuratorActor::new(64);
+        let mut report = CuratorAddReport::default();
+        // Two correct + two failures on the same prompt.
+        c.insert(correct("P", "ok1"), &mut report);
+        c.insert(correct("P", "ok2"), &mut report);
+        c.insert(wrong("P", "bad1"), &mut report);
+        c.insert(wrong("P", "bad2"), &mut report);
+        let pairs = c.render_preference_pairs(8);
+        assert!(
+            !pairs.is_empty(),
+            "expected at least one (chosen, rejected) pair"
+        );
+        for (prompt, chosen, rejected) in &pairs {
+            assert_eq!(prompt, "P");
+            assert!(
+                ["ok1", "ok2"].contains(&chosen.as_str()),
+                "chosen must be from buf"
+            );
+            assert!(
+                ["bad1", "bad2"].contains(&rejected.as_str()),
+                "rejected must be from failures"
+            );
+        }
+    }
+
+    #[test]
+    fn pairs_skip_prompt_with_no_failures() {
+        let mut c = CuratorActor::new(64);
+        let mut report = CuratorAddReport::default();
+        c.insert(correct("P", "ok1"), &mut report);
+        c.insert(correct("Q", "ok2"), &mut report);
+        c.insert(wrong("Q", "bad1"), &mut report); // only Q has a failure
+        let pairs = c.render_preference_pairs(8);
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].0, "Q");
+        assert_eq!(pairs[0].1, "ok2");
+        assert_eq!(pairs[0].2, "bad1");
+    }
+
+    #[test]
+    fn pairs_skip_prompt_with_no_successes() {
+        let mut c = CuratorActor::new(64);
+        let mut report = CuratorAddReport::default();
+        // Only failures on P — no chosen, so no pairs for P.
+        c.insert(wrong("P", "bad1"), &mut report);
+        c.insert(wrong("P", "bad2"), &mut report);
+        let pairs = c.render_preference_pairs(8);
+        assert!(pairs.is_empty());
+    }
+
+    #[test]
+    fn pairs_cap_per_prompt() {
+        let mut c = CuratorActor::new(64);
+        let mut report = CuratorAddReport::default();
+        for i in 0..6 {
+            c.insert(correct("P", &format!("ok{i}")), &mut report);
+            c.insert(wrong("P", &format!("bad{i}")), &mut report);
+        }
+        let pairs = c.render_preference_pairs(3);
+        assert_eq!(pairs.len(), 3, "expected cap at 3 pairs per prompt");
+    }
+
+    #[test]
+    fn pairs_empty_when_buffer_empty() {
+        let c = CuratorActor::new(64);
+        let pairs = c.render_preference_pairs(8);
+        assert!(pairs.is_empty());
+    }
+
+    #[test]
+    fn failure_buffer_caps_per_prompt_at_16() {
+        let mut c = CuratorActor::new(64);
+        let mut report = CuratorAddReport::default();
+        // Push 25 failures on the same prompt; only 16 should remain.
+        for i in 0..25 {
+            c.insert(wrong("P", &format!("bad{i}")), &mut report);
+        }
+        let bucket = c.failures.get("P").expect("P bucket");
+        assert_eq!(bucket.len(), 16, "failure cap should hold at 16 per prompt");
+        // Most-recent one should be `bad24`.
+        assert_eq!(bucket.last().unwrap().trajectory.completion, "bad24");
     }
 }
