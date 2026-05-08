@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**119 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11 sessions. Phase 11 S3 honest negative — DPO round 0 hits 41.7% gen-pass vs SFT 0% (project's strongest single-round signal), but round 1 catastrophically collapses (eval 7→0) and rounds 2-3 stay at 0/24. Mode collapse onto repetitive tokens; risk #13 added. DPO is not yet an SFT drop-in replacement at 1M scale — Phase 11 S4 will sweep β / rolling reference / hybrid loss. Phase 11 S2 wired DPO into the actor loop end-to-end. Phase 10 S3 closed Phase 10. Phase 9 S5 closed the external loop. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**119 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11 sessions. Phase 11 S4 — DPO multi-round collapse is robust to β ∈ {0.01–0.1} and rolling reference: every variant has round-1 eval = 0/24. β=0.01 recovers to SFT baseline by round 3 (net DPO benefit = 0); β ≥ 0.03 never recovers. Pure DPO is not an SFT replacement at 1M K9 scale; Phase 11 S5 will test hybrid SFT+DPO loss and round-0-only "DPO seed boost". S3 round-0 +41.7pp signal is real but unsustained. Phase 11 S2 wired DPO into the actor loop end-to-end. Phase 10 S3 closed Phase 10. Phase 9 S5 closed the external loop. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 

@@ -238,6 +238,15 @@ struct Args {
     /// 0 (default) → curator's internal default of 4.
     #[arg(long, default_value_t = 0)]
     dpo_max_pairs_per_prompt: usize,
+    /// Phase 11 S4: when set, the DPO reference for round N becomes the
+    /// previous round's policy (i.e. round N-1's `save_path`, which is
+    /// round N's `init_from`). Round 0 still uses
+    /// `--dpo-reference-from` if provided. This bounds per-round drift
+    /// of `(π − π_ref)` to a single round of training, addressing the
+    /// catastrophic collapse Phase 11 S3 observed at round 1 with a
+    /// frozen seed reference.
+    #[arg(long)]
+    dpo_rolling_reference: bool,
 }
 
 fn pick_device() -> Device {
@@ -569,7 +578,15 @@ async fn main() -> anyhow::Result<()> {
             freeze_base: args.lora_rank > 0,
             gen_oversample: args.critic_oversample.max(1),
             dpo_beta: args.dpo_beta,
-            dpo_reference_path: args.dpo_reference_from.clone(),
+            // Phase 11 S4: rolling reference. After round 0 (where the
+            // reference is whatever `--dpo-reference-from` points at,
+            // typically the seed), subsequent rounds use the *previous*
+            // round's policy as the reference — i.e. `init_from`.
+            dpo_reference_path: if args.dpo_rolling_reference && round > 0 {
+                Some(current_ckpt.clone())
+            } else {
+                args.dpo_reference_from.clone()
+            },
             dpo_max_pairs_per_prompt: args.dpo_max_pairs_per_prompt,
         };
 

@@ -345,6 +345,21 @@ verifier-V and domain-D:
     See `docs/phase11-s3-dpo-vs-sft.md` for the full result and
     follow-up plan.
 
+    **Phase 11 S4 update — collapse is robust.** β sweep at
+    {0.01, 0.03, 0.05, 0.1} *and* rolling reference (snapshot per
+    round) all show the same round-1 catastrophic collapse:
+    eval-after lands at 0/24 every time. β=0.01 eventually
+    recovers to baseline by round 3 (final 11/24 = SFT) but adds
+    no net benefit; β ∈ {0.03, 0.1} stay at 0; β=0.05 partially
+    recovers to 7/24. **Hyperparameter tuning alone does not save
+    pure DPO at 1M scale.** Updated mechanism hypothesis: the
+    rejected pile (24 noisy incorrect completions per round) is
+    mostly *noise*, not *informative wrongs*; DPO's negative
+    gradient pushes the policy off the eval distribution. Phase
+    11 S5 will test (a) hybrid SFT+DPO loss and (b) round-0-only
+    DPO ("DPO seed boost"). See `docs/phase11-s4-dpo-fixes.md`
+    for the full sweep.
+
 ## What "Phase 7 done" means
 
 Phase 7 is a consolidation phase, not an implementation phase. Its
