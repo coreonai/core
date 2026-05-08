@@ -63,6 +63,51 @@ pub const DEFAULT_CHALLENGES: &[RustChallenge] = &[
         prompt: "fn main() { let s: &str = ",
         suffix: "; assert_eq!(s.len(), 5); }\n",
     },
+    // Phase 13 S1 (A1): expanded challenge set — distinct prompts each
+    // routing to a unique RustChallenge via exact-match dispatch.
+
+    // Slot must be an expression equal to 10.
+    RustChallenge {
+        name: "equals_10",
+        prompt: "fn main() { let x: i32 = ",
+        suffix: "; assert_eq!(x, 10); }\n",
+    },
+    // Slot must be an expression equal to 0.
+    RustChallenge {
+        name: "equals_zero",
+        prompt: "fn main() { let z: i32 = ",
+        suffix: "; assert_eq!(z, 0); }\n",
+    },
+    // Slot must be the literal `true` or any expression evaluating to it.
+    RustChallenge {
+        name: "bool_true",
+        prompt: "fn main() { let b: bool = ",
+        suffix: "; assert_eq!(b, true); }\n",
+    },
+    // Slot must evaluate to `false`.
+    RustChallenge {
+        name: "bool_false",
+        prompt: "fn main() { let f: bool = ",
+        suffix: "; assert_eq!(f, false); }\n",
+    },
+    // Slot is a `&str` whose `.len()` == 3.
+    RustChallenge {
+        name: "len_3_string",
+        prompt: "fn main() { let t: &str = ",
+        suffix: "; assert_eq!(t.len(), 3); }\n",
+    },
+    // Slot is a `[i32; 3]` literal whose elements sum to 6.
+    RustChallenge {
+        name: "vec_sum_6",
+        prompt: "fn main() { let xs: [i32; 3] = ",
+        suffix: "; assert_eq!(xs.iter().sum::<i32>(), 6); }\n",
+    },
+    // Slot must evaluate to Some(5).
+    RustChallenge {
+        name: "option_some_5",
+        prompt: "fn main() { let o: Option<i32> = ",
+        suffix: "; assert_eq!(o, Some(5)); }\n",
+    },
 ];
 
 pub struct RustCodeDomain {

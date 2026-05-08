@@ -303,7 +303,6 @@ const CHALLENGES: &[(&str, &[&str])] = &[
         &["7", "3 + 4", "4 + 3", "1 + 6", "6 + 1", "10 - 3", "14 / 2"],
     ),
     // len_5_string: `fn main() { let s: &str = <slot>; assert_eq!(s.len(), 5); }`
-    // Slot must be a `&str` of length 5.
     (
         "fn main() { let s: &str = ",
         &[
@@ -313,6 +312,51 @@ const CHALLENGES: &[(&str, &[&str])] = &[
             r#""12345""#,
             r#""HELLO""#,
         ],
+    ),
+    // Phase 13 S1 (A1): expanded set — 7 new challenges,
+    // 10 total (was 3). Each prompt is unique under exact-match
+    // dispatch in `RustCodeDomain::challenge_for_prompt`.
+
+    // equals_10: any int expr evaluating to 10.
+    (
+        "fn main() { let x: i32 = ",
+        &["10", "5 + 5", "2 * 5", "20 / 2", "12 - 2", "1 + 9", "3 + 7"],
+    ),
+    // equals_zero: any int expr evaluating to 0.
+    (
+        "fn main() { let z: i32 = ",
+        &["0", "1 - 1", "5 - 5", "10 - 10", "2 * 0", "0 * 7"],
+    ),
+    // bool_true.
+    (
+        "fn main() { let b: bool = ",
+        &["true", "1 == 1", "2 > 1", "!false", "1 != 2"],
+    ),
+    // bool_false.
+    (
+        "fn main() { let f: bool = ",
+        &["false", "1 == 2", "2 < 1", "!true", "1 != 1"],
+    ),
+    // len_3_string.
+    (
+        "fn main() { let t: &str = ",
+        &[r#""abc""#, r#""123""#, r#""hey""#, r#""xyz""#, r#""foo""#],
+    ),
+    // vec_sum_6: [i32; 3] literal summing to 6.
+    (
+        "fn main() { let xs: [i32; 3] = ",
+        &[
+            "[1, 2, 3]",
+            "[2, 2, 2]",
+            "[0, 3, 3]",
+            "[3, 0, 3]",
+            "[1, 1, 4]",
+        ],
+    ),
+    // option_some_5.
+    (
+        "fn main() { let o: Option<i32> = ",
+        &["Some(5)", "Some(2 + 3)", "Some(10 - 5)"],
     ),
 ];
 
