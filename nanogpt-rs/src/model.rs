@@ -759,6 +759,53 @@ impl GPT {
         gathered.sum_all()?.to_scalar::<f32>()
     }
 
+    /// Tensor-returning sibling of [`sequence_log_prob`]. Returns a
+    /// scalar `Tensor` (rank 0) so the autograd graph is preserved —
+    /// required by Phase 11's DPO training loop, where we backprop
+    /// through `(policy_chosen_logp - policy_rejected_logp)`.
+    ///
+    /// Same contract as [`sequence_log_prob`] otherwise: `prompt_ids`
+    /// non-empty, `prompt_ids.len() + completion_ids.len() <= block_size`.
+    pub fn sequence_log_prob_tensor(
+        &self,
+        prompt_ids: &[u32],
+        completion_ids: &[u32],
+        device: &Device,
+    ) -> CResult<Tensor> {
+        if prompt_ids.is_empty() {
+            candle_core::bail!("sequence_log_prob_tensor: prompt_ids is empty");
+        }
+        if completion_ids.is_empty() {
+            // Return a zero scalar tensor (no grad path; caller usually
+            // skips empty completions before reaching DPO loss).
+            return Tensor::zeros((), DType::F32, device);
+        }
+        let n = prompt_ids.len() + completion_ids.len();
+        if n > self.cfg.block_size {
+            candle_core::bail!(
+                "sequence_log_prob_tensor: prompt+completion {} > block_size {}",
+                n,
+                self.cfg.block_size
+            );
+        }
+        let full: Vec<u32> = prompt_ids
+            .iter()
+            .chain(completion_ids.iter())
+            .copied()
+            .collect();
+        let x = Tensor::from_slice(&full[..n - 1], (1, n - 1), device)?;
+        let logits = self.forward(&x)?;
+        let (_, t, v) = logits.dims3()?;
+        let log_probs = candle_nn::ops::log_softmax(&logits.reshape((t, v))?, 1)?;
+        let start = prompt_ids.len() - 1;
+        let lps_comp = log_probs.narrow(0, start, completion_ids.len())?;
+        let targets = Tensor::from_slice(completion_ids, completion_ids.len(), device)?
+            .to_dtype(DType::U32)?
+            .unsqueeze(1)?;
+        let gathered = lps_comp.gather(&targets, 1)?;
+        gathered.sum_all()
+    }
+
     pub fn block_size(&self) -> usize {
         self.cfg.block_size
     }

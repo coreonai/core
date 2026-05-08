@@ -380,6 +380,162 @@ pub fn train_from_full(
     })
 }
 
+/// Phase 11: a single (chosen, rejected) preference pair. All three
+/// `Vec<u32>` are token IDs already encoded with the model's
+/// tokenizer. Used by [`train_dpo`].
+#[derive(Debug, Clone)]
+pub struct PreferencePair {
+    pub prompt_ids: Vec<u32>,
+    pub chosen_ids: Vec<u32>,
+    pub rejected_ids: Vec<u32>,
+}
+
+/// Phase 11: minimum-overhead DPO training entry point.
+///
+/// Given a preference dataset of `(prompt, chosen, rejected)` triples,
+/// fine-tune `init_from` toward chosen and away from rejected using
+/// the loss in [`crate::dpo::dpo_loss`]. The reference model is
+/// loaded from `reference_path` and held fixed (no gradients).
+///
+/// At each step we sample `batch_size` random pairs and accumulate
+/// the per-pair `(policy chosen logp, policy rejected logp,
+/// reference chosen logp, reference rejected logp)` quadruples — then
+/// stack into 1-D tensors and call `dpo_loss(...)` once for the
+/// gradient step.
+///
+/// This is intentionally not integrated into [`train_from_full`]
+/// because the input shape (paired sequences, not a single token
+/// stream) is fundamentally different. The function shares the
+/// AdamW + cosine LR schedule machinery via local copies — kept
+/// short on purpose.
+#[allow(clippy::too_many_arguments)]
+pub fn train_dpo(
+    gpt_cfg: &GPTConfig,
+    pairs: &[PreferencePair],
+    cfg: &TrainConfig,
+    beta: f64,
+    init_from: &Path,
+    reference_path: &Path,
+    device: &Device,
+    save_path: Option<&Path>,
+) -> Result<TrainOutcome> {
+    use rand::seq::SliceRandom;
+    use rand::thread_rng;
+    if pairs.is_empty() {
+        return Err(crate::error::Error::Config(
+            "train_dpo: pairs is empty".into(),
+        ));
+    }
+    if !(0.0..1.0).contains(&beta) && beta != 0.0 {
+        // Allow any positive beta; just sanity-check non-negative.
+        if beta < 0.0 {
+            return Err(crate::error::Error::Config(format!(
+                "train_dpo: beta {beta} must be >= 0"
+            )));
+        }
+    }
+
+    // ---- Policy: trainable copy starting from init_from.
+    let mut policy_varmap = VarMap::new();
+    let policy_vb = VarBuilder::from_varmap(&policy_varmap, cfg.dtype, device);
+    let policy = GPT::new(gpt_cfg.clone(), policy_vb)?;
+    policy_varmap.load(init_from)?;
+    tracing::info!(?init_from, "DPO policy loaded");
+
+    // ---- Reference: separate VarMap + GPT, frozen.
+    let mut reference_varmap = VarMap::new();
+    let reference_vb = VarBuilder::from_varmap(&reference_varmap, cfg.dtype, device);
+    let reference = GPT::new(gpt_cfg.clone(), reference_vb)?;
+    reference_varmap.load(reference_path)?;
+    tracing::info!(?reference_path, "DPO reference loaded (frozen)");
+
+    let params = ParamsAdamW {
+        lr: cfg.lr,
+        weight_decay: cfg.weight_decay,
+        ..Default::default()
+    };
+    let trainable_vars = policy_varmap.all_vars();
+    let mut opt = AdamW::new(trainable_vars, params)?;
+
+    let pb = ProgressBar::new(cfg.max_steps as u64);
+    pb.set_style(
+        ProgressStyle::with_template("{bar:40.cyan/blue} {pos:>5}/{len:5} {msg}")
+            .expect("progress style"),
+    );
+
+    let mut last_train_loss = f32::NAN;
+    let mut rng = thread_rng();
+
+    for step in 0..cfg.max_steps {
+        let lr = cosine_lr(step, cfg);
+        opt.set_learning_rate(lr);
+
+        // Sample a batch of pairs (with replacement; small datasets).
+        let batch: Vec<&PreferencePair> = (0..cfg.batch_size)
+            .map(|_| pairs.choose(&mut rng).expect("non-empty"))
+            .collect();
+
+        // Compute four log-probs per pair.
+        let mut policy_chosen: Vec<Tensor> = Vec::with_capacity(batch.len());
+        let mut policy_rejected: Vec<Tensor> = Vec::with_capacity(batch.len());
+        let mut ref_chosen: Vec<Tensor> = Vec::with_capacity(batch.len());
+        let mut ref_rejected: Vec<Tensor> = Vec::with_capacity(batch.len());
+        for p in &batch {
+            policy_chosen.push(policy.sequence_log_prob_tensor(
+                &p.prompt_ids,
+                &p.chosen_ids,
+                device,
+            )?);
+            policy_rejected.push(policy.sequence_log_prob_tensor(
+                &p.prompt_ids,
+                &p.rejected_ids,
+                device,
+            )?);
+            // Reference: detach so gradients don't even attempt to flow.
+            ref_chosen.push(
+                reference
+                    .sequence_log_prob_tensor(&p.prompt_ids, &p.chosen_ids, device)?
+                    .detach(),
+            );
+            ref_rejected.push(
+                reference
+                    .sequence_log_prob_tensor(&p.prompt_ids, &p.rejected_ids, device)?
+                    .detach(),
+            );
+        }
+        let pi_chosen = Tensor::stack(&policy_chosen, 0)?;
+        let pi_rejected = Tensor::stack(&policy_rejected, 0)?;
+        let r_chosen = Tensor::stack(&ref_chosen, 0)?;
+        let r_rejected = Tensor::stack(&ref_rejected, 0)?;
+        let loss = crate::dpo::dpo_loss(&pi_chosen, &pi_rejected, &r_chosen, &r_rejected, beta)?;
+        opt.backward_step(&loss)?;
+        last_train_loss = loss.to_scalar::<f32>()?;
+
+        if (step + 1) % cfg.eval_interval == 0 {
+            tracing::info!(step = step + 1, dpo_loss = last_train_loss, lr, "dpo eval");
+        }
+        pb.set_message(format!("dpo={:.4} lr={:.2e}", last_train_loss, lr));
+        pb.inc(1);
+    }
+    pb.finish();
+
+    if let Some(path) = save_path {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        policy_varmap.save(path)?;
+        let cfg_path = path.with_extension("cfg.json");
+        let cfg_json = serde_json::to_string_pretty(gpt_cfg)?;
+        std::fs::write(cfg_path, cfg_json)?;
+    }
+
+    Ok(TrainOutcome {
+        final_step: cfg.max_steps,
+        last_train_loss,
+        last_val_loss: None,
+    })
+}
+
 #[derive(Debug, Clone)]
 pub struct DistillConfig {
     /// Softmax temperature for both student and teacher logits.
@@ -843,5 +999,128 @@ mod cfg_persistence_tests {
             false,
         );
         assert!(res.is_err(), "expected error for jepa_ema_decay >= 1.0");
+    }
+
+    #[test]
+    fn train_dpo_widens_chosen_minus_rejected_gap() {
+        // Phase 11 smoke: DPO step on a tiny toy task should make
+        // the policy prefer "chosen" over "rejected" relative to the
+        // reference. Concretely, after a few hundred steps:
+        //   policy.sequence_log_prob(chosen) - policy.sequence_log_prob(rejected)
+        // should be larger than the reference's same delta.
+        let dir = temp_dir("dpo-smoke");
+        let init_ckpt = dir.join("init.safetensors");
+        let ref_ckpt = dir.join("ref.safetensors");
+        let final_ckpt = dir.join("final.safetensors");
+        let cfg = toy_cfg();
+        let ds = toy_dataset(&cfg);
+        let device = Device::Cpu;
+
+        // Seed both init and ref to the same SFT-trained checkpoint.
+        train_from(
+            &cfg,
+            &ds,
+            None,
+            &tiny_train_cfg(),
+            &device,
+            Some(&init_ckpt),
+            None,
+        )
+        .expect("seed train");
+        std::fs::copy(&init_ckpt, &ref_ckpt).expect("copy ckpt");
+
+        // Build pairs: prompts and completions over the small vocab.
+        // chosen = vocab id 1, rejected = vocab id 2 — both single-token
+        // completions so the dpo gradient is concentrated on one logit.
+        let pairs: Vec<PreferencePair> = (0..6)
+            .map(|i| PreferencePair {
+                prompt_ids: vec![(i % cfg.vocab_size as u32).max(1)],
+                chosen_ids: vec![1],
+                rejected_ids: vec![2],
+            })
+            .collect();
+
+        // Measure pre-DPO gap on the *reference* model.
+        let mut vm_pre = VarMap::new();
+        let vb_pre = VarBuilder::from_varmap(&vm_pre, DType::F32, &device);
+        let pre_model = GPT::new(cfg.clone(), vb_pre).expect("build pre");
+        vm_pre.load(&ref_ckpt).expect("load ref");
+        let pre_chosen = pre_model
+            .sequence_log_prob(&pairs[0].prompt_ids, &pairs[0].chosen_ids, &device)
+            .unwrap();
+        let pre_rejected = pre_model
+            .sequence_log_prob(&pairs[0].prompt_ids, &pairs[0].rejected_ids, &device)
+            .unwrap();
+        let pre_gap = pre_chosen - pre_rejected;
+
+        // Run DPO for a handful of steps with a non-trivial beta.
+        let mut tcfg = tiny_train_cfg();
+        tcfg.max_steps = 80;
+        tcfg.batch_size = 2;
+        tcfg.lr = 5e-3;
+        tcfg.eval_interval = 1000;
+        train_dpo(
+            &cfg,
+            &pairs,
+            &tcfg,
+            0.5,
+            &init_ckpt,
+            &ref_ckpt,
+            &device,
+            Some(&final_ckpt),
+        )
+        .expect("train_dpo");
+
+        // Measure post-DPO gap on the *trained policy*.
+        let mut vm_post = VarMap::new();
+        let vb_post = VarBuilder::from_varmap(&vm_post, DType::F32, &device);
+        let post_model = GPT::new(cfg.clone(), vb_post).expect("build post");
+        vm_post.load(&final_ckpt).expect("load post");
+        let post_chosen = post_model
+            .sequence_log_prob(&pairs[0].prompt_ids, &pairs[0].chosen_ids, &device)
+            .unwrap();
+        let post_rejected = post_model
+            .sequence_log_prob(&pairs[0].prompt_ids, &pairs[0].rejected_ids, &device)
+            .unwrap();
+        let post_gap = post_chosen - post_rejected;
+
+        // The DPO objective is to widen this gap. Allow a small slack
+        // (training-from-the-same-init can wiggle), but the post-gap
+        // should be strictly larger than the pre-gap.
+        assert!(
+            post_gap > pre_gap,
+            "expected DPO to widen chosen-rejected gap; pre={pre_gap:.4} post={post_gap:.4}"
+        );
+    }
+
+    #[test]
+    fn train_dpo_rejects_empty_pairs() {
+        let cfg = toy_cfg();
+        let dir = temp_dir("dpo-empty");
+        let init_ckpt = dir.join("init.safetensors");
+        let ref_ckpt = dir.join("ref.safetensors");
+        let ds = toy_dataset(&cfg);
+        train_from(
+            &cfg,
+            &ds,
+            None,
+            &tiny_train_cfg(),
+            &Device::Cpu,
+            Some(&init_ckpt),
+            None,
+        )
+        .expect("seed");
+        std::fs::copy(&init_ckpt, &ref_ckpt).expect("copy");
+        let res = train_dpo(
+            &cfg,
+            &[],
+            &tiny_train_cfg(),
+            0.1,
+            &init_ckpt,
+            &ref_ckpt,
+            &Device::Cpu,
+            None,
+        );
+        assert!(res.is_err(), "expected error for empty pairs");
     }
 }
