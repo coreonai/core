@@ -1,0 +1,56 @@
+=== Muon seed=0 ===
+[2m2026-05-08T23:08:25.943174Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m2 * * (1 main() 
+[round 3] gen_correct=0/24 (0.0%)  eval before=0/24  after=0/24  Δ=+0  loss=Some(0.8405361)  t=11019ms
+
+=== history ===
+round 0: gen=10/24 (41.7%)  eval before=1/24 after=1/24  Δ=+0
+round 1: gen=5/24 (20.8%)  eval before=2/24 after=4/24  Δ=+2
+round 2: gen=8/24 (33.3%)  eval before=9/24 after=2/24  Δ=-7
+round 3: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+=== muon seed=0 done ===
+
+=== Muon seed=1 ===
+[2m2026-05-08T23:09:18.256611Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m2 * (1 main() { 
+[round 3] gen_correct=0/24 (0.0%)  eval before=0/24  after=0/24  Δ=+0  loss=Some(0.8317105)  t=10853ms
+
+=== history ===
+round 0: gen=3/24 (12.5%)  eval before=2/24 after=4/24  Δ=+2
+round 1: gen=6/24 (25.0%)  eval before=1/24 after=2/24  Δ=+1
+round 2: gen=0/24 (0.0%)  eval before=1/24 after=6/24  Δ=+5
+round 3: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+=== muon seed=1 done ===
+
+=== Muon seed=2 ===
+[2m2026-05-08T23:10:09.560900Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m2 * (14 (2 asert
+[round 3] gen_correct=0/24 (0.0%)  eval before=0/24  after=0/24  Δ=+0  loss=Some(0.8750194)  t=10669ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=6/24  Δ=+6
+round 1: gen=6/24 (25.0%)  eval before=4/24 after=1/24  Δ=-3
+round 2: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+round 3: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+=== muon seed=2 done ===
+
+=== Muon seed=3 ===
+[2m2026-05-08T23:11:01.224274Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m10000000 main { 
+[round 3] gen_correct=0/24 (0.0%)  eval before=0/24  after=0/24  Δ=+0  loss=Some(0.8502405)  t=10578ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=2/24 after=5/24  Δ=+3
+round 1: gen=2/24 (8.3%)  eval before=6/24 after=6/24  Δ=+0
+round 2: gen=1/24 (4.2%)  eval before=1/24 after=3/24  Δ=+2
+round 3: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+=== muon seed=3 done ===
+
+=== Muon seed=4 ===
+[2m2026-05-08T23:11:52.918744Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m2 * (14\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=0/24  after=0/24  Δ=+0  loss=Some(0.8017375)  t=10750ms
+
+=== history ===
+round 0: gen=1/24 (4.2%)  eval before=3/24 after=3/24  Δ=+0
+round 1: gen=1/24 (4.2%)  eval before=6/24 after=6/24  Δ=+0
+round 2: gen=3/24 (12.5%)  eval before=0/24 after=1/24  Δ=+1
+round 3: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+=== muon seed=4 done ===
+
+=== muon_seeds done ===

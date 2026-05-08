@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**136 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11/12 sessions. Phase 12 S1 ports Muon optimizer (DeepSeek V4 style, Newton-Schulz orthogonalized SGD-momentum). K9 4-round comparison: Muon mean gen 16.7% vs AdamW 9.4% (**+78% relative**), but greedy eval slightly weaker (best 2/24 vs 5/24). Diversity↔sharpness trade — adopt as NAS axis, not default. Phase 12 S2 ships OPD loss module + 8 tests (DeepSeek's RL replacement). Phase 11 S5 chain — hybrid α=0.3 r1 eval 18/24 (75%, project record) but no DPO variant beats SFT final 11/24. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**136 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11/12/13 sessions. Phase 13 S1 retroactively overturned Phase 12 S1: 5-seed Muon vs AdamW shows the +78% gen claim was a seed-0 outlier (Muon 0.240 on that seed, 0.031-0.094 on the other 4 seeds). Across 5 seeds: mean_gen Muon 0.096 ± 0.083 vs AdamW 0.077 ± 0.012 (noise), final_eval AdamW 5.6 ± 3.4 vs Muon 0 ± 0 (robust AdamW win). Risk #14 added: K9 1M σ is too wide for single-run claims. Phase 13 S1 A1 expanded K9 challenges 3→10 for richer downstream measurement. Phase 12 OPD loss module + 8 tests still ship; the trainer is Phase 12 S3. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -99,7 +99,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**136 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11/12 sessions. See the run-order list below.**
+**136 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11/12/13 sessions. See the run-order list below.**
 
 ## What it does
 

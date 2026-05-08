@@ -1,0 +1,56 @@
+=== AdamW seed=0 ===
+[2m2026-05-08T23:08:16.805886Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 * + + 4\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=11/24  after=2/24  Δ=-9  loss=Some(0.47685337)  t=11323ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=1/24  Δ=+1
+round 1: gen=0/24 (0.0%)  eval before=10/24 after=3/24  Δ=-7
+round 2: gen=8/24 (33.3%)  eval before=5/24 after=8/24  Δ=+3
+round 3: gen=0/24 (0.0%)  eval before=11/24 after=2/24  Δ=-9
+=== adam seed=0 done ===
+
+=== AdamW seed=1 ===
+[2m2026-05-08T23:09:07.280236Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 * + + 4\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=3/24  after=5/24  Δ=+2  loss=Some(0.49197847)  t=10858ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=8/24  Δ=+8
+round 1: gen=0/24 (0.0%)  eval before=5/24 after=5/24  Δ=+0
+round 2: gen=6/24 (25.0%)  eval before=2/24 after=3/24  Δ=+1
+round 3: gen=0/24 (0.0%)  eval before=3/24 after=5/24  Δ=+2
+=== adam seed=1 done ===
+
+=== AdamW seed=2 ===
+[2m2026-05-08T23:09:57.446524Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 * + + 4\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=0/24  after=3/24  Δ=+3  loss=Some(0.48789117)  t=10485ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=11/24  Δ=+11
+round 1: gen=0/24 (0.0%)  eval before=1/24 after=5/24  Δ=+4
+round 2: gen=7/24 (29.2%)  eval before=5/24 after=4/24  Δ=-1
+round 3: gen=0/24 (0.0%)  eval before=0/24 after=3/24  Δ=+3
+=== adam seed=2 done ===
+
+=== AdamW seed=3 ===
+[2m2026-05-08T23:10:48.532688Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 * + + 4\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=2/24  after=8/24  Δ=+6  loss=Some(0.49578223)  t=11147ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=11/24  Δ=+11
+round 1: gen=0/24 (0.0%)  eval before=5/24 after=4/24  Δ=-1
+round 2: gen=9/24 (37.5%)  eval before=5/24 after=9/24  Δ=+4
+round 3: gen=0/24 (0.0%)  eval before=2/24 after=8/24  Δ=+6
+=== adam seed=3 done ===
+
+=== AdamW seed=4 ===
+[2m2026-05-08T23:11:39.416108Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 * + + 4\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=4/24  after=10/24  Δ=+6  loss=Some(0.5002951)  t=10799ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=11/24  Δ=+11
+round 1: gen=0/24 (0.0%)  eval before=10/24 after=6/24  Δ=-4
+round 2: gen=7/24 (29.2%)  eval before=2/24 after=9/24  Δ=+7
+round 3: gen=0/24 (0.0%)  eval before=4/24 after=10/24  Δ=+6
+=== adam seed=4 done ===
+
+=== adam_seeds done ===

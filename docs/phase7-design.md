@@ -383,6 +383,29 @@ verifier-V and domain-D:
     inferior. See `docs/phase11-s5-hybrid-dpo.md` for the full
     matrix.
 
+14. **NEW: Single-run K9 1M optimizer/RL claims are 1σ noise unless
+    replicated** (Phase 13 S1 A2 retroactive variance check).
+    5-seed Muon vs AdamW measurement showed Phase 12 S1's "+78%
+    Muon gen" was the seed-0 outlier (Muon mean_gen=0.240 on that
+    seed, 0.031–0.094 on the other four; AdamW tight at
+    0.077 ± 0.012). Across 5 seeds, Muon mean_gen = 0.096 ± 0.083
+    vs AdamW 0.077 ± 0.012 → **noise within 1σ**. Final eval is
+    robust *AdamW win*: AdamW 5.6 ± 3.4, Muon 0 ± 0.
+
+    K9 1M σ ≈ 3.4 / 24 on final eval and ≈ 0.08 on mean_gen-pass.
+    Any claim from a single 4-round run with delta below this
+    threshold is sampling noise. Phase 11 single-run claims
+    (DPO collapse robustness, hybrid α=0.3 r1=18/24, round-0-only
+    1-round-faster) all need 5-seed replication to promote.
+
+    Operational: every algorithmic comparison at K9 1M from now
+    on must run ≥ 5 fresh-seed pretrains before claiming a winner.
+    `scripts/phase13_s1/{run_*_seeds.sh,analyze.py}` are the
+    standard tool. Single-run is for smoke-testing, not claims.
+
+    See `docs/phase13-s1-variance.md` for the full retroactive
+    analysis + Phase 12 S1 retraction.
+
 ## What "Phase 7 done" means
 
 Phase 7 is a consolidation phase, not an implementation phase. Its
