@@ -145,24 +145,42 @@ def generate_and_score(model, tokenizer, prompt, max_new_tokens, temperature, to
     return completion_text, sum_logp, mean_logp, n
 
 
-def harvest_round(model, tokenizer, samples_per_prompt, seed_base, max_new_tokens, temperature, top_p):
-    """Generate K candidates per challenge; return list of records + summary metrics."""
+def harvest_round(model, tokenizer, samples_per_prompt, seed_base, max_new_tokens, temperature, top_p,
+                  critic_oversample: int = 1):
+    """Generate K candidates per challenge; return list of records.
+
+    Phase 9 S6: when ``critic_oversample > 1``, generate K * F candidates per
+    challenge, sort each cohort by sum log-prob desc, keep top K, and verify
+    only those K. This is the Phase 6 Shape-C pattern applied to the external-
+    model self-improve loop. ``critic_oversample = 1`` reproduces S5 exactly.
+    """
     records = []
     for ci, ch in enumerate(CHALLENGES):
-        for j in range(samples_per_prompt):
+        # Generate K * F candidates without verifying each one yet.
+        cohort = []
+        n_total = samples_per_prompt * critic_oversample
+        for j in range(n_total):
             comp, sum_lp, mean_lp, n_tok = generate_and_score(
                 model, tokenizer, ch["prompt"],
                 max_new_tokens, temperature, top_p,
-                seed_base + ci * 1000 + j,
+                seed_base + ci * 10000 + j,
             )
             if n_tok == 0:
                 continue
-            verdict = verify(ch["prompt"], comp, ch["suffix"])
-            records.append({
+            cohort.append({
                 "challenge": ch["name"], "prompt": ch["prompt"], "suffix": ch["suffix"],
                 "completion": comp, "n_tokens": n_tok,
-                "sum_logp": sum_lp, "mean_logp": mean_lp, "verdict": verdict,
+                "sum_logp": sum_lp, "mean_logp": mean_lp,
             })
+        # Critic-rerank: keep top K by sum_logp (Shape C). With F=1
+        # this is a no-op — every candidate stays.
+        if critic_oversample > 1 and len(cohort) > samples_per_prompt:
+            cohort.sort(key=lambda r: r["sum_logp"], reverse=True)
+            cohort = cohort[:samples_per_prompt]
+        # Verify only the kept candidates (saves verifier cost at F > 1).
+        for rec in cohort:
+            rec["verdict"] = verify(ch["prompt"], rec["completion"], ch["suffix"])
+            records.append(rec)
     return records
 
 
@@ -270,6 +288,11 @@ def main():
     ap.add_argument("--lr", type=float, default=2e-4)
     ap.add_argument("--lora-r", type=int, default=16)
     ap.add_argument("--lora-alpha", type=int, default=32)
+    # Phase 9 S6: Shape-C critic oversample. Generate K * F candidates per
+    # challenge and keep the top K by sum log-prob before verification.
+    # F = 1 (default) is the S5 no-rerank baseline.
+    ap.add_argument("--critic-oversample", type=int, default=1,
+                    help="Phase 9 S6 Shape-C: generate K*F per challenge, keep top K by sum log-prob")
     ap.add_argument("--out", default="/raid/users/paul/workLLM/scripts/phase9_s5/run.json")
     args = ap.parse_args()
 
@@ -300,6 +323,7 @@ def main():
         records = harvest_round(
             model, tokenizer, args.samples, seed_base,
             args.max_new_tokens, args.temperature, args.top_p,
+            critic_oversample=args.critic_oversample,
         )
         seed_base += 100 * len(CHALLENGES)
         n = len(records)

@@ -11,6 +11,7 @@
 
 pub mod config;
 pub mod data;
+pub mod dpo;
 pub mod error;
 pub mod ewc;
 pub mod generate;
