@@ -1,0 +1,55 @@
+=== K9 hybrid SFT+DPO α=0.3 (β=0.1, frozen ref, 4 rounds) ===
+[2m2026-05-08T07:30:23.240061Z[0m [32m INFO[0m [2mnanogpt_rs::train[0m[2m:[0m dpo eval [3mstep[0m[2m=[0m400 [3mdpo_loss[0m[2m=[0m0.5999031066894531 [3mlr[0m[2m=[0m5.000768922556072e-5
+[2m2026-05-08T07:30:23.246753Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: reload [3mround[0m[2m=[0m3
+[2m2026-05-08T07:30:23.248123Z[0m [32m INFO[0m [2mllm_actors::model_actor[0m[2m:[0m checkpoint reloaded [3mpath[0m[2m=[0m"checkpoints/p11s5_hybrid_a03.r3.safetensors"
+[2m2026-05-08T07:30:23.248142Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: eval-after [3mround[0m[2m=[0m3
+[2m2026-05-08T07:30:27.570162Z[0m [32m INFO[0m [2mllm_actors::evaluator_actor[0m[2m:[0m EvaluatorActor done [3mtotal[0m[2m=[0m24 [3mcorrect[0m[2m=[0m11 [3mpass_rate[0m[2m=[0m0.4583333432674408
+[2m2026-05-08T07:30:27.570211Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m0 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 * + 4\n
+[2m2026-05-08T07:30:27.570232Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m1 [3mprompt[0m[2m=[0mfn main() { assert_eq!(2 * ( [3mcompletion[0m[2m=[0m1 + 4\n
+[2m2026-05-08T07:30:27.570235Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 * + 4\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=11/24  after=11/24  Δ=+0  loss=Some(0.5999031)  t=205325ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+round 1: gen=10/24 (41.7%)  eval before=0/24 after=18/24  Δ=+18
+round 2: gen=0/24 (0.0%)  eval before=18/24 after=11/24  Δ=-7
+round 3: gen=0/24 (0.0%)  eval before=11/24 after=11/24  Δ=+0
+=== p11s5_hybrid_a03 done ===
+
+=== K9 hybrid SFT+DPO α=0.5 (β=0.1, frozen ref, 4 rounds) ===
+[2m2026-05-08T07:45:17.444629Z[0m [32m INFO[0m [2mnanogpt_rs::train[0m[2m:[0m dpo eval [3mstep[0m[2m=[0m400 [3mdpo_loss[0m[2m=[0m0.5341141819953918 [3mlr[0m[2m=[0m5.000768922556072e-5
+[2m2026-05-08T07:45:17.451622Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: reload [3mround[0m[2m=[0m3
+[2m2026-05-08T07:45:17.453544Z[0m [32m INFO[0m [2mllm_actors::model_actor[0m[2m:[0m checkpoint reloaded [3mpath[0m[2m=[0m"checkpoints/p11s5_hybrid_a05.r3.safetensors"
+[2m2026-05-08T07:45:17.453572Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: eval-after [3mround[0m[2m=[0m3
+[2m2026-05-08T07:45:21.460932Z[0m [32m INFO[0m [2mllm_actors::evaluator_actor[0m[2m:[0m EvaluatorActor done [3mtotal[0m[2m=[0m24 [3mcorrect[0m[2m=[0m11 [3mpass_rate[0m[2m=[0m0.4583333432674408
+[2m2026-05-08T07:45:21.460981Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m0 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 * + 4\n
+[2m2026-05-08T07:45:21.461000Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m1 [3mprompt[0m[2m=[0mfn main() { assert_eq!(2 * ( [3mcompletion[0m[2m=[0m1 + 4\n
+[2m2026-05-08T07:45:21.461004Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 * + 4\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=11/24  after=11/24  Δ=+0  loss=Some(0.5341142)  t=220907ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+round 1: gen=11/24 (45.8%)  eval before=0/24 after=7/24  Δ=+7
+round 2: gen=0/24 (0.0%)  eval before=7/24 after=11/24  Δ=+4
+round 3: gen=0/24 (0.0%)  eval before=11/24 after=11/24  Δ=+0
+=== p11s5_hybrid_a05 done ===
+
+=== K9 hybrid SFT+DPO α=0.7 (β=0.1, frozen ref, 4 rounds) ===
+[2m2026-05-08T07:59:18.665168Z[0m [32m INFO[0m [2mnanogpt_rs::train[0m[2m:[0m dpo eval [3mstep[0m[2m=[0m400 [3mdpo_loss[0m[2m=[0m0.568121075630188 [3mlr[0m[2m=[0m5.000768922556072e-5
+[2m2026-05-08T07:59:18.672035Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: reload [3mround[0m[2m=[0m3
+[2m2026-05-08T07:59:18.673684Z[0m [32m INFO[0m [2mllm_actors::model_actor[0m[2m:[0m checkpoint reloaded [3mpath[0m[2m=[0m"checkpoints/p11s5_hybrid_a07.r3.safetensors"
+[2m2026-05-08T07:59:18.673701Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: eval-after [3mround[0m[2m=[0m3
+[2m2026-05-08T07:59:22.469237Z[0m [32m INFO[0m [2mllm_actors::evaluator_actor[0m[2m:[0m EvaluatorActor done [3mtotal[0m[2m=[0m24 [3mcorrect[0m[2m=[0m11 [3mpass_rate[0m[2m=[0m0.4583333432674408
+[2m2026-05-08T07:59:22.469298Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m0 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 * + 4\n
+[2m2026-05-08T07:59:22.469320Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m1 [3mprompt[0m[2m=[0mfn main() { assert_eq!(2 * ( [3mcompletion[0m[2m=[0m1 + 4\n
+[2m2026-05-08T07:59:22.469324Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 * + 4\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=11/24  after=11/24  Δ=+0  loss=Some(0.5681211)  t=209164ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+round 1: gen=11/24 (45.8%)  eval before=0/24 after=0/24  Δ=+0
+round 2: gen=0/24 (0.0%)  eval before=0/24 after=11/24  Δ=+11
+round 3: gen=0/24 (0.0%)  eval before=11/24 after=11/24  Δ=+0
+=== p11s5_hybrid_a07 done ===
+
+=== hybrid sweep done ===

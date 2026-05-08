@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**119 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11 sessions. Phase 11 S4 — DPO multi-round collapse is robust to β ∈ {0.01–0.1} and rolling reference: every variant has round-1 eval = 0/24. β=0.01 recovers to SFT baseline by round 3 (net DPO benefit = 0); β ≥ 0.03 never recovers. Pure DPO is not an SFT replacement at 1M K9 scale; Phase 11 S5 will test hybrid SFT+DPO loss and round-0-only "DPO seed boost". S3 round-0 +41.7pp signal is real but unsustained. Phase 11 S2 wired DPO into the actor loop end-to-end. Phase 10 S3 closed Phase 10. Phase 9 S5 closed the external loop. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**121 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11 sessions. Phase 11 S5 — hybrid SFT+DPO and round-0-only DPO both prevent collapse, but **no DPO variant beats SFT's final eval (11/24)** across an 11-variant matrix. Hybrid α=0.3 hits **r1 eval 18/24 (75%)** — project's single-round record — but drops to 11 by r2. Round-0-only DPO reaches 11 at r0 (vs SFT r2) for compute savings. Pure DPO at any β collapses by r1; Phase 11 S2/S3/S4 chain documented the failure mode. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -99,7 +99,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**119 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11 sessions. See the run-order list below.**
+**121 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11 sessions. See the run-order list below.**
 
 ## What it does
 

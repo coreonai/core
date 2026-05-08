@@ -390,30 +390,25 @@ pub struct PreferencePair {
     pub rejected_ids: Vec<u32>,
 }
 
-/// Phase 11: minimum-overhead DPO training entry point.
+/// Phase 11 S5: hybrid weight on the SFT anchor term inside
+/// [`train_dpo`]. `0.0` (default) is pure DPO. `> 0.0` adds a
+/// `(1-α)·CE_chosen + α·DPO` style mix where `α = 1 - sft_anchor_weight`,
+/// i.e. larger values pull the loss toward SFT and reduce DPO
+/// influence. `1.0` collapses the loss to pure SFT (use
+/// [`train_from`] directly for that).
 ///
-/// Given a preference dataset of `(prompt, chosen, rejected)` triples,
-/// fine-tune `init_from` toward chosen and away from rejected using
-/// the loss in [`crate::dpo::dpo_loss`]. The reference model is
-/// loaded from `reference_path` and held fixed (no gradients).
-///
-/// At each step we sample `batch_size` random pairs and accumulate
-/// the per-pair `(policy chosen logp, policy rejected logp,
-/// reference chosen logp, reference rejected logp)` quadruples — then
-/// stack into 1-D tensors and call `dpo_loss(...)` once for the
-/// gradient step.
-///
-/// This is intentionally not integrated into [`train_from_full`]
-/// because the input shape (paired sequences, not a single token
-/// stream) is fundamentally different. The function shares the
-/// AdamW + cosine LR schedule machinery via local copies — kept
-/// short on purpose.
+/// Phase 11 S4 found that pure DPO (sft_anchor_weight = 0.0) at K9
+/// 1M scale collapses by round 1 across β ∈ [0.01, 0.1] and rolling
+/// vs frozen reference. The hybrid was the leading S5 candidate to
+/// keep DPO's round-0 signal (+41.7pp) while preventing the rejected-
+/// pile noise from driving mode collapse.
 #[allow(clippy::too_many_arguments)]
 pub fn train_dpo(
     gpt_cfg: &GPTConfig,
     pairs: &[PreferencePair],
     cfg: &TrainConfig,
     beta: f64,
+    sft_anchor_weight: f64,
     init_from: &Path,
     reference_path: &Path,
     device: &Device,
@@ -433,6 +428,11 @@ pub fn train_dpo(
                 "train_dpo: beta {beta} must be >= 0"
             )));
         }
+    }
+    if !(0.0..=1.0).contains(&sft_anchor_weight) {
+        return Err(crate::error::Error::Config(format!(
+            "train_dpo: sft_anchor_weight {sft_anchor_weight} must be in [0.0, 1.0]"
+        )));
     }
 
     // ---- Policy: trainable copy starting from init_from.
@@ -476,10 +476,13 @@ pub fn train_dpo(
             .collect();
 
         // Compute four log-probs per pair.
+        // For the hybrid SFT anchor we also need per-token chosen logp,
+        // so accumulate the chosen completion lengths in parallel.
         let mut policy_chosen: Vec<Tensor> = Vec::with_capacity(batch.len());
         let mut policy_rejected: Vec<Tensor> = Vec::with_capacity(batch.len());
         let mut ref_chosen: Vec<Tensor> = Vec::with_capacity(batch.len());
         let mut ref_rejected: Vec<Tensor> = Vec::with_capacity(batch.len());
+        let mut chosen_n_tokens: Vec<f64> = Vec::with_capacity(batch.len());
         for p in &batch {
             policy_chosen.push(policy.sequence_log_prob_tensor(
                 &p.prompt_ids,
@@ -502,12 +505,31 @@ pub fn train_dpo(
                     .sequence_log_prob_tensor(&p.prompt_ids, &p.rejected_ids, device)?
                     .detach(),
             );
+            chosen_n_tokens.push(p.chosen_ids.len().max(1) as f64);
         }
         let pi_chosen = Tensor::stack(&policy_chosen, 0)?;
         let pi_rejected = Tensor::stack(&policy_rejected, 0)?;
         let r_chosen = Tensor::stack(&ref_chosen, 0)?;
         let r_rejected = Tensor::stack(&ref_rejected, 0)?;
-        let loss = crate::dpo::dpo_loss(&pi_chosen, &pi_rejected, &r_chosen, &r_rejected, beta)?;
+        let dpo = crate::dpo::dpo_loss(&pi_chosen, &pi_rejected, &r_chosen, &r_rejected, beta)?;
+
+        // Phase 11 S5: hybrid SFT anchor. SFT loss = mean over batch of
+        // -(sum_logp_chosen / n_chosen_tokens) — standard mean-per-token
+        // negative log-prob on the chosen completions. With
+        // `sft_anchor_weight = 0` this reduces to pure DPO (S4 behavior).
+        let loss = if sft_anchor_weight > 0.0 {
+            // Per-pair SFT terms (sum-logp / n_tokens), then negate-mean.
+            let mut sft_terms: Vec<Tensor> = Vec::with_capacity(batch.len());
+            for (lp, n_tok) in policy_chosen.iter().zip(chosen_n_tokens.iter()) {
+                sft_terms.push((lp / *n_tok)?);
+            }
+            let sft_pt = Tensor::stack(&sft_terms, 0)?;
+            let sft = sft_pt.mean_all()?.neg()?;
+            let dpo_w = 1.0 - sft_anchor_weight;
+            ((dpo * dpo_w)? + (sft * sft_anchor_weight)?)?
+        } else {
+            dpo
+        };
         opt.backward_step(&loss)?;
         last_train_loss = loss.to_scalar::<f32>()?;
 
@@ -1064,6 +1086,7 @@ mod cfg_persistence_tests {
             &pairs,
             &tcfg,
             0.5,
+            0.0, // pure DPO (S2/S3/S4 default)
             &init_ckpt,
             &ref_ckpt,
             &device,
@@ -1116,11 +1139,143 @@ mod cfg_persistence_tests {
             &[],
             &tiny_train_cfg(),
             0.1,
+            0.0,
             &init_ckpt,
             &ref_ckpt,
             &Device::Cpu,
             None,
         );
         assert!(res.is_err(), "expected error for empty pairs");
+    }
+
+    #[test]
+    fn train_dpo_hybrid_widens_gap_and_keeps_chosen_logp_high() {
+        // Phase 11 S5 smoke: hybrid SFT+DPO (sft_anchor_weight = 0.5)
+        // should still widen the chosen-rejected gap (DPO half) AND
+        // keep policy.logp(chosen) close to or above the reference's
+        // (SFT half — anchors policy on chosen).
+        let dir = temp_dir("dpo-hybrid-smoke");
+        let init_ckpt = dir.join("init.safetensors");
+        let ref_ckpt = dir.join("ref.safetensors");
+        let final_ckpt = dir.join("final.safetensors");
+        let cfg = toy_cfg();
+        let ds = toy_dataset(&cfg);
+        let device = Device::Cpu;
+
+        train_from(
+            &cfg,
+            &ds,
+            None,
+            &tiny_train_cfg(),
+            &device,
+            Some(&init_ckpt),
+            None,
+        )
+        .expect("seed train");
+        std::fs::copy(&init_ckpt, &ref_ckpt).expect("copy ckpt");
+
+        let pairs: Vec<PreferencePair> = (0..6)
+            .map(|i| PreferencePair {
+                prompt_ids: vec![(i % cfg.vocab_size as u32).max(1)],
+                chosen_ids: vec![1],
+                rejected_ids: vec![2],
+            })
+            .collect();
+
+        // Pre gap.
+        let mut vm_pre = VarMap::new();
+        let vb_pre = VarBuilder::from_varmap(&vm_pre, DType::F32, &device);
+        let pre_model = GPT::new(cfg.clone(), vb_pre).expect("build pre");
+        vm_pre.load(&ref_ckpt).expect("load ref");
+        let pre_chosen = pre_model
+            .sequence_log_prob(&pairs[0].prompt_ids, &pairs[0].chosen_ids, &device)
+            .unwrap();
+        let pre_rejected = pre_model
+            .sequence_log_prob(&pairs[0].prompt_ids, &pairs[0].rejected_ids, &device)
+            .unwrap();
+        let pre_gap = pre_chosen - pre_rejected;
+
+        let mut tcfg = tiny_train_cfg();
+        tcfg.max_steps = 80;
+        tcfg.batch_size = 2;
+        tcfg.lr = 5e-3;
+        tcfg.eval_interval = 1000;
+        train_dpo(
+            &cfg,
+            &pairs,
+            &tcfg,
+            0.5,
+            0.5, // 50/50 hybrid
+            &init_ckpt,
+            &ref_ckpt,
+            &device,
+            Some(&final_ckpt),
+        )
+        .expect("hybrid train_dpo");
+
+        let mut vm_post = VarMap::new();
+        let vb_post = VarBuilder::from_varmap(&vm_post, DType::F32, &device);
+        let post_model = GPT::new(cfg.clone(), vb_post).expect("build post");
+        vm_post.load(&final_ckpt).expect("load post");
+        let post_chosen = post_model
+            .sequence_log_prob(&pairs[0].prompt_ids, &pairs[0].chosen_ids, &device)
+            .unwrap();
+        let post_rejected = post_model
+            .sequence_log_prob(&pairs[0].prompt_ids, &pairs[0].rejected_ids, &device)
+            .unwrap();
+        let post_gap = post_chosen - post_rejected;
+
+        assert!(
+            post_gap > pre_gap,
+            "hybrid should widen chosen-rejected gap; pre={pre_gap:.4} post={post_gap:.4}"
+        );
+        // The SFT anchor should pull chosen logp up (or at least not
+        // crash it as pure DPO can). Strictly, post_chosen should not
+        // be far below pre_chosen.
+        assert!(
+            post_chosen > pre_chosen - 5.0,
+            "SFT anchor should keep chosen logp from collapsing; \
+             pre={pre_chosen:.4} post={post_chosen:.4}"
+        );
+    }
+
+    #[test]
+    fn train_dpo_rejects_invalid_sft_anchor_weight() {
+        let cfg = toy_cfg();
+        let dir = temp_dir("dpo-bad-anchor");
+        let init_ckpt = dir.join("init.safetensors");
+        let ref_ckpt = dir.join("ref.safetensors");
+        let ds = toy_dataset(&cfg);
+        train_from(
+            &cfg,
+            &ds,
+            None,
+            &tiny_train_cfg(),
+            &Device::Cpu,
+            Some(&init_ckpt),
+            None,
+        )
+        .expect("seed");
+        std::fs::copy(&init_ckpt, &ref_ckpt).expect("copy");
+        let pairs = vec![PreferencePair {
+            prompt_ids: vec![1],
+            chosen_ids: vec![2],
+            rejected_ids: vec![3],
+        }];
+        let res = train_dpo(
+            &cfg,
+            &pairs,
+            &tiny_train_cfg(),
+            0.1,
+            1.5, // out of [0, 1]
+            &init_ckpt,
+            &ref_ckpt,
+            &Device::Cpu,
+            None,
+        );
+        assert!(
+            res.is_err(),
+            "expected error for sft_anchor_weight outside [0, 1]"
+        );
     }
 }

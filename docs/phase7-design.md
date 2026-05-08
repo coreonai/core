@@ -360,6 +360,29 @@ verifier-V and domain-D:
     DPO ("DPO seed boost"). See `docs/phase11-s4-dpo-fixes.md`
     for the full sweep.
 
+    **Phase 11 S5 update — structural fixes work for collapse,
+    but no DPO variant beats SFT's final eval.** 11-variant
+    matrix (S3 + S4 + S5) on K9: every variant final eval ≤ SFT's
+    11/24. Three positive findings inside that ceiling:
+    - **Hybrid α=0.3** at β=0.1 hits **r1 eval 18/24 (75%)** —
+      the project's single-round eval record, +7 over SFT max.
+      Drops to 11 by r2 (no sustain), but useful for
+      best-of-rounds checkpoint selection.
+    - **Round-0-only DPO** reaches eval 11/24 at r0 (vs SFT
+      reaching 11 at r2) — 1 round faster to baseline, useful
+      for compute efficiency.
+    - **Hybrid α ≥ 0.3** prevents collapse: every variant
+      recovers to 11/24 by r3.
+
+    Operational rule: **don't deploy pure DPO multi-round at this
+    scale.** Use hybrid α=0.3 if you want the single-round signal
+    spike; round-0-only if you want compute savings; SFT
+    otherwise. K9's 21 distinct (prompt, slot) pairs may be too
+    few for fine-grained DPO signal — re-measure on richer
+    domains (HumanEval) before declaring DPO universally
+    inferior. See `docs/phase11-s5-hybrid-dpo.md` for the full
+    matrix.
+
 ## What "Phase 7 done" means
 
 Phase 7 is a consolidation phase, not an implementation phase. Its

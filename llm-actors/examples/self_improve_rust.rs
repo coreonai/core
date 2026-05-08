@@ -247,6 +247,19 @@ struct Args {
     /// frozen seed reference.
     #[arg(long)]
     dpo_rolling_reference: bool,
+    /// Phase 11 S5: hybrid SFT+DPO mix. `0.0` (default) is pure DPO
+    /// — the S2/S3/S4 behavior. `> 0.0` mixes a CE-on-chosen anchor:
+    /// `loss = (1-α)·DPO + α·SFT_chosen`. The SFT half stabilizes the
+    /// policy on the chosen-completion distribution while DPO pushes
+    /// away from rejected. Try 0.3–0.7 for balanced; 1.0 ≡ pure SFT
+    /// (use the no-DPO path instead).
+    #[arg(long, default_value_t = 0.0)]
+    dpo_sft_anchor_weight: f64,
+    /// Phase 11 S5: only use DPO at round 0; rounds 1+ revert to SFT.
+    /// Captures the round-0 +41.7pp signal observed in Phase 11 S3
+    /// without exposing rounds 1+ to the multi-round collapse.
+    #[arg(long)]
+    dpo_round_zero_only: bool,
 }
 
 fn pick_device() -> Device {
@@ -577,7 +590,14 @@ async fn main() -> anyhow::Result<()> {
             anchor: anchor.clone(),
             freeze_base: args.lora_rank > 0,
             gen_oversample: args.critic_oversample.max(1),
-            dpo_beta: args.dpo_beta,
+            // Phase 11 S5: round-0-only DPO. Past round 0, fall back
+            // to SFT so we capture S3's +41.7pp r0 boost without
+            // S3/S4's r1+ collapse.
+            dpo_beta: if args.dpo_round_zero_only && round > 0 {
+                None
+            } else {
+                args.dpo_beta
+            },
             // Phase 11 S4: rolling reference. After round 0 (where the
             // reference is whatever `--dpo-reference-from` points at,
             // typically the seed), subsequent rounds use the *previous*
@@ -588,6 +608,7 @@ async fn main() -> anyhow::Result<()> {
                 args.dpo_reference_from.clone()
             },
             dpo_max_pairs_per_prompt: args.dpo_max_pairs_per_prompt,
+            dpo_sft_anchor_weight: args.dpo_sft_anchor_weight,
         };
 
         let report = run_round(&actors, cfg).await?;

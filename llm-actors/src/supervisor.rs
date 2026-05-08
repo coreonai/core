@@ -80,6 +80,13 @@ pub struct RoundConfig {
     /// Larger values produce more training pairs but bias toward
     /// prompts with prolific verifier hits + misses.
     pub dpo_max_pairs_per_prompt: usize,
+    /// Phase 11 S5: hybrid SFT+DPO weight. `0.0` (default) is pure DPO
+    /// — the S2/S3/S4 behavior. `> 0.0` mixes an SFT anchor on the
+    /// chosen completions: `loss = (1 - α)·DPO + α·SFT_chosen` where
+    /// α is this field. Adds CE-on-chosen as a stabilizer to prevent
+    /// the multi-round mode collapse seen in S3/S4. Ignored when
+    /// `dpo_beta` is `None`.
+    pub dpo_sft_anchor_weight: f64,
 }
 
 pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result<RoundReport> {
@@ -198,6 +205,7 @@ pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result
                 reference_path,
                 train_cfg: cfg.train_cfg.clone(),
                 beta,
+                sft_anchor_weight: cfg.dpo_sft_anchor_weight,
                 reply: tx,
             })
             .map_err(|e| anyhow::anyhow!("{e:?}"))?;

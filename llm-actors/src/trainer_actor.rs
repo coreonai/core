@@ -43,6 +43,8 @@ pub enum TrainerMessage {
     /// The trainer encodes each side with its own `tokenizer` and calls
     /// `nanogpt_rs::train::train_dpo` on a blocking task. The reference
     /// model is loaded from `reference_path` and held frozen.
+    /// Phase 11 S5 added `sft_anchor_weight` for the hybrid SFT+DPO
+    /// loss; `0.0` is pure DPO (S2/S3/S4 behavior).
     TrainDpo {
         pairs: Vec<(String, String, String)>,
         save_path: PathBuf,
@@ -50,6 +52,7 @@ pub enum TrainerMessage {
         reference_path: PathBuf,
         train_cfg: TrainConfig,
         beta: f64,
+        sft_anchor_weight: f64,
         reply: oneshot::Sender<anyhow::Result<TrainOutcome>>,
     },
 }
@@ -140,6 +143,7 @@ impl Actor for TrainerActor {
                     reference_path,
                     train_cfg,
                     beta,
+                    sft_anchor_weight,
                     reply,
                 } => {
                     let gpt_cfg = self.gpt_cfg.clone();
@@ -198,6 +202,7 @@ impl Actor for TrainerActor {
                             &encoded,
                             &train_cfg,
                             beta,
+                            sft_anchor_weight,
                             &init_from,
                             &reference_path,
                             &device,
