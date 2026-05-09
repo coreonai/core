@@ -1,0 +1,25 @@
+
+=== Phase 15 S4 — Muon vs AdamW LoRA at HumanEval substrate ===
+SFT (S1, AdamW): 5 seeds   Muon: 5 seeds
+
+
+--- AdamW (Phase 15 S1) (5 seeds) ---
+  round-0     0.213 ± 0.006  [0.211, 0.220, 0.209, 0.220, 0.207]
+  final-1     0.245 ± 0.041  [0.278, 0.220, 0.224, 0.299, 0.203]
+
+--- Muon (5 seeds) ---
+  round-0     0.213 ± 0.006  [0.211, 0.220, 0.209, 0.220, 0.207]
+  final-1     0.163 ± 0.014  [0.187, 0.165, 0.161, 0.150, 0.154]
+
+=== Final pass rate comparison ===
+  AdamW: 0.245 ± 0.041
+  Muon : 0.163 ± 0.014
+  Δ    = -0.081
+  2σ_max = 0.083
+  → WITHIN NOISE
+
+=== Phase 14 C2 (saturated 25 problems) reminder ===
+  AdamW 0.851 ± 0.011   Muon 0.759 ± 0.004   Δ = -0.092 (4× threshold)
+  Phase 14 verdict: ROBUST LOSS for Muon
+
+Phase 15 S4 verdict (-0.081) DOES NOT CONFIRM Phase 14 C2's generalization.

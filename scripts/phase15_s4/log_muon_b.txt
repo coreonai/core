@@ -1,0 +1,21 @@
+=== p15s4 muon seed=3 gpu=3 ===
+  LoRA[muon]: 108 pairs × 200 steps, last_loss=0.433, 31.7s
+
+========== seed=3 muon final-1 ==========
+  total=492 pass=74 (0.150)  2233.7s
+
+[P15S4 seed=3 muon] wrote /raid/users/paul/workLLM/scripts/phase15_s4/run_muon_seed3.json
+  round-0       pass=0.220 (108/492)
+  final-1       pass=0.150 (74/492)
+=== p15s4 muon seed=3 done ===
+=== p15s4 muon seed=4 gpu=3 ===
+  LoRA[muon]: 102 pairs × 200 steps, last_loss=0.255, 31.7s
+
+========== seed=4 muon final-1 ==========
+  total=492 pass=76 (0.154)  2331.8s
+
+[P15S4 seed=4 muon] wrote /raid/users/paul/workLLM/scripts/phase15_s4/run_muon_seed4.json
+  round-0       pass=0.207 (102/492)
+  final-1       pass=0.154 (76/492)
+=== p15s4 muon seed=4 done ===
+=== muon_b done ===
