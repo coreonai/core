@@ -1,0 +1,51 @@
+=== p15s3b he init=0 harvest=0 gpu=0 ===
+========== init=0 harvest=0 round-0 ==========
+  total=492 pass=104 (0.211)  2483.7s
+  LoRA-FT: 104 pairs × 200 steps, last_loss=0.099, 20.6s
+
+========== init=0 harvest=0 final-1 ==========
+  total=492 pass=137 (0.278)  2575.4s
+
+[P15S3b init=0 harvest=0] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_he_init0_harvest0.json
+=== p15s3b he init=0 done ===
+=== p15s3b he init=1 harvest=0 gpu=0 ===
+========== init=1 harvest=0 round-0 ==========
+  total=492 pass=104 (0.211)  2458.9s
+  LoRA-FT: 104 pairs × 200 steps, last_loss=0.104, 20.0s
+
+========== init=1 harvest=0 final-1 ==========
+  total=492 pass=143 (0.291)  2601.4s
+
+[P15S3b init=1 harvest=0] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_he_init1_harvest0.json
+=== p15s3b he init=1 done ===
+=== p15s3b he init=2 harvest=0 gpu=0 ===
+========== init=2 harvest=0 round-0 ==========
+  total=492 pass=104 (0.211)  2471.9s
+  LoRA-FT: 104 pairs × 200 steps, last_loss=0.092, 20.5s
+
+========== init=2 harvest=0 final-1 ==========
+  total=492 pass=144 (0.293)  2684.9s
+
+[P15S3b init=2 harvest=0] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_he_init2_harvest0.json
+=== p15s3b he init=2 done ===
+=== p15s3b he init=3 harvest=0 gpu=0 ===
+========== init=3 harvest=0 round-0 ==========
+  total=492 pass=104 (0.211)  2481.4s
+  LoRA-FT: 104 pairs × 200 steps, last_loss=0.119, 20.3s
+
+========== init=3 harvest=0 final-1 ==========
+  total=492 pass=142 (0.289)  2593.9s
+
+[P15S3b init=3 harvest=0] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_he_init3_harvest0.json
+=== p15s3b he init=3 done ===
+=== p15s3b he init=4 harvest=0 gpu=0 ===
+========== init=4 harvest=0 round-0 ==========
+  total=492 pass=104 (0.211)  2445.5s
+  LoRA-FT: 104 pairs × 200 steps, last_loss=0.122, 20.1s
+
+========== init=4 harvest=0 final-1 ==========
+  total=492 pass=150 (0.305)  2659.4s
+
+[P15S3b init=4 harvest=0] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_he_init4_harvest0.json
+=== p15s3b he init=4 done ===
+=== he_init_axis done ===

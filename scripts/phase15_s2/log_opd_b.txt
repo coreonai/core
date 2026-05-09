@@ -1,0 +1,35 @@
+=== p15s2 opd seed=3 gpu=3 ===
+[P15S2-OPD] loaded teacher 'strings' in 1.1s
+[P15S2-OPD] loaded teacher 'numbers' in 1.4s
+[P15S2-OPD] loaded teacher 'collections' in 1.1s
+
+========== seed=3 OPD round-0 ==========
+  total=492 pass=115 (0.234)  2405.6s
+  routed pairs: {'strings': 39, 'numbers': 25, 'collections': 51}
+  OPD-FT: 115 pairs × 200 steps, last_loss=0.085, 32.0s
+
+========== seed=3 OPD final-1 ==========
+  total=492 pass=26 (0.053)  2039.3s
+
+[P15S2-OPD seed=3] wrote /raid/users/paul/workLLM/scripts/phase15_s2/run_opd_seed3.json
+  round-0       pass=0.234 (115/492)
+  final-1       pass=0.053 (26/492)
+=== p15s2 opd seed=3 done ===
+=== p15s2 opd seed=4 gpu=3 ===
+[P15S2-OPD] loaded teacher 'strings' in 1.2s
+[P15S2-OPD] loaded teacher 'numbers' in 1.3s
+[P15S2-OPD] loaded teacher 'collections' in 1.6s
+
+========== seed=4 OPD round-0 ==========
+  total=492 pass=102 (0.207)  2519.4s
+  routed pairs: {'strings': 38, 'numbers': 26, 'collections': 38}
+  OPD-FT: 102 pairs × 200 steps, last_loss=0.050, 30.7s
+
+========== seed=4 OPD final-1 ==========
+  total=492 pass=71 (0.144)  2307.7s
+
+[P15S2-OPD seed=4] wrote /raid/users/paul/workLLM/scripts/phase15_s2/run_opd_seed4.json
+  round-0       pass=0.207 (102/492)
+  final-1       pass=0.144 (71/492)
+=== p15s2 opd seed=4 done ===
+=== opd_b done ===

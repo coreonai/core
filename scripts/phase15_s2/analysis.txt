@@ -1,0 +1,36 @@
+
+=== Phase 15 S2 — Multi-teacher OPD vs SFT-union at HumanEval ===
+SFT (S1): 5 seeds   OPD: 5 seeds
+
+
+--- SFT-union (Phase 15 S1) (5 seeds) ---
+  round-0     0.213 ± 0.006  [0.211, 0.220, 0.209, 0.220, 0.207]
+  final-1     0.245 ± 0.041  [0.278, 0.220, 0.224, 0.299, 0.203]
+
+--- OPD multi-teacher (5 seeds) ---
+  round-0     0.218 ± 0.011  [0.213, 0.211, 0.224, 0.234, 0.207]
+  final-1     0.157 ± 0.070  [0.195, 0.148, 0.242, 0.053, 0.144]
+
+=== Final pass rate comparison ===
+  SFT-union: 0.245 ± 0.041
+  OPD      : 0.157 ± 0.070
+  Δ        = -0.088  (OPD − SFT)
+  2σ_max   = 0.140
+  → WITHIN NOISE on mean
+
+=== Variance comparison (overfitting regularization signal) ===
+  σ_OPD / σ_SFT = 1.70
+  → OPD INCREASES variance — destabilizing (Phase 14 C3 hybrid pattern)
+
+=== Specialist metadata ===
+  strings       n= 68  final pass=0.283 (77/272)
+  numbers       n= 30  final pass=0.408 (49/120)
+  collections   n= 66  final pass=0.436 (115/264)
+
+=== Per-subset final pass rate (student vs teacher) ===
+  subset        SFT mean  OPD mean       Δ   spec.
+  strings       0.224    0.135    -0.088  0.283
+  numbers       0.224    0.167    -0.058  0.408
+  collections   0.276    0.174    -0.102  0.436
+  (specialist column = teacher's own final pass on its subset)
+  Hint: if OPD > SFT only on subsets where specialist > SFT_baseline → distillation working

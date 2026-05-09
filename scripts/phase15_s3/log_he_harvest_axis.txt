@@ -1,0 +1,51 @@
+=== p15s3b he init=0 harvest=0 gpu=1 ===
+========== init=0 harvest=0 round-0 ==========
+  total=492 pass=104 (0.211)  2520.7s
+  LoRA-FT: 104 pairs × 200 steps, last_loss=0.099, 20.9s
+
+========== init=0 harvest=0 final-1 ==========
+  total=492 pass=137 (0.278)  2612.7s
+
+[P15S3b init=0 harvest=0] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_he_init0_harvest0.json
+=== p15s3b he harvest=0 done ===
+=== p15s3b he init=0 harvest=1 gpu=1 ===
+========== init=0 harvest=1 round-0 ==========
+  total=492 pass=108 (0.220)  2388.5s
+  LoRA-FT: 108 pairs × 200 steps, last_loss=0.076, 20.0s
+
+========== init=0 harvest=1 final-1 ==========
+  total=492 pass=112 (0.228)  2667.4s
+
+[P15S3b init=0 harvest=1] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_he_init0_harvest1.json
+=== p15s3b he harvest=1 done ===
+=== p15s3b he init=0 harvest=2 gpu=1 ===
+========== init=0 harvest=2 round-0 ==========
+  total=492 pass=103 (0.209)  2388.0s
+  LoRA-FT: 103 pairs × 200 steps, last_loss=0.116, 20.4s
+
+========== init=0 harvest=2 final-1 ==========
+  total=492 pass=82 (0.167)  2307.9s
+
+[P15S3b init=0 harvest=2] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_he_init0_harvest2.json
+=== p15s3b he harvest=2 done ===
+=== p15s3b he init=0 harvest=3 gpu=1 ===
+========== init=0 harvest=3 round-0 ==========
+  total=492 pass=108 (0.220)  2379.2s
+  LoRA-FT: 108 pairs × 200 steps, last_loss=0.134, 22.6s
+
+========== init=0 harvest=3 final-1 ==========
+  total=492 pass=143 (0.291)  2587.2s
+
+[P15S3b init=0 harvest=3] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_he_init0_harvest3.json
+=== p15s3b he harvest=3 done ===
+=== p15s3b he init=0 harvest=4 gpu=1 ===
+========== init=0 harvest=4 round-0 ==========
+  total=492 pass=102 (0.207)  2451.0s
+  LoRA-FT: 102 pairs × 200 steps, last_loss=0.081, 20.1s
+
+========== init=0 harvest=4 final-1 ==========
+  total=492 pass=107 (0.217)  2539.1s
+
+[P15S3b init=0 harvest=4] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_he_init0_harvest4.json
+=== p15s3b he harvest=4 done ===
+=== he_harvest_axis done ===
