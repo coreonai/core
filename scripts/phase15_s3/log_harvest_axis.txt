@@ -1,0 +1,51 @@
+=== p15s3 init=0 harvest=0 gpu=1 ===
+========== init=0 harvest=0 final-3 ==========
+  total=200 pass=170 (0.850)
+
+[P15S3 init=0 harvest=0] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_init0_harvest0.json
+  round-0       pass=0.575 (115/200)
+  round-1       pass=0.820 (164/200)
+  round-2       pass=0.850 (170/200)
+  final-3       pass=0.850 (170/200)
+=== p15s3 harvest=0 done ===
+=== p15s3 init=0 harvest=1 gpu=1 ===
+========== init=0 harvest=1 final-3 ==========
+  total=200 pass=176 (0.880)
+
+[P15S3 init=0 harvest=1] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_init0_harvest1.json
+  round-0       pass=0.565 (113/200)
+  round-1       pass=0.790 (158/200)
+  round-2       pass=0.845 (169/200)
+  final-3       pass=0.880 (176/200)
+=== p15s3 harvest=1 done ===
+=== p15s3 init=0 harvest=2 gpu=1 ===
+========== init=0 harvest=2 final-3 ==========
+  total=200 pass=169 (0.845)
+
+[P15S3 init=0 harvest=2] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_init0_harvest2.json
+  round-0       pass=0.535 (107/200)
+  round-1       pass=0.810 (162/200)
+  round-2       pass=0.815 (163/200)
+  final-3       pass=0.845 (169/200)
+=== p15s3 harvest=2 done ===
+=== p15s3 init=0 harvest=3 gpu=1 ===
+========== init=0 harvest=3 final-3 ==========
+  total=200 pass=169 (0.845)
+
+[P15S3 init=0 harvest=3] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_init0_harvest3.json
+  round-0       pass=0.550 (110/200)
+  round-1       pass=0.810 (162/200)
+  round-2       pass=0.840 (168/200)
+  final-3       pass=0.845 (169/200)
+=== p15s3 harvest=3 done ===
+=== p15s3 init=0 harvest=4 gpu=1 ===
+========== init=0 harvest=4 final-3 ==========
+  total=200 pass=168 (0.840)
+
+[P15S3 init=0 harvest=4] wrote /raid/users/paul/workLLM/scripts/phase15_s3/run_init0_harvest4.json
+  round-0       pass=0.510 (102/200)
+  round-1       pass=0.790 (158/200)
+  round-2       pass=0.850 (170/200)
+  final-3       pass=0.840 (168/200)
+=== p15s3 harvest=4 done ===
+=== harvest_axis done ===

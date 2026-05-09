@@ -1,0 +1,18 @@
+
+=== Phase 15 S3a — variance decomposition (Phase 14 substrate) ===
+
+Axis            n  mean   σ        per-seed
+  init-only      5  0.853  0.004    [0.85, 0.86, 0.85, 0.855, 0.85]
+  harvest-only   5  0.852  0.016    [0.85, 0.88, 0.845, 0.845, 0.84]
+  combined (S1)  5  0.851  0.011    [0.85, 0.87, 0.845, 0.85, 0.84]
+
+Additivity prediction (independent axes):
+  √(σ_init² + σ_harvest²) = √(0.004² + 0.016²) = 0.017
+  Observed σ_combined    = 0.011
+  Predicted/Observed = 1.46
+  → predicted > observed — measurement entanglement makes σ_combined LOWER than independent sum
+
+=== Decomposition verdict ===
+  σ_init contributes 7%, σ_harvest contributes 93%
+
+Phase 14 σ=0.011 framing: mostly sampling noise
