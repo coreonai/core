@@ -1,0 +1,61 @@
+=== p14c3 round0 seed=0 gpu=3 ===
+========== seed=0 round0 final-3 ==========
+  total=200 pass=163 (0.815)
+
+[P14C3 seed=0 round0] wrote /raid/users/paul/workLLM/scripts/phase14_c3/run_round0_seed0.json
+
+=== summary: pass rate per round (seed=0 round0) ===
+  round-0       pass=0.575 (115/200)  pairs= 37  α_eff=0.00
+  round-1       pass=0.745 (149/200)  pairs=  7  α_eff=1.00
+  round-2       pass=0.800 (160/200)  pairs=  0  α_eff=1.00
+  final-3       pass=0.815 (163/200)  pairs=  3  α_eff=1.00
+=== p14c3 round0 seed=0 done ===
+=== p14c3 round0 seed=1 gpu=3 ===
+========== seed=1 round0 final-3 ==========
+  total=200 pass=168 (0.840)
+
+[P14C3 seed=1 round0] wrote /raid/users/paul/workLLM/scripts/phase14_c3/run_round0_seed1.json
+
+=== summary: pass rate per round (seed=1 round0) ===
+  round-0       pass=0.565 (113/200)  pairs= 27  α_eff=0.00
+  round-1       pass=0.785 (157/200)  pairs=  9  α_eff=1.00
+  round-2       pass=0.840 (168/200)  pairs=  0  α_eff=1.00
+  final-3       pass=0.840 (168/200)  pairs=  0  α_eff=1.00
+=== p14c3 round0 seed=1 done ===
+=== p14c3 round0 seed=2 gpu=3 ===
+========== seed=2 round0 final-3 ==========
+  total=200 pass=163 (0.815)
+
+[P14C3 seed=2 round0] wrote /raid/users/paul/workLLM/scripts/phase14_c3/run_round0_seed2.json
+
+=== summary: pass rate per round (seed=2 round0) ===
+  round-0       pass=0.535 (107/200)  pairs= 27  α_eff=0.00
+  round-1       pass=0.725 (145/200)  pairs=  5  α_eff=1.00
+  round-2       pass=0.820 (164/200)  pairs=  4  α_eff=1.00
+  final-3       pass=0.815 (163/200)  pairs=  3  α_eff=1.00
+=== p14c3 round0 seed=2 done ===
+=== p14c3 round0 seed=3 gpu=3 ===
+========== seed=3 round0 final-3 ==========
+  total=200 pass=176 (0.880)
+
+[P14C3 seed=3 round0] wrote /raid/users/paul/workLLM/scripts/phase14_c3/run_round0_seed3.json
+
+=== summary: pass rate per round (seed=3 round0) ===
+  round-0       pass=0.550 (110/200)  pairs= 36  α_eff=0.00
+  round-1       pass=0.795 (159/200)  pairs=  1  α_eff=1.00
+  round-2       pass=0.880 (176/200)  pairs=  0  α_eff=1.00
+  final-3       pass=0.880 (176/200)  pairs=  0  α_eff=1.00
+=== p14c3 round0 seed=3 done ===
+=== p14c3 round0 seed=4 gpu=3 ===
+========== seed=4 round0 final-3 ==========
+  total=200 pass=168 (0.840)
+
+[P14C3 seed=4 round0] wrote /raid/users/paul/workLLM/scripts/phase14_c3/run_round0_seed4.json
+
+=== summary: pass rate per round (seed=4 round0) ===
+  round-0       pass=0.510 (102/200)  pairs= 30  α_eff=0.00
+  round-1       pass=0.770 (154/200)  pairs=  2  α_eff=1.00
+  round-2       pass=0.800 (160/200)  pairs=  8  α_eff=1.00
+  final-3       pass=0.840 (168/200)  pairs=  0  α_eff=1.00
+=== p14c3 round0 seed=4 done ===
+=== round0 done ===

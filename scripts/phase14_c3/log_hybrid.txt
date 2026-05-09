@@ -1,0 +1,61 @@
+=== p14c3 hybrid seed=0 gpu=2 ===
+========== seed=0 hybrid final-3 ==========
+  total=200 pass=115 (0.575)
+
+[P14C3 seed=0 hybrid] wrote /raid/users/paul/workLLM/scripts/phase14_c3/run_hybrid_seed0.json
+
+=== summary: pass rate per round (seed=0 hybrid) ===
+  round-0       pass=0.575 (115/200)  pairs= 37  α_eff=0.30
+  round-1       pass=0.865 (173/200)  pairs=  3  α_eff=0.30
+  round-2       pass=0.735 (147/200)  pairs=  5  α_eff=0.30
+  final-3       pass=0.575 (115/200)  pairs=  7  α_eff=0.30
+=== p14c3 hybrid seed=0 done ===
+=== p14c3 hybrid seed=1 gpu=2 ===
+========== seed=1 hybrid final-3 ==========
+  total=200 pass=168 (0.840)
+
+[P14C3 seed=1 hybrid] wrote /raid/users/paul/workLLM/scripts/phase14_c3/run_hybrid_seed1.json
+
+=== summary: pass rate per round (seed=1 hybrid) ===
+  round-0       pass=0.565 (113/200)  pairs= 27  α_eff=0.30
+  round-1       pass=0.835 (167/200)  pairs=  5  α_eff=0.30
+  round-2       pass=0.840 (168/200)  pairs=  0  α_eff=0.30
+  final-3       pass=0.840 (168/200)  pairs=  0  α_eff=0.30
+=== p14c3 hybrid seed=1 done ===
+=== p14c3 hybrid seed=2 gpu=2 ===
+========== seed=2 hybrid final-3 ==========
+  total=200 pass=171 (0.855)
+
+[P14C3 seed=2 hybrid] wrote /raid/users/paul/workLLM/scripts/phase14_c3/run_hybrid_seed2.json
+
+=== summary: pass rate per round (seed=2 hybrid) ===
+  round-0       pass=0.535 (107/200)  pairs= 27  α_eff=0.30
+  round-1       pass=0.730 (146/200)  pairs=  4  α_eff=0.30
+  round-2       pass=0.840 (168/200)  pairs=  0  α_eff=0.30
+  final-3       pass=0.855 (171/200)  pairs=  3  α_eff=0.30
+=== p14c3 hybrid seed=2 done ===
+=== p14c3 hybrid seed=3 gpu=2 ===
+========== seed=3 hybrid final-3 ==========
+  total=200 pass=168 (0.840)
+
+[P14C3 seed=3 hybrid] wrote /raid/users/paul/workLLM/scripts/phase14_c3/run_hybrid_seed3.json
+
+=== summary: pass rate per round (seed=3 hybrid) ===
+  round-0       pass=0.550 (110/200)  pairs= 36  α_eff=0.30
+  round-1       pass=0.835 (167/200)  pairs=  1  α_eff=0.30
+  round-2       pass=0.840 (168/200)  pairs=  0  α_eff=0.30
+  final-3       pass=0.840 (168/200)  pairs=  0  α_eff=0.30
+=== p14c3 hybrid seed=3 done ===
+=== p14c3 hybrid seed=4 gpu=2 ===
+========== seed=4 hybrid final-3 ==========
+  total=200 pass=158 (0.790)
+
+[P14C3 seed=4 hybrid] wrote /raid/users/paul/workLLM/scripts/phase14_c3/run_hybrid_seed4.json
+
+=== summary: pass rate per round (seed=4 hybrid) ===
+  round-0       pass=0.510 (102/200)  pairs= 30  α_eff=0.30
+  round-1       pass=0.805 (161/200)  pairs=  7  α_eff=0.30
+  round-2       pass=0.845 (169/200)  pairs=  3  α_eff=0.30
+  final-3       pass=0.790 (158/200)  pairs=  4  α_eff=0.30
+=== p14c3 hybrid seed=4 done ===
+=== hybrid done ===
