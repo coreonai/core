@@ -22,7 +22,7 @@ Wikipedia.
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
 
-**136 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11/12/13 sessions. Phase 13 closed with substrate-level lesson: K9 1M is smoke-test infrastructure, not measurement substrate. S1 retracted Phase 12's Muon +78% as seed-0 outlier; S2 found A1 challenge expansion confounds scale comparisons; S3 isolate showed 10M under-trains at same budget AND cross-batch σ (~7/24) is bigger than within-batch σ (~3.4/24) — same 3-ch tiny config gave 9.8±1.6 in S1 batch vs 3.0±1.9 in S3a batch. All Phase 11-13 single-run K9 algorithmic claims sit at the same noise floor. Future algorithmic comparisons → Stage C (Qwen + HumanEval via Phase 9 path); Stage B/D deferred. Risks #14 (5-seed insufficient at K9 1M) + #15 (compute-budget × scale interaction) added. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**136 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11/12/13/14 sessions. Phase 14 S1 ROBUST positive: 5-seed σ on Qwen2.5-Coder-0.5B + LoRA + 25-problem set is **0.011** (final pass rate 0.851), 13–27× tighter than K9 1M σ (0.142 within-batch / 0.292 cross-batch). Substrate qualified for algorithmic comparisons (C2 Muon LoRA, C3 DPO variants, C4 OPD) at 0.022 significance threshold. 21/25 problems saturate (focused-subset eval needed for C2-C4). Phase 13 closed with substrate-level lesson: K9 1M is smoke-test infrastructure, not measurement substrate. S1 retracted Phase 12's Muon +78% as seed-0 outlier; S2 found A1 challenge expansion confounds scale comparisons; S3 isolate showed 10M under-trains at same budget AND cross-batch σ (~7/24) is bigger than within-batch σ (~3.4/24) — same 3-ch tiny config gave 9.8±1.6 in S1 batch vs 3.0±1.9 in S3a batch. All Phase 11-13 single-run K9 algorithmic claims sit at the same noise floor. Future algorithmic comparisons → Stage C (Qwen + HumanEval via Phase 9 path); Stage B/D deferred. Risks #14 (5-seed insufficient at K9 1M) + #15 (compute-budget × scale interaction) added. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -99,7 +99,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**136 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11/12/13 sessions. See the run-order list below.**
+**136 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11/12/13/14 sessions. See the run-order list below.**
 
 ## What it does
 

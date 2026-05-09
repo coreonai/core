@@ -1,0 +1,31 @@
+=== p14s1 seed=0 gpu=0 ===
+
+[P14S1 seed=0] wrote /raid/users/paul/workLLM/scripts/phase14_s1/run_seed0.json
+
+=== summary: pass rate per round (seed=0) ===
+  round-0       pass=0.575 (115/200)
+  round-1       pass=0.820 (164/200)
+  round-2       pass=0.850 (170/200)
+  final-3       pass=0.850 (170/200)
+=== p14s1 seed=0 done ===
+=== p14s1 seed=1 gpu=0 ===
+
+[P14S1 seed=1] wrote /raid/users/paul/workLLM/scripts/phase14_s1/run_seed1.json
+
+=== summary: pass rate per round (seed=1) ===
+  round-0       pass=0.565 (113/200)
+  round-1       pass=0.790 (158/200)
+  round-2       pass=0.845 (169/200)
+  final-3       pass=0.870 (174/200)
+=== p14s1 seed=1 done ===
+=== p14s1 seed=2 gpu=0 ===
+
+[P14S1 seed=2] wrote /raid/users/paul/workLLM/scripts/phase14_s1/run_seed2.json
+
+=== summary: pass rate per round (seed=2) ===
+  round-0       pass=0.535 (107/200)
+  round-1       pass=0.810 (162/200)
+  round-2       pass=0.845 (169/200)
+  final-3       pass=0.845 (169/200)
+=== p14s1 seed=2 done ===
+=== seeds_a done ===
