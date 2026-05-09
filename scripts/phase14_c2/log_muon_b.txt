@@ -1,0 +1,25 @@
+=== p14c2 muon seed=3 gpu=3 ===
+========== seed=3 muon final-3 ==========
+  total=200 pass=153 (0.765)
+
+[P14C2 seed=3 muon] wrote /raid/users/paul/workLLM/scripts/phase14_c2/run_muon_seed3.json
+
+=== summary: pass rate per round (seed=3 muon) ===
+  round-0       pass=0.550 (110/200)
+  round-1       pass=0.640 (128/200)
+  round-2       pass=0.710 (142/200)
+  final-3       pass=0.765 (153/200)
+=== p14c2 muon seed=3 done ===
+=== p14c2 muon seed=4 gpu=3 ===
+========== seed=4 muon final-3 ==========
+  total=200 pass=152 (0.760)
+
+[P14C2 seed=4 muon] wrote /raid/users/paul/workLLM/scripts/phase14_c2/run_muon_seed4.json
+
+=== summary: pass rate per round (seed=4 muon) ===
+  round-0       pass=0.510 (102/200)
+  round-1       pass=0.610 (122/200)
+  round-2       pass=0.675 (135/200)
+  final-3       pass=0.760 (152/200)
+=== p14c2 muon seed=4 done ===
+=== muon_b done ===

@@ -1,0 +1,445 @@
+{
+  "model": "Qwen/Qwen2.5-Coder-0.5B",
+  "seed": 1,
+  "optimizer": "muon",
+  "rounds": 3,
+  "samples": 8,
+  "lora_r": 16,
+  "lora_alpha": 32,
+  "train_steps": 60,
+  "lr": 0.0002,
+  "history": [
+    {
+      "label": "round-0",
+      "n": 200,
+      "n_pass": 113,
+      "pass_rate": 0.565,
+      "per_challenge": {
+        "equals_5": {
+          "pass": 0,
+          "total": 8
+        },
+        "equals_14_via_doubling": {
+          "pass": 0,
+          "total": 8
+        },
+        "len_5_string": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_plus_to_5": {
+          "pass": 2,
+          "total": 8
+        },
+        "ten_minus_to_3": {
+          "pass": 1,
+          "total": 8
+        },
+        "two_pow_to_8": {
+          "pass": 1,
+          "total": 8
+        },
+        "is_even": {
+          "pass": 7,
+          "total": 8
+        },
+        "list_sum": {
+          "pass": 3,
+          "total": 8
+        },
+        "is_positive": {
+          "pass": 7,
+          "total": 8
+        },
+        "count_chars": {
+          "pass": 0,
+          "total": 8
+        },
+        "double_it": {
+          "pass": 8,
+          "total": 8
+        },
+        "max_of_two": {
+          "pass": 3,
+          "total": 8
+        },
+        "min_of_two": {
+          "pass": 3,
+          "total": 8
+        },
+        "abs_value": {
+          "pass": 1,
+          "total": 8
+        },
+        "is_negative": {
+          "pass": 6,
+          "total": 8
+        },
+        "list_length": {
+          "pass": 7,
+          "total": 8
+        },
+        "first_elem": {
+          "pass": 8,
+          "total": 8
+        },
+        "last_elem": {
+          "pass": 8,
+          "total": 8
+        },
+        "square": {
+          "pass": 6,
+          "total": 8
+        },
+        "string_upper": {
+          "pass": 8,
+          "total": 8
+        },
+        "string_lower": {
+          "pass": 8,
+          "total": 8
+        },
+        "is_zero": {
+          "pass": 8,
+          "total": 8
+        },
+        "list_reverse": {
+          "pass": 6,
+          "total": 8
+        },
+        "fizz_string": {
+          "pass": 5,
+          "total": 8
+        },
+        "list_max": {
+          "pass": 7,
+          "total": 8
+        }
+      }
+    },
+    {
+      "label": "round-1",
+      "n": 200,
+      "n_pass": 131,
+      "pass_rate": 0.655,
+      "per_challenge": {
+        "equals_5": {
+          "pass": 2,
+          "total": 8
+        },
+        "equals_14_via_doubling": {
+          "pass": 0,
+          "total": 8
+        },
+        "len_5_string": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_plus_to_5": {
+          "pass": 3,
+          "total": 8
+        },
+        "ten_minus_to_3": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_pow_to_8": {
+          "pass": 4,
+          "total": 8
+        },
+        "is_even": {
+          "pass": 6,
+          "total": 8
+        },
+        "list_sum": {
+          "pass": 4,
+          "total": 8
+        },
+        "is_positive": {
+          "pass": 8,
+          "total": 8
+        },
+        "count_chars": {
+          "pass": 4,
+          "total": 8
+        },
+        "double_it": {
+          "pass": 8,
+          "total": 8
+        },
+        "max_of_two": {
+          "pass": 6,
+          "total": 8
+        },
+        "min_of_two": {
+          "pass": 8,
+          "total": 8
+        },
+        "abs_value": {
+          "pass": 1,
+          "total": 8
+        },
+        "is_negative": {
+          "pass": 5,
+          "total": 8
+        },
+        "list_length": {
+          "pass": 4,
+          "total": 8
+        },
+        "first_elem": {
+          "pass": 8,
+          "total": 8
+        },
+        "last_elem": {
+          "pass": 8,
+          "total": 8
+        },
+        "square": {
+          "pass": 8,
+          "total": 8
+        },
+        "string_upper": {
+          "pass": 8,
+          "total": 8
+        },
+        "string_lower": {
+          "pass": 8,
+          "total": 8
+        },
+        "is_zero": {
+          "pass": 8,
+          "total": 8
+        },
+        "list_reverse": {
+          "pass": 8,
+          "total": 8
+        },
+        "fizz_string": {
+          "pass": 4,
+          "total": 8
+        },
+        "list_max": {
+          "pass": 8,
+          "total": 8
+        }
+      }
+    },
+    {
+      "label": "round-2",
+      "n": 200,
+      "n_pass": 144,
+      "pass_rate": 0.72,
+      "per_challenge": {
+        "equals_5": {
+          "pass": 1,
+          "total": 8
+        },
+        "equals_14_via_doubling": {
+          "pass": 0,
+          "total": 8
+        },
+        "len_5_string": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_plus_to_5": {
+          "pass": 4,
+          "total": 8
+        },
+        "ten_minus_to_3": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_pow_to_8": {
+          "pass": 2,
+          "total": 8
+        },
+        "is_even": {
+          "pass": 7,
+          "total": 8
+        },
+        "list_sum": {
+          "pass": 8,
+          "total": 8
+        },
+        "is_positive": {
+          "pass": 7,
+          "total": 8
+        },
+        "count_chars": {
+          "pass": 8,
+          "total": 8
+        },
+        "double_it": {
+          "pass": 8,
+          "total": 8
+        },
+        "max_of_two": {
+          "pass": 7,
+          "total": 8
+        },
+        "min_of_two": {
+          "pass": 8,
+          "total": 8
+        },
+        "abs_value": {
+          "pass": 2,
+          "total": 8
+        },
+        "is_negative": {
+          "pass": 6,
+          "total": 8
+        },
+        "list_length": {
+          "pass": 6,
+          "total": 8
+        },
+        "first_elem": {
+          "pass": 8,
+          "total": 8
+        },
+        "last_elem": {
+          "pass": 8,
+          "total": 8
+        },
+        "square": {
+          "pass": 8,
+          "total": 8
+        },
+        "string_upper": {
+          "pass": 8,
+          "total": 8
+        },
+        "string_lower": {
+          "pass": 8,
+          "total": 8
+        },
+        "is_zero": {
+          "pass": 8,
+          "total": 8
+        },
+        "list_reverse": {
+          "pass": 7,
+          "total": 8
+        },
+        "fizz_string": {
+          "pass": 8,
+          "total": 8
+        },
+        "list_max": {
+          "pass": 7,
+          "total": 8
+        }
+      }
+    },
+    {
+      "label": "final-3",
+      "n": 200,
+      "n_pass": 151,
+      "pass_rate": 0.755,
+      "per_challenge": {
+        "equals_5": {
+          "pass": 2,
+          "total": 8
+        },
+        "equals_14_via_doubling": {
+          "pass": 0,
+          "total": 8
+        },
+        "len_5_string": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_plus_to_5": {
+          "pass": 4,
+          "total": 8
+        },
+        "ten_minus_to_3": {
+          "pass": 0,
+          "total": 8
+        },
+        "two_pow_to_8": {
+          "pass": 4,
+          "total": 8
+        },
+        "is_even": {
+          "pass": 8,
+          "total": 8
+        },
+        "list_sum": {
+          "pass": 8,
+          "total": 8
+        },
+        "is_positive": {
+          "pass": 8,
+          "total": 8
+        },
+        "count_chars": {
+          "pass": 8,
+          "total": 8
+        },
+        "double_it": {
+          "pass": 8,
+          "total": 8
+        },
+        "max_of_two": {
+          "pass": 8,
+          "total": 8
+        },
+        "min_of_two": {
+          "pass": 8,
+          "total": 8
+        },
+        "abs_value": {
+          "pass": 1,
+          "total": 8
+        },
+        "is_negative": {
+          "pass": 7,
+          "total": 8
+        },
+        "list_length": {
+          "pass": 5,
+          "total": 8
+        },
+        "first_elem": {
+          "pass": 8,
+          "total": 8
+        },
+        "last_elem": {
+          "pass": 8,
+          "total": 8
+        },
+        "square": {
+          "pass": 8,
+          "total": 8
+        },
+        "string_upper": {
+          "pass": 8,
+          "total": 8
+        },
+        "string_lower": {
+          "pass": 8,
+          "total": 8
+        },
+        "is_zero": {
+          "pass": 8,
+          "total": 8
+        },
+        "list_reverse": {
+          "pass": 8,
+          "total": 8
+        },
+        "fizz_string": {
+          "pass": 8,
+          "total": 8
+        },
+        "list_max": {
+          "pass": 8,
+          "total": 8
+        }
+      }
+    }
+  ]
+}

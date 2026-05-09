@@ -1,0 +1,38 @@
+
+=== Phase 14 C2 — Muon vs AdamW for LoRA at Qwen substrate ===
+Muon: 5 seeds, AdamW (S1 baseline): 5 seeds
+
+
+--- AdamW (S1 baseline) (5 seeds) ---
+  round-0     0.547 ± 0.026  [0.575, 0.565, 0.535, 0.550, 0.510]
+  round-1     0.801 ± 0.016  [0.820, 0.790, 0.810, 0.805, 0.780]
+  round-2     0.846 ± 0.004  [0.850, 0.845, 0.845, 0.840, 0.850]
+  final-3     0.851 ± 0.011  [0.850, 0.870, 0.845, 0.850, 0.840]
+
+--- Muon (5 seeds) ---
+  round-0     0.547 ± 0.026  [0.575, 0.565, 0.535, 0.550, 0.510]
+  round-1     0.636 ± 0.020  [0.655, 0.655, 0.620, 0.640, 0.610]
+  round-2     0.704 ± 0.026  [0.735, 0.720, 0.680, 0.710, 0.675]
+  final-3     0.759 ± 0.004  [0.755, 0.755, 0.760, 0.765, 0.760]
+
+=== Final pass rate comparison ===
+  AdamW: 0.851 ± 0.011
+  Muon : 0.759 ± 0.004
+  Δ    = -0.092  (Muon − AdamW)
+  2 max(σ) = 0.023  (significance threshold)
+  → ROBUST LOSS for Muon
+
+=== Per-challenge final pass rate (focused-subset reveal) ===
+  movable (non-saturated under AdamW): 4
+  equals_5                        AdamW 0.300 ± 0.338  Muon 0.125 ± 0.088  Δ=-0.175
+  equals_14_via_doubling          AdamW 0.000 ± 0.000  Muon 0.000 ± 0.000  Δ=+0.000
+  len_5_string                    AdamW 0.000 ± 0.000  Muon 0.000 ± 0.000  Δ=+0.000
+  ten_minus_to_3                  AdamW 0.000 ± 0.000  Muon 0.025 ± 0.056  Δ=+0.025
+
+  ⚠ Muon broke 6 saturated problem(s):
+    two_plus_to_5                   AdamW 1.000  Muon 0.500
+    two_pow_to_8                    AdamW 1.000  Muon 0.550
+    count_chars                     AdamW 1.000  Muon 0.900
+    abs_value                       AdamW 1.000  Muon 0.275
+    list_length                     AdamW 1.000  Muon 0.775
+    fizz_string                     AdamW 1.000  Muon 0.925
