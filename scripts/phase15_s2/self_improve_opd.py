@@ -91,54 +91,69 @@ def opd_finetune(student_model, teachers, tokenizer, triples,
     """OPD LoRA-FT on student using subset-routed teacher logits.
 
     teachers: dict[subset_name → frozen PeftModel]
+
+    Per-subset DataLoaders avoid mixed-subset batches at subset
+    boundaries that a single sorted DataLoader produces. Round-robin
+    over subsets per training step weights all subsets equally
+    regardless of their pair count (avoids the dominant subset
+    monopolizing the gradient).
     """
     if not triples:
         return 0.0
 
-    # Sort triples by subset so each batch is homogeneous → one teacher
-    # forward per batch.
-    triples_sorted = sorted(triples, key=lambda t: t[2])
-    ds = OpdPairDataset(triples_sorted, tokenizer)
     pad_id = tokenizer.eos_token_id
+    # One DataLoader per subset — guarantees homogeneous batches.
+    loaders = {}
+    for subset in {t[2] for t in triples}:
+        sub_triples = [t for t in triples if t[2] == subset]
+        if not sub_triples:
+            continue
+        sub_ds = OpdPairDataset(sub_triples, tokenizer)
+        loaders[subset] = DataLoader(
+            sub_ds, batch_size=batch_size, shuffle=True,
+            collate_fn=lambda b, pid=pad_id: opd_collate(b, pid),
+        )
 
-    # SequentialSampler keeps subset-sorting; no shuffle.
-    loader = DataLoader(ds, batch_size=batch_size, shuffle=False,
-                        collate_fn=lambda b: opd_collate(b, pad_id))
+    iters = {s: iter(l) for s, l in loaders.items()}
+    subset_keys = list(loaders.keys())
+
     trainable = [p for p in student_model.parameters() if p.requires_grad]
     opt = torch.optim.AdamW(trainable, lr=lr)
     sched = get_cosine_schedule_with_warmup(
         opt, num_warmup_steps=max(1, steps // 10), num_training_steps=steps,
     )
     student_model.train()
-    step = 0
     last = 0.0
-    while step < steps:
-        for batch in loader:
-            if step >= steps:
-                break
-            subset = batch.pop("subset")
-            batch = {k: v.to(device) for k, v in batch.items()}
-            # Teacher logits (frozen, no grad)
-            teacher = teachers[subset]
-            teacher.eval()
-            with torch.no_grad():
-                t_out = teacher(input_ids=batch["input_ids"],
-                                attention_mask=batch["attention_mask"])
-                teacher_logits = t_out.logits.detach()
-            # Student logits (with grad)
-            s_out = student_model(input_ids=batch["input_ids"],
-                                  attention_mask=batch["attention_mask"])
-            student_logits = s_out.logits
-            loss = opd_loss(
-                student_logits, [(1.0, teacher_logits)], batch["labels"],
-                temperature=temperature, direction=kl_direction,
-            )
-            opt.zero_grad()
-            loss.backward()
-            opt.step()
-            sched.step()
-            last = loss.item()
-            step += 1
+    for step in range(steps):
+        # Round-robin subset selection — even per-subset weighting
+        subset = subset_keys[step % len(subset_keys)]
+        try:
+            batch = next(iters[subset])
+        except StopIteration:
+            iters[subset] = iter(loaders[subset])
+            batch = next(iters[subset])
+        batch.pop("subset")
+        batch = {k: v.to(device) for k, v in batch.items()}
+        # Teacher logits (frozen, no grad)
+        teacher = teachers[subset]
+        teacher.eval()
+        with torch.no_grad():
+            t_out = teacher(input_ids=batch["input_ids"],
+                            attention_mask=batch["attention_mask"])
+            teacher_logits = t_out.logits.detach()
+        # Student logits (with grad)
+        s_out = student_model(input_ids=batch["input_ids"],
+                              attention_mask=batch["attention_mask"])
+        student_logits = s_out.logits
+        loss = opd_loss(
+            student_logits, [(1.0, teacher_logits)], batch["labels"],
+            temperature=temperature, direction=kl_direction,
+        )
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+        sched.step()
+        last = loss.item()
     student_model.eval()
     return last
 

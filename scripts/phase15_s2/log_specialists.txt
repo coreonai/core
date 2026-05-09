@@ -1,0 +1,52 @@
+=== p15s2 specialist subset=strings gpu=2 ===
+trainable params: 1,081,344 || all params: 495,114,112 || trainable%: 0.2184
+
+========== strings round-0 ==========
+  total=272 pass=55 (0.202)  1346.7s
+  LoRA-FT: 55 pairs × 200 steps, last_loss=0.039, 20.0s
+
+========== strings round-1 ==========
+  total=272 pass=26 (0.096)  1377.3s
+  LoRA-FT: 26 pairs × 200 steps, last_loss=0.013, 20.6s
+
+========== strings final-2 ==========
+  total=272 pass=77 (0.283)  1529.6s
+
+[P15S2-spec] saved adapter to checkpoints/phase15_s2/specialist_strings
+[P15S2-spec] wrote checkpoints/phase15_s2/specialist_strings/meta.json
+=== p15s2 specialist subset=strings done ===
+=== p15s2 specialist subset=numbers gpu=2 ===
+trainable params: 1,081,344 || all params: 495,114,112 || trainable%: 0.2184
+
+========== numbers round-0 ==========
+  total=120 pass=34 (0.283)  654.5s
+  LoRA-FT: 34 pairs × 200 steps, last_loss=0.041, 20.4s
+
+========== numbers round-1 ==========
+  total=120 pass=36 (0.300)  676.9s
+  LoRA-FT: 36 pairs × 200 steps, last_loss=0.011, 20.9s
+
+========== numbers final-2 ==========
+  total=120 pass=49 (0.408)  679.9s
+
+[P15S2-spec] saved adapter to checkpoints/phase15_s2/specialist_numbers
+[P15S2-spec] wrote checkpoints/phase15_s2/specialist_numbers/meta.json
+=== p15s2 specialist subset=numbers done ===
+=== p15s2 specialist subset=collections gpu=2 ===
+trainable params: 1,081,344 || all params: 495,114,112 || trainable%: 0.2184
+
+========== collections round-0 ==========
+  total=264 pass=63 (0.239)  1200.0s
+  LoRA-FT: 63 pairs × 200 steps, last_loss=0.065, 20.0s
+
+========== collections round-1 ==========
+  total=264 pass=67 (0.254)  1319.8s
+  LoRA-FT: 67 pairs × 200 steps, last_loss=0.033, 21.0s
+
+========== collections final-2 ==========
+  total=264 pass=115 (0.436)  1500.3s
+
+[P15S2-spec] saved adapter to checkpoints/phase15_s2/specialist_collections
+[P15S2-spec] wrote checkpoints/phase15_s2/specialist_collections/meta.json
+=== p15s2 specialist subset=collections done ===
+=== specialists done ===

@@ -104,6 +104,48 @@ def main():
         else:
             print(f"  {sub:12s}  (no meta.json yet)")
 
+    # Per-subset student behavior (mirror of S1 mechanism analysis)
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).parent))
+    from routing import SUBSETS, classify  # noqa: E402
+
+    def per_subset_rate(runs):
+        out = {sub: [] for sub in SUBSETS}
+        for run in runs:
+            per_ch = run["history"][-1]["per_challenge"]
+            sub_pass = {sub: [0, 0] for sub in SUBSETS}
+            for ch_name, stats in per_ch.items():
+                # Look up the prompt from S1 challenges to classify
+                # (we don't store prompt in run JSON; use ch_name lookup
+                # against the challenge list)
+                for ch in [c for items in SUBSETS.values() for c in items]:
+                    if ch["name"] == ch_name:
+                        sub = classify(ch["prompt"])
+                        sub_pass[sub][0] += stats["pass"]
+                        sub_pass[sub][1] += stats["total"]
+                        break
+            for sub in SUBSETS:
+                if sub_pass[sub][1]:
+                    out[sub].append(sub_pass[sub][0] / sub_pass[sub][1])
+        return out
+
+    print("\n=== Per-subset final pass rate (student vs teacher) ===")
+    sft_per_sub = per_subset_rate(sft_runs)
+    opd_per_sub = per_subset_rate(opd_runs)
+    print(f"  {'subset':12s}  {'SFT mean':>8s}  {'OPD mean':>8s}  {'Δ':>6s}  {'spec.':>6s}")
+    for sub in ("strings", "numbers", "collections"):
+        sft_rate = statistics.mean(sft_per_sub[sub]) if sft_per_sub[sub] else 0
+        opd_rate = statistics.mean(opd_per_sub[sub]) if opd_per_sub[sub] else 0
+        delta = opd_rate - sft_rate
+        spec_path = spec_dir / f"specialist_{sub}" / "meta.json"
+        spec_rate = 0
+        if spec_path.exists():
+            spec_meta = json.loads(spec_path.read_text())
+            spec_rate = spec_meta["history"][-1]["pass_rate"]
+        print(f"  {sub:12s}  {sft_rate:.3f}    {opd_rate:.3f}    {delta:+.3f}  {spec_rate:.3f}")
+    print("  (specialist column = teacher's own final pass on its subset)")
+    print("  Hint: if OPD > SFT only on subsets where specialist > SFT_baseline → distillation working")
+
 
 if __name__ == "__main__":
     main()
