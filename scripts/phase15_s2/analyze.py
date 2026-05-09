@@ -71,10 +71,25 @@ def main():
     print(f"  Δ        = {delta:+.3f}  (OPD − SFT)")
     print(f"  2σ_max   = {threshold:.3f}")
     if abs(delta) > threshold:
-        v = "ROBUST WIN for OPD" if delta > 0 else "ROBUST LOSS for OPD"
+        v = "ROBUST WIN for OPD (mean shift)" if delta > 0 else "ROBUST LOSS for OPD"
     else:
-        v = "WITHIN NOISE — no algorithmic signal"
+        v = "WITHIN NOISE on mean"
     print(f"  → {v}")
+
+    # S1 mechanism analysis (4-seed) showed FLAT seeds overfit (low train
+    # loss, low gen). OPD's KL-anchor is a natural regularizer. So OPD
+    # may win on VARIANCE reduction even when mean is similar.
+    if sft_sd > 0:
+        sd_ratio = opd_sd / sft_sd
+        print(f"\n=== Variance comparison (overfitting regularization signal) ===")
+        print(f"  σ_OPD / σ_SFT = {sd_ratio:.2f}")
+        if sd_ratio < 0.5:
+            print(f"  → OPD substantially reduces variance ({1/sd_ratio:.1f}× tighter)")
+            print(f"  → Likely regularization win even if mean is flat — see per-seed lifts")
+        elif sd_ratio < 0.85:
+            print(f"  → OPD modestly reduces variance")
+        elif sd_ratio > 1.5:
+            print(f"  → OPD INCREASES variance — destabilizing (Phase 14 C3 hybrid pattern)")
 
     # Specialist meta dump if present
     print("\n=== Specialist metadata ===")

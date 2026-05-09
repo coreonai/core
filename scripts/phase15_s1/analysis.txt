@@ -1,0 +1,22 @@
+
+=== Phase 15 S1 — HumanEval substrate (5 seeds, 164 problems) ===
+
+Per-round mean ± σ pass rate:
+  round-0     0.213 ± 0.006  [0.211, 0.220, 0.209, 0.220, 0.207]
+  final-1     0.245 ± 0.041  [0.278, 0.220, 0.224, 0.299, 0.203]
+
+  FINAL pass rate mean ± σ = 0.245 ± 0.041
+
+Per-challenge final pass rate distribution:
+  Saturated  (mu >= 0.95):   6  (4%)
+  Headroom   (0.05 <= mu < 0.95):  86  (52%)
+  Cold-start (mu < 0.05):  72  (44%)
+
+=== Substrate qualification ===
+  Final σ = 0.041  (target ≤ 0.03)
+  Saturated fraction = 0.04  (target ≤ 0.50)
+  → HEADROOM-OK but NOISY (σ=0.041) — more samples or train-steps
+
+=== Comparison vs Phase 14 substrate ===
+  Phase 14 (25 problems): final σ=0.011, saturation 84%
+  Phase 15 (164 HumanEval): final σ=0.041, saturation 4%

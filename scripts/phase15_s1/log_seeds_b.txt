@@ -1,0 +1,21 @@
+=== p15s1 seed=3 gpu=3 ===
+  LoRA-FT: 108 pairs × 200 steps, last_loss=0.141, 20.7s
+
+========== seed=3 final-1 ==========
+  total=492 pass=147 (0.299)  2720.8s
+
+[P15S1 seed=3] wrote /raid/users/paul/workLLM/scripts/phase15_s1/run_seed3.json
+  round-0       pass=0.220 (108/492)
+  final-1       pass=0.299 (147/492)
+=== p15s1 seed=3 done ===
+=== p15s1 seed=4 gpu=3 ===
+  LoRA-FT: 102 pairs × 200 steps, last_loss=0.075, 20.6s
+
+========== seed=4 final-1 ==========
+  total=492 pass=100 (0.203)  2627.1s
+
+[P15S1 seed=4] wrote /raid/users/paul/workLLM/scripts/phase15_s1/run_seed4.json
+  round-0       pass=0.207 (102/492)
+  final-1       pass=0.203 (100/492)
+=== p15s1 seed=4 done ===
+=== seeds_b done ===
