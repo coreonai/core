@@ -1,0 +1,51 @@
+=== isolate_medium seed=0 ===
+[2m2026-05-09T00:03:24.637096Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m"\n
+[round 3] gen_correct=2/24 (8.3%)  eval before=1/24  after=1/24  Δ=+0  loss=Some(0.5021804)  t=17478ms
+
+=== history ===
+round 0: gen=1/24 (4.2%)  eval before=0/24 after=0/24  Δ=+0
+round 1: gen=0/24 (0.0%)  eval before=2/24 after=0/24  Δ=-2
+round 2: gen=0/24 (0.0%)  eval before=1/24 after=1/24  Δ=+0
+round 3: gen=2/24 (8.3%)  eval before=1/24 after=1/24  Δ=+0
+=== isolate_medium seed=0 done ===
+=== isolate_medium seed=1 ===
+[2m2026-05-09T00:04:54.525031Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m"het "12 "\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=0/24  after=1/24  Δ=+1  loss=Some(0.46651527)  t=16818ms
+
+=== history ===
+round 0: gen=2/24 (8.3%)  eval before=1/24 after=1/24  Δ=+0
+round 1: gen=0/24 (0.0%)  eval before=3/24 after=0/24  Δ=-3
+round 2: gen=0/24 (0.0%)  eval before=0/24 after=1/24  Δ=+1
+round 3: gen=0/24 (0.0%)  eval before=0/24 after=1/24  Δ=+1
+=== isolate_medium seed=1 done ===
+=== isolate_medium seed=2 ===
+[2m2026-05-09T00:06:24.156577Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m"12 "12 main() {
+[round 3] gen_correct=5/24 (20.8%)  eval before=2/24  after=0/24  Δ=-2  loss=Some(0.760878)  t=16712ms
+
+=== history ===
+round 0: gen=2/24 (8.3%)  eval before=0/24 after=0/24  Δ=+0
+round 1: gen=1/24 (4.2%)  eval before=2/24 after=2/24  Δ=+0
+round 2: gen=3/24 (12.5%)  eval before=0/24 after=0/24  Δ=+0
+round 3: gen=5/24 (20.8%)  eval before=2/24 after=0/24  Δ=-2
+=== isolate_medium seed=2 done ===
+=== isolate_medium seed=3 ===
+[2m2026-05-09T00:07:53.216786Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m"\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=2/24  after=2/24  Δ=+0  loss=Some(0.36801448)  t=16737ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+round 1: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+round 2: gen=0/24 (0.0%)  eval before=0/24 after=2/24  Δ=+2
+round 3: gen=0/24 (0.0%)  eval before=2/24 after=2/24  Δ=+0
+=== isolate_medium seed=3 done ===
+=== isolate_medium seed=4 ===
+[2m2026-05-09T00:09:23.633341Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m"\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=2/24  after=2/24  Δ=+0  loss=Some(0.38361916)  t=16671ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=1/24  Δ=+1
+round 1: gen=0/24 (0.0%)  eval before=0/24 after=2/24  Δ=+2
+round 2: gen=0/24 (0.0%)  eval before=2/24 after=2/24  Δ=+0
+round 3: gen=0/24 (0.0%)  eval before=2/24 after=2/24  Δ=+0
+=== isolate_medium seed=4 done ===
+=== isolate_medium done ===

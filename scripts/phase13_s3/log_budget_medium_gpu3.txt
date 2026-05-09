@@ -1,0 +1,21 @@
+=== budget_medium seed=3 gpu=3 ===
+[2m2026-05-09T00:04:27.440769Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m"\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=0/24  after=0/24  Δ=+0  loss=Some(0.55650216)  t=16720ms
+
+=== history ===
+round 0: gen=1/24 (4.2%)  eval before=0/24 after=4/24  Δ=+4
+round 1: gen=4/24 (16.7%)  eval before=7/24 after=0/24  Δ=-7
+round 2: gen=2/24 (8.3%)  eval before=2/24 after=0/24  Δ=-2
+round 3: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+=== budget_medium seed=3 done ===
+=== budget_medium seed=4 gpu=3 ===
+[2m2026-05-09T00:06:46.376953Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m"\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=4/24  after=0/24  Δ=-4  loss=Some(0.56247294)  t=17084ms
+
+=== history ===
+round 0: gen=5/24 (20.8%)  eval before=1/24 after=0/24  Δ=-1
+round 1: gen=0/24 (0.0%)  eval before=2/24 after=3/24  Δ=+1
+round 2: gen=1/24 (4.2%)  eval before=7/24 after=1/24  Δ=-6
+round 3: gen=0/24 (0.0%)  eval before=4/24 after=0/24  Δ=-4
+=== budget_medium seed=4 done ===
+=== budget_medium gpu=3 done ===

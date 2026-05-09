@@ -383,6 +383,22 @@ verifier-V and domain-D:
     inferior. See `docs/phase11-s5-hybrid-dpo.md` for the full
     matrix.
 
+15. **NEW: Task complexity × model scale interact non-trivially**
+    (Phase 13 S2 honest negative). Phase 13 S2 tried to verify
+    that 10× model scale (1M → 10M) reduces K9 seed variance.
+    Result was confounded by A1 (challenge expansion 3 → 10) —
+    1M with 10 challenges had best_eval 1.8/24 (vs 9.8/24 with
+    3 challenges); 10M with 10 challenges only reached 3.6/24.
+    **Scale-up didn't recover from the harder task at 10M.**
+
+    Operational: when scaling any axis (model size, dataset
+    size, task complexity), sweep one axis at a time. Two-axis
+    movement at toy scale produces uninterpretable confounds.
+    Phase 13 S3 will re-measure with `--challenge-mask 0,1,2` to
+    isolate scale at fixed task complexity.
+
+    See `docs/phase13-s2-scale.md` for the full result.
+
 14. **NEW: Single-run K9 1M optimizer/RL claims are 1σ noise unless
     replicated** (Phase 13 S1 A2 retroactive variance check).
     5-seed Muon vs AdamW measurement showed Phase 12 S1's "+78%
@@ -405,6 +421,40 @@ verifier-V and domain-D:
 
     See `docs/phase13-s1-variance.md` for the full retroactive
     analysis + Phase 12 S1 retraction.
+
+    **Phase 13 S3 strengthening — cross-batch σ is bigger than
+    within-batch σ.** Same 3-challenge tiny K9 config measured by
+    two independent 5-seed batches:
+    - Phase 13 S1 batch: best_eval 9.8 ± 1.6
+    - Phase 13 S3a batch: best_eval 3.0 ± 1.9
+    Means differ by 6.8/24 (28%), far larger than the within-batch
+    σ ≈ 1.6. Cross-batch σ is therefore ≈ 6-7/24 — about double
+    the within-batch estimate. Even 5-seed claims need cross-batch
+    replication to be production-confident.
+
+    Net: K9 at 1M is **smoke-test infrastructure, not measurement
+    substrate**. All Phase 11-13 algorithmic claims at K9 1M sit
+    at the same noise floor. Future algorithmic comparisons should
+    move to richer benchmarks (HumanEval / MBPP via the Phase 9
+    Qwen path) or bigger models where noise dampens. See
+    `docs/phase13-s3-isolate-budget.md`.
+
+15. **NEW: Compute-budget × scale interaction** (Phase 13 S2 + S3a
+    confluent finding). Scaling the model up at fixed train
+    budget under-trains the bigger model:
+    - Phase 13 S2 (10-ch, 1.5K pretrain): tiny best 1.8, medium best 3.6
+    - Phase 13 S3a (3-ch, 1.5K pretrain): tiny best 3.0, medium best 1.6
+    The 10M model has worse mean than 1M model when given the
+    same compute budget AND task complexity (3-ch isolate). The
+    "less variable but uniformly weaker" phenomenon — 10M σ
+    shrinks (1.9 → 0.5) but mean drops (3.0 → 1.6). When scaling
+    one axis (model size), scale compute proportionally OR accept
+    that the bigger model will under-train. Same applies to scaling
+    task complexity (Phase 13 A1: 3 → 10 challenges) without
+    matching pretrain budget.
+
+    See `docs/phase13-s3-isolate-budget.md` for the dual
+    measurement.
 
 ## What "Phase 7 done" means
 
