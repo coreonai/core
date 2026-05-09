@@ -1,0 +1,51 @@
+=== tiny seed=0 ===
+[2m2026-05-08T23:21:56.954209Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m"\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=0/24  after=0/24  Δ=+0  loss=Some(0.78026086)  t=10599ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=2/24  Δ=+2
+round 1: gen=0/24 (0.0%)  eval before=2/24 after=0/24  Δ=-2
+round 2: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+round 3: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+=== tiny seed=0 done ===
+=== tiny seed=1 ===
+[2m2026-05-08T23:22:46.404017Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m= "HELO"\n
+[round 3] gen_correct=1/24 (4.2%)  eval before=0/24  after=0/24  Δ=+0  loss=Some(0.745856)  t=10549ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=2/24  Δ=+2
+round 1: gen=0/24 (0.0%)  eval before=2/24 after=0/24  Δ=-2
+round 2: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+round 3: gen=1/24 (4.2%)  eval before=0/24 after=0/24  Δ=+0
+=== tiny seed=1 done ===
+=== tiny seed=2 ===
+[2m2026-05-08T23:23:35.681750Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m"\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=0/24  after=0/24  Δ=+0  loss=Some(0.80912)  t=10715ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=2/24  Δ=+2
+round 1: gen=0/24 (0.0%)  eval before=2/24 after=0/24  Δ=-2
+round 2: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+round 3: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+=== tiny seed=2 done ===
+=== tiny seed=3 ===
+[2m2026-05-08T23:24:26.804446Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m= 10\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=2/24  after=0/24  Δ=-2  loss=Some(0.8082263)  t=10831ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=1/24  Δ=+1
+round 1: gen=5/24 (20.8%)  eval before=5/24 after=2/24  Δ=-3
+round 2: gen=0/24 (0.0%)  eval before=2/24 after=2/24  Δ=+0
+round 3: gen=0/24 (0.0%)  eval before=2/24 after=0/24  Δ=-2
+=== tiny seed=3 done ===
+=== tiny seed=4 ===
+[2m2026-05-08T23:25:16.071179Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m"\n
+[round 3] gen_correct=0/24 (0.0%)  eval before=0/24  after=0/24  Δ=+0  loss=Some(0.78883797)  t=10895ms
+
+=== history ===
+round 0: gen=0/24 (0.0%)  eval before=0/24 after=1/24  Δ=+1
+round 1: gen=0/24 (0.0%)  eval before=2/24 after=0/24  Δ=-2
+round 2: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+round 3: gen=0/24 (0.0%)  eval before=0/24 after=0/24  Δ=+0
+=== tiny seed=4 done ===
+=== tiny_seeds done ===

@@ -166,6 +166,18 @@ struct Args {
     /// + a few literal chars.
     #[arg(long, default_value_t = 16)]
     max_new_tokens: usize,
+    /// Phase 13 S2: model scale knobs. Defaults reproduce the
+    /// historical K9 ~1M tiny char-model. Override to scale up
+    /// (Stage B in Phase 13 design doc — ask whether bigger model
+    /// reduces seed variance on K9 final eval).
+    #[arg(long, default_value_t = 4)]
+    n_layer: usize,
+    #[arg(long, default_value_t = 4)]
+    n_head: usize,
+    #[arg(long, default_value_t = 128)]
+    n_embd: usize,
+    #[arg(long, default_value_t = 4)]
+    n_kv_head: usize,
     /// Scratch dir where the cargo verifier writes / runs.
     #[arg(long, default_value = "/tmp/workllm-rust-scratch")]
     scratch_dir: PathBuf,
@@ -453,18 +465,20 @@ async fn main() -> anyhow::Result<()> {
 
     // ---- Model: small char-level. Block size large enough for one
     // full program (~50 chars) plus headroom.
+    // Phase 13 S2: scale axes are now CLI-controllable. Defaults
+    // reproduce the historical K9 ~1M tiny char-model.
     let gpt_cfg = GPTConfig {
         vocab_size: vocab,
         block_size: 80,
-        n_layer: 4,
-        n_head: 4,
-        n_embd: 128,
+        n_layer: args.n_layer,
+        n_head: args.n_head,
+        n_embd: args.n_embd,
         dropout: 0.0,
         bias: false,
         ffn_mult: 4,
         use_rope: true,
         rope_base: 10_000.0,
-        n_kv_head: 4,
+        n_kv_head: args.n_kv_head,
         n_experts: 1,
         moe_top_k: 0,
         moe_aux_weight: 0.0,
