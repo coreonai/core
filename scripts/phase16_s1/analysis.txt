@@ -1,0 +1,22 @@
+
+=== Phase 16 S1 — samples=6 substrate σ ===
+
+
+--- Phase 16 S1 — samples=6 (5 seeds) ---
+  round-0     0.216 ± 0.004  [0.213, 0.216, 0.220, 0.221, 0.210]
+  final-1     0.230 ± 0.031  [0.246, 0.230, 0.223, 0.268, 0.184]
+
+--- Phase 15 S1 — samples=3 (baseline) (5 seeds) ---
+  round-0     0.213 ± 0.006  [0.211, 0.220, 0.209, 0.220, 0.207]
+  final-1     0.245 ± 0.041  [0.278, 0.220, 0.224, 0.299, 0.203]
+
+=== σ comparison ===
+  samples=3: σ=0.0414
+  samples=6: σ=0.0312
+  Ratio σ_6/σ_3 = 0.75  (CLT prediction: 0.71, ~0.71)
+  → S3b prediction VALIDATED (σ reduces with more samples)
+
+  Δ_mean = -0.015 (samples=6 mean shift vs samples=3)
+
+=== Threshold update for Phase 16+ ===
+  New 2σ threshold = 0.062  (was 0.083 at Phase 15)

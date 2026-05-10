@@ -1,0 +1,12 @@
+=== p16s4 hybrid α=0.3 kl=reverse seed=3 gpu=6 ===
+========== seed=3 hybrid α=0.3 round-0 ==========
+  total=492 pass=115 (0.234)  2370.8s
+  Hybrid[α=0.3 kl=reverse]: 115 pairs × 200 steps, last_loss=0.126, 28.9s
+
+========== seed=3 hybrid α=0.3 final-1 ==========
+  total=492 pass=29 (0.059)  1538.4s
+
+[P16S4 seed=3 α=0.3] wrote /raid/users/paul/workLLM/scripts/phase16_s4/run_hybrid_a0.3_klreverse_seed3.json
+  round-0       pass=0.234 (115/492)
+  final-1       pass=0.059 (29/492)
+=== p16s4 hybrid seed=3 done ===

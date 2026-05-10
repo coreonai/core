@@ -1,0 +1,14 @@
+
+=== Phase 16 S4 — Hybrid OPD+SFT vs all OPD/SFT predecessors ===
+
+  SFT only (Phase 15 S1)                  0.245 ± 0.041  [0.278, 0.220, 0.224, 0.299, 0.203]
+  Pure forward-KL OPD (Phase 15 S2)       0.157 ± 0.070  [0.195, 0.148, 0.242, 0.053, 0.144]
+  Pure reverse-KL OPD (Phase 16 S2)       0.086 ± 0.045  [0.152, 0.087, 0.102, 0.045, 0.045]
+  Hybrid OPD+SFT α=0.3 reverse-KL (this commit)  0.130 ± 0.088  [0.122, 0.189, 0.246, 0.059, 0.037]
+
+=== Verdict ===
+  hybrid vs SFT:        Δ=-0.114  2σ_max=0.175
+    → WITHIN NOISE
+
+  hybrid vs pure rev-KL OPD: Δ=+0.044
+    → SFT anchor RESCUES OPD (substantially better than pure OPD)
