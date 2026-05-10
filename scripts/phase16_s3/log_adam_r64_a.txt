@@ -1,0 +1,31 @@
+=== p16s3 adam r64 seed=0 gpu=5 ===
+  LoRA[adam]: 104 pairs × 200 steps, last_loss=0.042, 19.6s
+
+========== seed=0 adam final-1 ==========
+  total=492 pass=159 (0.323)  2481.5s
+
+[P15S4 seed=0 adam] wrote scripts/phase16_s3/run_adam_r64_seed0.json
+  round-0       pass=0.211 (104/492)
+  final-1       pass=0.323 (159/492)
+=== p16s3 adam r64 seed=0 done ===
+=== p16s3 adam r64 seed=1 gpu=5 ===
+  LoRA[adam]: 108 pairs × 200 steps, last_loss=0.034, 20.0s
+
+========== seed=1 adam final-1 ==========
+  total=492 pass=108 (0.220)  2639.5s
+
+[P15S4 seed=1 adam] wrote scripts/phase16_s3/run_adam_r64_seed1.json
+  round-0       pass=0.220 (108/492)
+  final-1       pass=0.220 (108/492)
+=== p16s3 adam r64 seed=1 done ===
+=== p16s3 adam r64 seed=2 gpu=5 ===
+  LoRA[adam]: 103 pairs × 200 steps, last_loss=0.067, 20.2s
+
+========== seed=2 adam final-1 ==========
+  total=492 pass=35 (0.071)  2067.9s
+
+[P15S4 seed=2 adam] wrote scripts/phase16_s3/run_adam_r64_seed2.json
+  round-0       pass=0.209 (103/492)
+  final-1       pass=0.071 (35/492)
+=== p16s3 adam r64 seed=2 done ===
+=== adam_r64_a done ===

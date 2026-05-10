@@ -1,0 +1,21 @@
+=== p16s3 muon r64 seed=3 gpu=6 ===
+  LoRA[muon]: 108 pairs × 200 steps, last_loss=0.290, 31.8s
+
+========== seed=3 muon final-1 ==========
+  total=492 pass=85 (0.173)  2310.8s
+
+[P15S4 seed=3 muon] wrote scripts/phase16_s3/run_muon_r64_seed3.json
+  round-0       pass=0.220 (108/492)
+  final-1       pass=0.173 (85/492)
+=== p16s3 muon r64 seed=3 done ===
+=== p16s3 muon r64 seed=4 gpu=6 ===
+  LoRA[muon]: 102 pairs × 200 steps, last_loss=0.173, 32.5s
+
+========== seed=4 muon final-1 ==========
+  total=492 pass=87 (0.177)  2264.6s
+
+[P15S4 seed=4 muon] wrote scripts/phase16_s3/run_muon_r64_seed4.json
+  round-0       pass=0.207 (102/492)
+  final-1       pass=0.177 (87/492)
+=== p16s3 muon r64 seed=4 done ===
+=== muon_r64_b done ===

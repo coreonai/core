@@ -1,0 +1,31 @@
+=== p16s2 revkl seed=0 gpu=2 ===
+  OPD-FT: 105 pairs × 200 steps, last_loss=0.072, 29.0s
+
+========== seed=0 OPD final-1 ==========
+  total=492 pass=75 (0.152)  2360.9s
+
+[P15S2-OPD seed=0] wrote scripts/phase16_s2/run_revkl_seed0.json
+  round-0       pass=0.213 (105/492)
+  final-1       pass=0.152 (75/492)
+=== p16s2 revkl seed=0 done ===
+=== p16s2 revkl seed=1 gpu=2 ===
+  OPD-FT: 104 pairs × 200 steps, last_loss=0.098, 29.4s
+
+========== seed=1 OPD final-1 ==========
+  total=492 pass=43 (0.087)  1735.2s
+
+[P15S2-OPD seed=1] wrote scripts/phase16_s2/run_revkl_seed1.json
+  round-0       pass=0.211 (104/492)
+  final-1       pass=0.087 (43/492)
+=== p16s2 revkl seed=1 done ===
+=== p16s2 revkl seed=2 gpu=2 ===
+  OPD-FT: 110 pairs × 200 steps, last_loss=0.037, 28.7s
+
+========== seed=2 OPD final-1 ==========
+  total=492 pass=50 (0.102)  1909.0s
+
+[P15S2-OPD seed=2] wrote scripts/phase16_s2/run_revkl_seed2.json
+  round-0       pass=0.224 (110/492)
+  final-1       pass=0.102 (50/492)
+=== p16s2 revkl seed=2 done ===
+=== revkl_a done ===

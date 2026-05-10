@@ -1,0 +1,23 @@
+
+=== Phase 16 S3 — Muon at higher LoRA rank ===
+
+  AdamW r=16 (Phase 15 S1)          0.245 ± 0.041  [0.278, 0.220, 0.224, 0.299, 0.203]
+  Muon  r=16 (Phase 15 S4)          0.163 ± 0.014  [0.187, 0.165, 0.161, 0.150, 0.154]
+  AdamW r=64 (this commit)          0.233 ± 0.097  [0.323, 0.220, 0.071, 0.270, 0.278]
+  Muon  r=64 (this commit)          0.162 ± 0.018  [0.177, 0.142, 0.142, 0.173, 0.177]
+
+=== Δ within rank ===
+  r=16: Muon - AdamW = -0.081  (Phase 15 S4 verdict: LOSS)
+  r=64: Muon - AdamW = -0.070
+
+=== Δ across rank (does higher rank help?) ===
+  AdamW: r=64 - r=16 = -0.012
+  Muon : r=64 - r=16 = -0.001
+
+=== Verdict ===
+  r=64 Muon vs AdamW Δ = -0.070, 2σ_max = 0.195
+  → r=64: WITHIN NOISE
+
+  Cross-rank generalization:
+    Muon LOSES at both r=16 and r=64. Mechanism is rank-independent.
+    Phase 14 C2 + Phase 15 S4 verdict not rescued by higher rank.
