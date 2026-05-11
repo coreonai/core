@@ -1,0 +1,23 @@
+=== p17s2 ls0.1 seed=3 gpu=3 ===
+========== seed=3 ls=0.1 round-0 ==========
+  total=984 pass=217 (0.221)  4812.7s
+  LoRA-FT[ls=0.1]: 217 pairs × 200 steps, last_loss=inf, 20.5s
+
+========== seed=3 ls=0.1 final-1 ==========
+  total=984 pass=265 (0.269)  5289.5s
+
+[P17S2 seed=3 ls=0.1] wrote /raid/users/paul/workLLM/scripts/phase17_s2/run_ls0.1_seed3.json
+  round-0       pass=0.221 (217/984)
+  final-1       pass=0.269 (265/984)
+=== p17s2 ls0.1 seed=3 done ===
+=== p17s2 ls0.1 seed=4 gpu=3 ===
+
+ERROR: Invalid commandline, please run `/usr/bin/nvidia-modprobe --help` for usage information.
+
+
+/usr/bin/nvidia-modprobe: unrecognized option: "-s"
+
+ERROR: Invalid commandline, please run `/usr/bin/nvidia-modprobe --help` for usage information.
+
+
+The attention mask is not set and cannot be inferred from input because pad token is same as eos token. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.

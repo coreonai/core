@@ -1,0 +1,417 @@
+{
+  "model": "Qwen/Qwen2.5-Coder-0.5B",
+  "seed": 0,
+  "k": 10,
+  "substrate": "mbpp_100",
+  "n_challenges": 100,
+  "pass_at_1_raw": 0.21,
+  "pass_at_k_raw": 0.48,
+  "estimates": {
+    "pass@1": 0.21000000000000008,
+    "pass@2": 0.2966666666666667,
+    "pass@5": 0.4087698412698413,
+    "pass@10": 0.48
+  },
+  "per_challenge": {
+    "mbpp_11": {
+      "passes": 1,
+      "k": 10
+    },
+    "mbpp_12": {
+      "passes": 1,
+      "k": 10
+    },
+    "mbpp_13": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_14": {
+      "passes": 3,
+      "k": 10
+    },
+    "mbpp_15": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_16": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_17": {
+      "passes": 7,
+      "k": 10
+    },
+    "mbpp_18": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_19": {
+      "passes": 10,
+      "k": 10
+    },
+    "mbpp_20": {
+      "passes": 1,
+      "k": 10
+    },
+    "mbpp_21": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_22": {
+      "passes": 1,
+      "k": 10
+    },
+    "mbpp_23": {
+      "passes": 5,
+      "k": 10
+    },
+    "mbpp_24": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_25": {
+      "passes": 9,
+      "k": 10
+    },
+    "mbpp_26": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_27": {
+      "passes": 4,
+      "k": 10
+    },
+    "mbpp_28": {
+      "passes": 5,
+      "k": 10
+    },
+    "mbpp_29": {
+      "passes": 1,
+      "k": 10
+    },
+    "mbpp_30": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_31": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_32": {
+      "passes": 4,
+      "k": 10
+    },
+    "mbpp_33": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_34": {
+      "passes": 2,
+      "k": 10
+    },
+    "mbpp_35": {
+      "passes": 3,
+      "k": 10
+    },
+    "mbpp_36": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_37": {
+      "passes": 1,
+      "k": 10
+    },
+    "mbpp_38": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_39": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_40": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_41": {
+      "passes": 1,
+      "k": 10
+    },
+    "mbpp_42": {
+      "passes": 1,
+      "k": 10
+    },
+    "mbpp_43": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_44": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_45": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_46": {
+      "passes": 8,
+      "k": 10
+    },
+    "mbpp_47": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_48": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_49": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_50": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_51": {
+      "passes": 3,
+      "k": 10
+    },
+    "mbpp_52": {
+      "passes": 9,
+      "k": 10
+    },
+    "mbpp_53": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_54": {
+      "passes": 5,
+      "k": 10
+    },
+    "mbpp_55": {
+      "passes": 4,
+      "k": 10
+    },
+    "mbpp_56": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_57": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_58": {
+      "passes": 5,
+      "k": 10
+    },
+    "mbpp_59": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_60": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_61": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_62": {
+      "passes": 10,
+      "k": 10
+    },
+    "mbpp_63": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_64": {
+      "passes": 4,
+      "k": 10
+    },
+    "mbpp_65": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_66": {
+      "passes": 9,
+      "k": 10
+    },
+    "mbpp_67": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_68": {
+      "passes": 5,
+      "k": 10
+    },
+    "mbpp_69": {
+      "passes": 2,
+      "k": 10
+    },
+    "mbpp_70": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_71": {
+      "passes": 5,
+      "k": 10
+    },
+    "mbpp_72": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_73": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_74": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_75": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_76": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_77": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_78": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_79": {
+      "passes": 3,
+      "k": 10
+    },
+    "mbpp_80": {
+      "passes": 2,
+      "k": 10
+    },
+    "mbpp_81": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_82": {
+      "passes": 9,
+      "k": 10
+    },
+    "mbpp_83": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_84": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_85": {
+      "passes": 10,
+      "k": 10
+    },
+    "mbpp_86": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_87": {
+      "passes": 2,
+      "k": 10
+    },
+    "mbpp_88": {
+      "passes": 8,
+      "k": 10
+    },
+    "mbpp_89": {
+      "passes": 3,
+      "k": 10
+    },
+    "mbpp_90": {
+      "passes": 6,
+      "k": 10
+    },
+    "mbpp_91": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_92": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_93": {
+      "passes": 8,
+      "k": 10
+    },
+    "mbpp_94": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_95": {
+      "passes": 3,
+      "k": 10
+    },
+    "mbpp_96": {
+      "passes": 5,
+      "k": 10
+    },
+    "mbpp_97": {
+      "passes": 1,
+      "k": 10
+    },
+    "mbpp_98": {
+      "passes": 5,
+      "k": 10
+    },
+    "mbpp_99": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_100": {
+      "passes": 1,
+      "k": 10
+    },
+    "mbpp_101": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_102": {
+      "passes": 1,
+      "k": 10
+    },
+    "mbpp_103": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_104": {
+      "passes": 4,
+      "k": 10
+    },
+    "mbpp_105": {
+      "passes": 7,
+      "k": 10
+    },
+    "mbpp_106": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_107": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_108": {
+      "passes": 0,
+      "k": 10
+    },
+    "mbpp_109": {
+      "passes": 3,
+      "k": 10
+    },
+    "mbpp_110": {
+      "passes": 0,
+      "k": 10
+    }
+  }
+}

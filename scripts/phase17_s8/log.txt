@@ -1,0 +1,27 @@
+=== p17s8 passk20 he gpu=2 ===
+ERROR: Invalid commandline, please run `/usr/bin/nvidia-modprobe --help` for usage information.
+
+
+The attention mask is not set and cannot be inferred from input because pad token is same as eos token. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+[P17S6-passk] seed=0 k=20 model=Qwen/Qwen2.5-Coder-0.5B
+[P17S6-passk] model loaded in 2.9s
+  [20/164] 1221s elapsed, ~8790s remaining
+  [40/164] 2572s elapsed, ~7972s remaining
+  [60/164] 4203s elapsed, ~7284s remaining
+  [80/164] 5867s elapsed, ~6160s remaining
+  [100/164] 7494s elapsed, ~4796s remaining
+  [120/164] 9108s elapsed, ~3340s remaining
+  [140/164] 10725s elapsed, ~1839s remaining
+  [160/164] 12358s elapsed, ~309s remaining
+
+=== pass@k results (base model, no training) ===
+  pass@1 (raw):      0.210
+  pass@k (k=20, ≥1 pass): 0.585
+  Unbiased estimators:
+    pass@1   = 0.210
+    pass@2   = 0.290
+    pass@5   = 0.407
+    pass@10  = 0.496
+
+[P17S6-passk seed=0] wrote scripts/phase17_s8/run_passk20_he.json
+=== passk20_he done ===

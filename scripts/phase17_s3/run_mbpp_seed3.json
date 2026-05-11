@@ -1,0 +1,829 @@
+{
+  "model": "Qwen/Qwen2.5-Coder-0.5B",
+  "seed": 3,
+  "n_challenges": 100,
+  "rounds": 1,
+  "samples": 6,
+  "lora_r": 16,
+  "lora_alpha": 32,
+  "train_steps": 200,
+  "lr": 0.0002,
+  "history": [
+    {
+      "label": "round-0",
+      "n": 600,
+      "n_pass": 122,
+      "pass_rate": 0.20333333333333334,
+      "per_challenge": {
+        "mbpp_11": {
+          "pass": 3,
+          "total": 6
+        },
+        "mbpp_12": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_13": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_14": {
+          "pass": 3,
+          "total": 6
+        },
+        "mbpp_15": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_16": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_17": {
+          "pass": 3,
+          "total": 6
+        },
+        "mbpp_18": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_19": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_20": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_21": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_22": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_23": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_24": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_25": {
+          "pass": 3,
+          "total": 6
+        },
+        "mbpp_26": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_27": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_28": {
+          "pass": 4,
+          "total": 6
+        },
+        "mbpp_29": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_30": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_31": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_32": {
+          "pass": 3,
+          "total": 6
+        },
+        "mbpp_33": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_34": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_35": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_36": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_37": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_38": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_39": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_40": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_41": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_42": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_43": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_44": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_45": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_46": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_47": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_48": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_49": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_50": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_51": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_52": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_53": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_54": {
+          "pass": 3,
+          "total": 6
+        },
+        "mbpp_55": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_56": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_57": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_58": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_59": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_60": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_61": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_62": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_63": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_64": {
+          "pass": 3,
+          "total": 6
+        },
+        "mbpp_65": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_66": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_67": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_68": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_69": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_70": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_71": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_72": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_73": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_74": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_75": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_76": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_77": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_78": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_79": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_80": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_81": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_82": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_83": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_84": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_85": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_86": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_87": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_88": {
+          "pass": 4,
+          "total": 6
+        },
+        "mbpp_89": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_90": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_91": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_92": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_93": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_94": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_95": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_96": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_97": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_98": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_99": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_100": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_101": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_102": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_103": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_104": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_105": {
+          "pass": 4,
+          "total": 6
+        },
+        "mbpp_106": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_107": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_108": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_109": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_110": {
+          "pass": 0,
+          "total": 6
+        }
+      }
+    },
+    {
+      "label": "final-1",
+      "n": 600,
+      "n_pass": 231,
+      "pass_rate": 0.385,
+      "per_challenge": {
+        "mbpp_11": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_12": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_13": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_14": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_15": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_16": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_17": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_18": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_19": {
+          "pass": 4,
+          "total": 6
+        },
+        "mbpp_20": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_21": {
+          "pass": 4,
+          "total": 6
+        },
+        "mbpp_22": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_23": {
+          "pass": 4,
+          "total": 6
+        },
+        "mbpp_24": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_25": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_26": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_27": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_28": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_29": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_30": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_31": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_32": {
+          "pass": 4,
+          "total": 6
+        },
+        "mbpp_33": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_34": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_35": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_36": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_37": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_38": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_39": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_40": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_41": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_42": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_43": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_44": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_45": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_46": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_47": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_48": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_49": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_50": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_51": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_52": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_53": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_54": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_55": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_56": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_57": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_58": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_59": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_60": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_61": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_62": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_63": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_64": {
+          "pass": 4,
+          "total": 6
+        },
+        "mbpp_65": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_66": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_67": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_68": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_69": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_70": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_71": {
+          "pass": 3,
+          "total": 6
+        },
+        "mbpp_72": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_73": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_74": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_75": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_76": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_77": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_78": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_79": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_80": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_81": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_82": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_83": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_84": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_85": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_86": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_87": {
+          "pass": 4,
+          "total": 6
+        },
+        "mbpp_88": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_89": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_90": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_91": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_92": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_93": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_94": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_95": {
+          "pass": 4,
+          "total": 6
+        },
+        "mbpp_96": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_97": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_98": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_99": {
+          "pass": 1,
+          "total": 6
+        },
+        "mbpp_100": {
+          "pass": 4,
+          "total": 6
+        },
+        "mbpp_101": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_102": {
+          "pass": 2,
+          "total": 6
+        },
+        "mbpp_103": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_104": {
+          "pass": 5,
+          "total": 6
+        },
+        "mbpp_105": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_106": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_107": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_108": {
+          "pass": 0,
+          "total": 6
+        },
+        "mbpp_109": {
+          "pass": 6,
+          "total": 6
+        },
+        "mbpp_110": {
+          "pass": 0,
+          "total": 6
+        }
+      }
+    }
+  ]
+}

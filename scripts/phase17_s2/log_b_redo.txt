@@ -1,0 +1,13 @@
+=== p17s2 ls0.1 seed=4 gpu=3 ===
+========== seed=4 ls=0.1 round-0 ==========
+  total=984 pass=207 (0.210)  4852.1s
+  LoRA-FT[ls=0.1]: 207 pairs × 200 steps, last_loss=2.034, 20.1s
+
+========== seed=4 ls=0.1 final-1 ==========
+  total=984 pass=128 (0.130)  5204.1s
+
+[P17S2 seed=4 ls=0.1] wrote /raid/users/paul/workLLM/scripts/phase17_s2/run_ls0.1_seed4.json
+  round-0       pass=0.210 (207/984)
+  final-1       pass=0.130 (128/984)
+=== p17s2 ls0.1 seed=4 done ===
+=== ls_b_redo done ===

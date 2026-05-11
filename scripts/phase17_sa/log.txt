@@ -1,0 +1,27 @@
+=== p17sa mr_passk seed=0 gpu=7 ===
+[P17SA] base loaded in 2.8s
+trainable params: 1,081,344 || all params: 495,114,112 || trainable%: 0.2184
+
+========== seed=0 round-0 harvest ==========
+  total=984 pass=210 (0.213)  4800.8s
+  LoRA-FT: 210 pairs × 200 steps, last_loss=0.142, 19.6s
+
+========== seed=0 round-1 harvest ==========
+  total=984 pass=242 (0.246)  4789.4s
+  LoRA-FT: 242 pairs × 200 steps, last_loss=0.059, 21.2s
+
+========== seed=0 final pass@10 eval ==========
+  Multi-round SFT pass@k:
+    pass@1   = 0.404
+    pass@2   = 0.472
+    pass@5   = 0.545
+    pass@10  = 0.604
+  (9410.4s)
+
+[P17SA seed=0] wrote /raid/users/paul/workLLM/scripts/phase17_sa/run_mr_passk_seed0.json
+
+Comparison vs base/single-round:
+  base (S6):           pass@1=0.216  pass@10=0.524
+  single-round SFT (S7b): pass@1=0.234  pass@10=0.494
+  multi-round SFT:     pass@1=0.404  pass@10=0.604
+=== sa done ===

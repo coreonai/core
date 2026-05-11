@@ -1,0 +1,25 @@
+=== p17s3 mbpp seed=3 gpu=6 ===
+========== seed=3 MBPP round-0 ==========
+  total=600 pass=122 (0.203)  1695.2s
+  LoRA-FT: 122 pairs × 200 steps, last_loss=0.134, 19.8s
+
+========== seed=3 MBPP final-1 ==========
+  total=600 pass=231 (0.385)  2965.9s
+
+[P17S3-MBPP seed=3] wrote /raid/users/paul/workLLM/scripts/phase17_s3/run_mbpp_seed3.json
+  round-0       pass=0.203 (122/600)
+  final-1       pass=0.385 (231/600)
+=== p17s3 mbpp seed=3 done ===
+=== p17s3 mbpp seed=4 gpu=6 ===
+========== seed=4 MBPP round-0 ==========
+  total=600 pass=140 (0.233)  1739.6s
+  LoRA-FT: 140 pairs × 200 steps, last_loss=0.199, 19.9s
+
+========== seed=4 MBPP final-1 ==========
+  total=600 pass=223 (0.372)  2827.2s
+
+[P17S3-MBPP seed=4] wrote /raid/users/paul/workLLM/scripts/phase17_s3/run_mbpp_seed4.json
+  round-0       pass=0.233 (140/600)
+  final-1       pass=0.372 (223/600)
+=== p17s3 mbpp seed=4 done ===
+=== mbpp_b done ===

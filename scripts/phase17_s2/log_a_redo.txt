@@ -1,0 +1,25 @@
+=== p17s2 ls0.1 seed=1 gpu=2 ===
+========== seed=1 ls=0.1 round-0 ==========
+  total=984 pass=213 (0.216)  5061.8s
+  LoRA-FT[ls=0.1]: 213 pairs × 200 steps, last_loss=2.220, 21.0s
+
+========== seed=1 ls=0.1 final-1 ==========
+  total=984 pass=135 (0.137)  5357.5s
+
+[P17S2 seed=1 ls=0.1] wrote /raid/users/paul/workLLM/scripts/phase17_s2/run_ls0.1_seed1.json
+  round-0       pass=0.216 (213/984)
+  final-1       pass=0.137 (135/984)
+=== p17s2 ls0.1 seed=1 done ===
+=== p17s2 ls0.1 seed=2 gpu=2 ===
+========== seed=2 ls=0.1 round-0 ==========
+  total=984 pass=216 (0.220)  4881.1s
+  LoRA-FT[ls=0.1]: 216 pairs × 200 steps, last_loss=2.102, 20.9s
+
+========== seed=2 ls=0.1 final-1 ==========
+  total=984 pass=144 (0.146)  5495.6s
+
+[P17S2 seed=2 ls=0.1] wrote /raid/users/paul/workLLM/scripts/phase17_s2/run_ls0.1_seed2.json
+  round-0       pass=0.220 (216/984)
+  final-1       pass=0.146 (144/984)
+=== p17s2 ls0.1 seed=2 done ===
+=== ls_a_redo done ===

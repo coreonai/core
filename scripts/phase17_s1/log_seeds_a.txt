@@ -1,0 +1,37 @@
+=== p17s1 seed=0 gpu=0 ===
+  total=984 pass=242 (0.246)  4957.3s
+  LoRA-FT: 242 pairs × 200 steps, last_loss=0.059, 21.1s
+
+========== seed=0 final-2 ==========
+  total=984 pass=402 (0.409)  5761.5s
+
+[P15S1 seed=0] wrote scripts/phase17_s1/run_r2s6_seed0.json
+  round-0       pass=0.213 (210/984)
+  round-1       pass=0.246 (242/984)
+  final-2       pass=0.409 (402/984)
+=== p17s1 seed=0 done ===
+=== p17s1 seed=1 gpu=0 ===
+  total=984 pass=226 (0.230)  4924.1s
+  LoRA-FT: 226 pairs × 200 steps, last_loss=0.120, 21.0s
+
+========== seed=1 final-2 ==========
+  total=984 pass=415 (0.422)  5533.3s
+
+[P15S1 seed=1] wrote scripts/phase17_s1/run_r2s6_seed1.json
+  round-0       pass=0.216 (213/984)
+  round-1       pass=0.230 (226/984)
+  final-2       pass=0.422 (415/984)
+=== p17s1 seed=1 done ===
+=== p17s1 seed=2 gpu=0 ===
+  total=984 pass=219 (0.223)  5170.4s
+  LoRA-FT: 219 pairs × 200 steps, last_loss=0.148, 21.0s
+
+========== seed=2 final-2 ==========
+  total=984 pass=402 (0.409)  5830.4s
+
+[P15S1 seed=2] wrote scripts/phase17_s1/run_r2s6_seed2.json
+  round-0       pass=0.220 (216/984)
+  round-1       pass=0.223 (219/984)
+  final-2       pass=0.409 (402/984)
+=== p17s1 seed=2 done ===
+=== seeds_a done ===

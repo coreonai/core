@@ -1,0 +1,27 @@
+=== p17s7b sft+passk gpu=7 ===
+
+The attention mask is not set and cannot be inferred from input because pad token is same as eos token. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+[P17S7b] seed=0 samples=6 passk_k=10
+[P17S7b] base loaded in 2.9s
+trainable params: 1,081,344 || all params: 495,114,112 || trainable%: 0.2184
+
+========== seed=0 round-0 harvest ==========
+  total=984 pass=210 (0.213)  4925.9s
+
+========== seed=0 LoRA-FT (210 pairs) ==========
+  last_loss=0.142 19.8s
+
+========== seed=0 pass@10 eval (SFT-trained) ==========
+  SFT model pass@k results:
+    pass@1   = 0.234
+    pass@2   = 0.309
+    pass@5   = 0.411
+    pass@10  = 0.494
+  (8161.6s)
+
+[P17S7b seed=0] wrote /raid/users/paul/workLLM/scripts/phase17_s7/run_passk_sft_seed0.json
+
+Comparison vs base Qwen pass@k (Phase 17 S6):
+  base pass@1  = 0.216  vs SFT pass@1  = 0.234
+  base pass@10 = 0.524  vs SFT pass@10 = 0.494
+=== s7b done ===

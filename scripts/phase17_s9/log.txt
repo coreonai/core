@@ -1,0 +1,27 @@
+=== p17s9 passk-mbpp gpu=3 ===
+
+
+The attention mask is not set and cannot be inferred from input because pad token is same as eos token. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+[P17S9-passk-mbpp] seed=0 k=10 n_challenges=100
+[P17S9-passk-mbpp] base loaded in 2.7s
+  [20/100] 488s elapsed
+  [40/100] 990s elapsed
+  [60/100] 1459s elapsed
+  [80/100] 1895s elapsed
+  [100/100] 2338s elapsed
+
+=== MBPP pass@k results (base Qwen, no training) ===
+  pass@1 raw:    0.210
+  pass@k raw:    0.480
+  Unbiased:
+    pass@1   = 0.210
+    pass@2   = 0.297
+    pass@5   = 0.409
+    pass@10  = 0.480
+
+[P17S9 seed=0] wrote /raid/users/paul/workLLM/scripts/phase17_s9/run_passk_mbpp_seed0.json
+
+Cross-substrate comparison:
+  HumanEval (S6): pass@1 = 0.216, pass@10 = 0.524, Δ = +0.308
+  MBPP    (S9): pass@1 = 0.210, pass@10 = 0.480, Δ = +0.270
+=== passk_mbpp done ===
