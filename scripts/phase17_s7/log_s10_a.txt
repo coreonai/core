@@ -1,0 +1,37 @@
+=== p17s7a s10 seed=0 gpu=5 ===
+========== seed=0 round-0 ==========
+  total=1640 pass=355 (0.216)  8561.3s
+  LoRA-FT: 355 pairs × 200 steps, last_loss=0.216, 22.1s
+
+========== seed=0 final-1 ==========
+  total=1640 pass=307 (0.187)  8245.8s
+
+[P15S1 seed=0] wrote scripts/phase17_s7/run_s10_seed0.json
+  round-0       pass=0.216 (355/1640)
+  final-1       pass=0.187 (307/1640)
+=== p17s7a s10 seed=0 done ===
+=== p17s7a s10 seed=1 gpu=5 ===
+========== seed=1 round-0 ==========
+  total=1640 pass=350 (0.213)  7825.8s
+  LoRA-FT: 350 pairs × 200 steps, last_loss=0.319, 19.9s
+
+========== seed=1 final-1 ==========
+  total=1640 pass=351 (0.214)  7468.6s
+
+[P15S1 seed=1] wrote scripts/phase17_s7/run_s10_seed1.json
+  round-0       pass=0.213 (350/1640)
+  final-1       pass=0.214 (351/1640)
+=== p17s7a s10 seed=1 done ===
+=== p17s7a s10 seed=2 gpu=5 ===
+========== seed=2 round-0 ==========
+  total=1640 pass=348 (0.212)  8010.3s
+  LoRA-FT: 348 pairs × 200 steps, last_loss=0.106, 19.9s
+
+========== seed=2 final-1 ==========
+  total=1640 pass=389 (0.237)  8394.3s
+
+[P15S1 seed=2] wrote scripts/phase17_s7/run_s10_seed2.json
+  round-0       pass=0.212 (348/1640)
+  final-1       pass=0.237 (389/1640)
+=== p17s7a s10 seed=2 done ===
+=== s10_a done ===
