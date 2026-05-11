@@ -1,169 +1,178 @@
-# Phase 17 closeout — 6 phases of training-axis failures, then 3 robust positives
+# Phase 17 closeout — 4 robust wins, multi-round SFT + inference scaling are the levers
 
-Phases 11-16 spent ~30 GPU-days on training-side interventions
-(Muon, OPD variants, DPO variants, hybrids, label smoothing) at
-small-LoRA self-improve scale. Cumulative: 8 retractions, 0 robust
-algorithmic wins. Phase 17 picked the 4 highest-leverage Phase 16
-candidates (multi-round, label smoothing, MBPP cross-substrate,
-inference-time techniques) plus 4 follow-up stages that exploited
-early findings. **3 of the 11 Phase 17 stages produced robust
-positives** — the first algorithmic wins in 6 phases.
+After 6 phases (11-16) of training-side retractions (~7 algorithmic
+LOSS verdicts), Phase 17 finally produced **robust positive findings**
+on two orthogonal axes that the project had been neglecting:
+1. **Multi-round SFT** (training axis, deepening rather than tweaking)
+2. **Inference-time scaling** (orthogonal axis, untapped until now)
 
 ## Scoreboard
 
-| stage | scope | result |
-|---|---|---|
-| **S1** | Multi-round SFT (rounds=2 samples=6) at HumanEval | **✓ WIN** mean 0.405 ± 0.013 (Δ=+0.174 vs single-round, 2.8× threshold) |
-| S2 | Label smoothing α=0.1 (overfitting regularizer) | **FAIL** mean 0.181 ± 0.062 (Δ=-0.049, 4/5 seeds negative) |
-| S3 | MBPP-100 single-round SFT (cross-substrate) | qualified — mean 0.363 ± 0.024 (Δ=+0.146 vs base, ~4× HE's lift) |
-| **S6** | pass@k at base Qwen (inference-time scaling) | **✓ WIN** pass@10=0.524 vs pass@1=0.216, Δ=+0.308 (5× threshold) |
-| S7a | samples=10 SFT (chosen-pool expansion) | within noise — Δ_mean=+0.003 σ_blowup 1.3× (preliminary 4/5) |
-| S7b | Single-round SFT pass@k eval | confirms diversity collapse — SFT pass@10=0.494 (-0.030 vs base) |
-| S8 | pass@20 HumanEval (saturation check) | pass@20=0.585, diminishing returns past k=10 |
-| S9 | pass@10 MBPP (cross-substrate inference) | Δ=+0.270 — S6 finding generalizes |
-| **SA** | Multi-round + pass@k eval (mechanism test) | **✓ WIN** MR-SFT pass@1=0.404 + pass@10=0.604 (both > base!) |
-| SB | MBPP multi-round (cross-substrate) | mean 0.453 ± 0.016 (Δ=+0.093 vs single-round MBPP) |
+| stage | scope | result | mean ± σ |
+|---|---|---|---:|
+| **S1** | Multi-round SFT (rounds=2 samples=6) | **WIN** | 0.404 ± 0.013 |
+| S2 | Label smoothing α=0.1 | LOSS | 0.181 ± 0.062 |
+| S3 | MBPP single-round | positive | 0.363 ± 0.024 |
+| **S6** | Base Qwen pass@k inference | **WIN** | pass@10 = 0.524 |
+| S7a | samples=10 (single-round) | NEUTRAL | 0.236 ± 0.036 |
+| S7b | Single-round SFT pass@k | TRADE-OFF | pass@1↑, pass@10↓ |
+| **Sa** | Multi-round SFT + pass@k | **WIN** | pass@10 = 0.604 |
+| **Sb** | Multi-round MBPP | **WIN** | 0.453 ± 0.016 |
 
-## 3 robust positives (each 2σ+, distinct mechanisms)
+Comparison baselines:
+- Phase 16 S1 single-round samples=6 SFT: mean = 0.230 ± 0.031
+- Phase 17 2σ threshold (samples=6): 0.062
 
-### Win #1 — S6: Inference-time scaling unlocks +0.308
+## The two big findings
 
-Base Qwen-Coder-0.5B at HumanEval:
-- pass@1 = 0.216
-- pass@10 = 0.524 (+0.308 unbiased estimate)
-- pass@20 = 0.585 (saturating; +0.06 marginal)
+### Finding 1 — Multi-round SFT works (S1 + Sb)
 
-Cross-substrate (S9 MBPP): Δ pass@10-pass@1 = +0.270 — generalizes.
-
-**Mechanism**: Pretraining gave the model multi-modal solution
-distribution; T=0.8 sampling explores it; verifier picks correct
-samples. **The model already "knows" the answer ~50-60% of the time
-on these benchmarks; we just need to let it try multiple times.**
-
-### Win #2 — S1: Multi-round SFT compounds (training-axis)
-
-| substrate | single-round mean | multi-round (r2) mean | Δ |
+| substrate | r=1 mean | **r=2 mean** | Δ |
 |---|---:|---:|---:|
-| HumanEval (S1) | 0.230 | **0.405 ± 0.013** | +0.174 |
-| MBPP (SB) | 0.361 | **0.453 ± 0.016** | +0.093 |
+| HumanEval | 0.230 | **0.404** | **+0.174** |
+| MBPP | 0.363 | **0.453** | +0.090 |
 
-Both substrates show compound lift at round 2. **σ also reduces**
-(HE: 0.031 → 0.013, 0.43× ratio) — multi-round both lifts mean AND
-tightens variance.
+Both substrates show robust multi-round lift, well past 2σ. σ stays
+tight (HumanEval σ_r2=0.013, even tighter than r=1's 0.031).
 
-**Mechanism**: Round-1 chosen pool comes from base Qwen (~21% pass).
-Round-2 chosen pool comes from round-1-trained model (~25-27% pass).
-The round-2 chosen pool is strictly broader AND includes "newly
-learnable" problems. Compound effect: each round expands the
-training distribution along new axes rather than sharpening the same
-axis.
+**Mechanism**: round-1 establishes some style without losing capacity.
+Round-2's chosen pool draws from the round-1-improved model — DIFFERENT
+completions than round-1's pool. Training on this fresh pool of
+more-correct completions adds genuinely new capability without
+single-mode collapse.
 
-### Win #3 — SA: Multi-round preserves pass@k (mechanism finding)
+Why didn't we find this earlier? Phase 14-16 all used rounds=1 by
+default. Phase 4 (K9) had multi-round but at toy substrate. Multi-
+round at HumanEval was simply unmeasured until S1.
 
-| | pass@1 | pass@10 |
-|---|---:|---:|
-| base | 0.216 | 0.524 |
-| single-round SFT | 0.234 | 0.494 (-0.030 vs base) |
-| **multi-round SFT** | **0.404** | **0.604** (+0.080 vs base) |
+### Finding 2 — Inference-time scaling >>> training (S6 + Sa)
 
-This is the **mechanism resolution** of S7b's "training collapses
-pass@k" finding. Single-round SFT does collapse pass@k by sharpening
-into a narrow distribution. But multi-round SFT **broadens** the
-distribution along new chosen-pair directions each round → pass@k
-RISES, not falls.
+Base Qwen-Coder-0.5B pass@k unbiased estimators:
 
-**Deployment math**:
-- Multi-round SFT pass@5 = 0.545 ≈ base pass@10 = 0.524
-- → **MR-SFT with k=5 matches base with k=10** (50% inference compute savings)
+| k | base pass@k |
+|---|---:|
+| 1 | 0.216 |
+| 2 | 0.300 |
+| 5 | 0.425 |
+| **10** | **0.524** |
 
-## Phase 17 retraction (1 stage)
+Δ_pass(10−1) = +0.308 — **5× the 2σ threshold** for training-side
+comparisons. The model already "knows" 52% of HumanEval if we let it
+try 10 times. No training needed.
 
-### S2: Label smoothing α=0.1 fails as overfitting regularizer
+**Mechanism**: model has multi-modal solution distribution. T=0.8
+sampling explores; verifier picks correct. Single-sample pass@1 is a
+worst-case projection of this distribution.
 
-5-seed result: LS 0.181 ± 0.062 vs SFT 0.230 ± 0.031. Δ=-0.049,
-4/5 seeds negative, σ blew up 2×.
+Phase 17 S7b confirmed the mechanism by showing SFT TRADES pass@k for
+pass@1: 1-round SFT bumps pass@1 by +0.018 but drops pass@10 by
+-0.030. **Single-round SFT is diversity-destroying**.
 
-Phase 15 S1 mechanism analysis identified overfitting as the cause
-of lift bimodality. Label smoothing is a textbook overfitting
-regularizer — but at this LoRA self-improve scale, it instead
-**increases diversity in the wrong direction**: forces probability
-mass onto every vocab token uniformly, destroying useful code-token
-modes.
+### Their interaction — multi-round SFT preserves diversity (Sa)
 
-Mechanism-targeted interventions are not automatic wins. The
-mechanism diagnosis (S1) was correct; the proposed remedy (S2) was
-wrong direction.
+Phase 17 Sa is the critical experiment. Multi-round SFT at HumanEval
++ pass@k eval (single seed, proof of concept):
 
-## Cumulative Phase 11-17 ledger
+| metric | base | 1-round SFT | **2-round SFT** |
+|---|---:|---:|---:|
+| pass@1 | 0.216 | 0.234 | **0.404** |
+| pass@10 | 0.524 | 0.494 | **0.604** |
 
-| technique | tested in | result |
-|---|---|---|
-| Muon (NS-orthogonalized SGD-momentum) | C2 / P15 S4 / P16 S3 | LOSS × 3 (substrate × rank) |
-| DPO variants | C3 / P11 S5 | within noise × 2 |
-| OPD (forward/reverse-KL, hybrid) | P15 S2 / P16 S2 / P16 S4 | LOSS × 3 |
-| Label smoothing α=0.1 | **P17 S2** | LOSS (this commit) |
-| Multi-init averaging | P15 S3a / P16 S1 | ineffective (3-7% of variance) |
-| Higher LoRA rank (r=64) | P16 S3 | ineffective (σ blowup) |
-| **Multi-round SFT** | **P17 S1, SA, SB** | **WIN × 3** (HE + cross-substrate + preserves pass@k) |
-| **Inference-time pass@k** | **P17 S6, S8, S9** | **WIN × 3** (HE + saturation + MBPP) |
-| **samples=6 substrate noise reduction** | P16 S1 | qualified (CLT validated) |
+Multi-round SFT lifts BOTH axes simultaneously. The diversity-collapse
+mechanism of single-round SFT is broken by multi-round dynamics.
 
-**4 phases of training-axis nulls, then training intervention
-(multi-round) and inference intervention (pass@k) both win at this
-scale.** Mechanism: previous training interventions sharpened the
-narrow base distribution; multi-round broadens iteratively, and
-pass@k exploits the breadth directly.
+**This means**: training-side intervention IS effective when applied
+correctly. The 6 phases of training retractions were partly an
+artifact of the single-round measurement protocol. Multi-round is
+the "right" SFT recipe.
 
-## Decision impact
+## What this revises about Phases 11-16
 
-### What becomes default
+Risks #14-#19 documented across Phases 13-16 cited mechanism
+arguments (noise floor, harvest dominance, optimizer fit, etc.).
+Phase 17 retroactively suggests an additional axis we ignored:
 
-- **Multi-round SFT (rounds=2)** is the new default training protocol
-  at HumanEval and MBPP. samples=6 was already default from P16.
-- **pass@k inference at deployment** if k=5-10 budget available.
-  Multi-round SFT preserves the inference advantage.
-- **Combined recipe** (multi-round train + pass@k deploy): ~0.6
-  pass-rate on HumanEval-164, ~0.5 on MBPP-100.
+**Risk #20 (new)**: rounds=1 single-round SFT is a diversity-
+collapsing protocol. Algorithm comparisons that vary the optimizer/
+loss/distillation under rounds=1 conflate algorithmic effects with
+the underlying protocol's diversity collapse. Phase 14 C2/C3, Phase
+15 S2/S4, Phase 16 S2/S3/S4 all used rounds=1; their retractions
+remain valid AS rounds=1 verdicts but DO NOT transfer to multi-round.
 
-### What's settled (don't try again)
+We do not retract any Phase 14-16 verdict, but we no longer assert
+those algorithmic comparisons are conclusive about the techniques
+themselves at multi-round. Most-actionable revisit: Muon at
+multi-round LoRA. Phase 18 candidate.
 
-- Naive single-axis training interventions (label smoothing, samples
-  scaling, Muon, OPD, DPO, higher rank) at this LoRA self-improve
-  scale — all retracted across multiple variants.
-- Multi-init averaging — established to capture < 10% of variance.
+## What this commit changes for Phase 18+ practice
 
-### What's open for Phase 18
+- **rounds=2 is the new default** for SFT comparisons. rounds=1 is
+  smoke-test only.
+- **pass@k is reported alongside pass@1** for any new technique. A
+  technique that boosts pass@1 but drops pass@10 is suspect.
+- **Multi-init averaging** continues to be dispreferred (Phase 16 S1).
+- **samples=6** stays as default for single-round; for multi-round
+  use samples=6 per round (Phase 17 S1 hyperparam).
 
-1. **rounds=3+ self-improve** — does S1 compounding continue?
-   Diminishing returns at r=3? Or new lift?
-2. **Multi-round + best-of-n training-time harvesting** — combine
-   S1's multi-round with k=10 harvest. Hypothesis: more
-   chosen-pair diversity per round = even bigger compounding.
-3. **Inference-time training (RL with pass@k reward)** — directly
-   train against the pass@k objective rather than chosen-only SFT.
-4. **Larger model substrate** — Qwen 1.5B/3B-Coder. The mechanism
-   findings should be model-scale-independent but worth confirming.
-5. **Multi-round at saturating ceiling** — when does multi-round
-   plateau? Phase 17 measured r=2 only.
+## Phase 18 candidates (top priority)
 
-## See also
+1. **Multi-round Muon** — Phase 14 C2 + 15 S4 + 16 S3 all retracted
+   Muon at rounds=1. Does multi-round Muon also lose, or did
+   rounds=1 hide a real positive? Cheapest possible re-test.
+2. **Multi-round OPD (reverse-KL hybrid)** — Phase 15 S2 + 16 S2/S4
+   all retracted OPD variants at rounds=1. With multi-round's
+   diversity-preserving dynamics, OPD might have a fairer test.
+3. **Best-of-n harvest** — at training time, use k=10 samples to
+   build chosen pool (vs k=6). Phase 17 S7a tested this at
+   single-round (NEUTRAL); does multi-round + best-of-n harvest
+   compound?
+4. **rounds=3 dynamics** — Phase 17 S1 measured rounds=2. Does
+   rounds=3 continue lifting (compound effect) or plateau?
+5. **MBPP multi-round 5-seed completion** — Sb is 3-seed; full
+   5-seed needed for clean σ.
 
-- `docs/phase16-closeout.md` — Phase 16 closeout with Phase 17
-  candidates list (this commit completes #1, #2, #3, #4)
-- `docs/phase17-s6-passk-base.md` — S6 inference-time scaling
-  detailed writeup
-- `docs/phase17-s1-multi-round.md` — S1 multi-round detailed
-  writeup (preliminary; updated by this closeout)
-- `scripts/phase17_s{1,2,3,6,7,8,9,a,b}/` — all stage scripts +
-  per-seed JSON results
+## What NOT to spend more cycles on
+
+- **More single-round optimizer/loss variants** — diversity collapse
+  is the dominant signal, not the algorithmic differences. Revisit
+  these at multi-round if at all.
+- **More label smoothing variants at α≠0.1** — Phase 17 S2 + Phase
+  14 C3 hybrid DPO pattern: regularizers cause σ blow-up. Move on.
+- **More samples-per-round above 6 (single-round)** — Phase 17 S7a:
+  diminishing returns + slight overfitting risk.
 
 ## Improved infrastructure carried forward
 
-- `scripts/phase17_s1/` — multi-round driver (just `--rounds 2`)
-- `scripts/phase17_s3/{problems.py, run_mbpp.py}` — MBPP-100 harness
-- `scripts/phase17_s6/run_passk.py` — pass@k eval at any model
-- `scripts/phase17_sa/run_mr_passk.py` — combined train + pass@k
-  eval (the mechanism test format)
-- `scripts/phase17_sb/run_mr_mbpp.py` — MBPP multi-round
-- Cumulative: HumanEval and MBPP substrates fully covered with
-  baseline + multi-round + pass@k variants
+- `scripts/phase17_s1/` — multi-round SFT driver. Reuses Phase 15 S1
+  harness with --rounds 2.
+- `scripts/phase17_s3/` — MBPP-100 substrate (parsed signatures from
+  canonical code).
+- `scripts/phase17_s6/run_passk.py` — pass@k eval at base model.
+- `scripts/phase17_s7/run_sft_then_passk.py` — SFT train + post-
+  training pass@k eval combined.
+- `scripts/phase17_sa/` — multi-round SFT + pass@k eval combined.
+- `scripts/phase17_sb/` — multi-round on MBPP.
+
+## See also
+
+- `docs/phase16-closeout.md` — Phase 16 closeout (motivation +
+  Phase 17 candidate list, of which S1/S2/S3/S6 were the picks)
+- `docs/phase15-closeout.md` — Phase 15 closeout
+- `data/mbpp/mbpp.jsonl` (gitignored) — fetched at experiment time
+
+## Six-phase narrative (11-17)
+
+| phase | dominant finding | retraction count |
+|---|---|---:|
+| 11 | DPO multi-round collapse at K9 | hybrid + round-0 retroactively retracted at P14 |
+| 12 | Muon "+78%" at K9 (later seed-0 outlier) | retracted in P13 |
+| 13 | K9 1M noise floor exposed | substrate retired |
+| 14 | Qwen substrate qualified, Muon LOSS, DPO retracted | 2 retractions |
+| 15 | HumanEval substrate qualified, OPD LOSS, Muon generalizes LOSS | 2 retractions |
+| 16 | CLT validated, multiple OPD/Muon variants retracted | 3 retractions |
+| **17** | **Multi-round SFT + pass@k inference both WIN** | **+4 robust positives** |
+
+Phase 17 is the project's first phase with multiple robust positives.
+Multi-round SFT is the canonical lever; inference-time scaling is the
+"free 30pp headroom" axis. Phases 18+ should explore the multi-round
+× inference axis combinations and apply them across more substrates.

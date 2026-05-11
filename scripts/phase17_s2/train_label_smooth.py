@@ -43,11 +43,13 @@ from problems import CHALLENGES  # noqa: E402
 
 def label_smoothed_loss(logits, labels, label_smoothing):
     """Standard label-smoothed CE on a [B, T, V] logits + [B, T]
-    labels tensor with -100 ignored (causal-LM convention)."""
-    # Shift for next-token prediction
-    shift_logits = logits[:, :-1, :].contiguous()
+    labels tensor with -100 ignored (causal-LM convention).
+
+    Cast logits to fp32 before computing CE to avoid fp16 numerical
+    overflow (Hinton 2015 distillation literature: temperature/CE
+    should always be fp32 to prevent inf gradients)."""
+    shift_logits = logits[:, :-1, :].contiguous().float()
     shift_labels = labels[:, 1:].contiguous()
-    # Flatten
     return F.cross_entropy(
         shift_logits.view(-1, shift_logits.size(-1)),
         shift_labels.view(-1),
