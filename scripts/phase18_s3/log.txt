@@ -1,0 +1,25 @@
+=== p18s3 mbpp-mr seed=2 gpu=5 ===
+  total=600 pass=193 (0.322)  2951.0s
+  LoRA-FT: 193 pairs × 200 steps, last_loss=0.092, 20.0s
+
+========== seed=2 MBPP-MR final-2 ==========
+  total=600 pass=280 (0.467)  3297.3s
+
+[P17SB seed=2] wrote scripts/phase18_s3/run_mr_mbpp_seed2.json
+  round-0       pass=0.200 (120/600)
+  round-1       pass=0.322 (193/600)
+  final-2       pass=0.467 (280/600)
+=== p18s3 mbpp-mr seed=2 done ===
+=== p18s3 mbpp-mr seed=4 gpu=5 ===
+  total=600 pass=223 (0.372)  2931.8s
+  LoRA-FT: 223 pairs × 200 steps, last_loss=0.052, 20.8s
+
+========== seed=4 MBPP-MR final-2 ==========
+  total=600 pass=274 (0.457)  3525.5s
+
+[P17SB seed=4] wrote scripts/phase18_s3/run_mr_mbpp_seed4.json
+  round-0       pass=0.233 (140/600)
+  round-1       pass=0.372 (223/600)
+  final-2       pass=0.457 (274/600)
+=== p18s3 mbpp-mr seed=4 done ===
+=== p18s3 done ===
