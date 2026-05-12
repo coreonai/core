@@ -1,0 +1,27 @@
+=== p18s7 sa-replicate seed=1 gpu=7 ===
+[P17SA] base loaded in 5.2s
+trainable params: 1,081,344 || all params: 495,114,112 || trainable%: 0.2184
+
+========== seed=1 round-0 harvest ==========
+  total=984 pass=213 (0.216)  4777.4s
+  LoRA-FT: 213 pairs × 200 steps, last_loss=0.211, 20.2s
+
+========== seed=1 round-1 harvest ==========
+  total=984 pass=226 (0.230)  4876.5s
+  LoRA-FT: 226 pairs × 200 steps, last_loss=0.120, 20.3s
+
+========== seed=1 final pass@10 eval ==========
+  Multi-round SFT pass@k:
+    pass@1   = 0.425
+    pass@2   = 0.490
+    pass@5   = 0.554
+    pass@10  = 0.585
+  (9180.5s)
+
+[P17SA seed=1] wrote scripts/phase18_s7/run_mr_passk_seed1.json
+
+Comparison vs base/single-round:
+  base (S6):           pass@1=0.216  pass@10=0.524
+  single-round SFT (S7b): pass@1=0.234  pass@10=0.494
+  multi-round SFT:     pass@1=0.425  pass@10=0.585
+=== p18s7 done ===

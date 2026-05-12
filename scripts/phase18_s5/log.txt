@@ -1,0 +1,27 @@
+=== p18s5 mr-passk-mbpp gpu=7 ===
+[P18S5] seed=0 rounds=2 passk_k=10 MBPP
+[P18S5] base loaded in 2.6s
+trainable params: 1,081,344 || all params: 495,114,112 || trainable%: 0.2184
+
+========== seed=0 MBPP round-0 harvest ==========
+  total=600 pass=128 (0.213)  1922.8s
+  LoRA-FT: 128 pairs × 200 steps, last_loss=0.080, 20.9s
+
+========== seed=0 MBPP round-1 harvest ==========
+  total=600 pass=221 (0.368)  3239.3s
+  LoRA-FT: 221 pairs × 200 steps, last_loss=0.066, 23.9s
+
+========== seed=0 MBPP final pass@10 eval ==========
+  MBPP MR-SFT pass@k:
+    pass@1   = 0.443
+    pass@2   = 0.497
+    pass@5   = 0.527
+    pass@10  = 0.540
+  (6086.2s)
+
+[P18S5 seed=0] wrote /raid/users/paul/workLLM/scripts/phase18_s5/run_mr_passk_mbpp_seed0.json
+
+Cross-substrate comparison:
+  HumanEval base pass@10 = 0.524, MR-SFT pass@10 = 0.604 (Sa)
+  MBPP base pass@10 = 0.480 (S9), MR-SFT pass@10 = 0.540
+=== p18s5 done ===

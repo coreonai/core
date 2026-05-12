@@ -1,0 +1,37 @@
+=== p18s1 mr-muon seed=0 gpu=0 ===
+  total=984 pass=190 (0.193)  4433.3s
+  LoRA[muon]: 190 pairs × 200 steps, last_loss=0.192, 31.1s
+
+========== seed=0 muon final-2 ==========
+  total=984 pass=221 (0.225)  4818.0s
+
+[P15S4 seed=0 muon] wrote scripts/phase18_s1/run_mr_muon_seed0.json
+  round-0       pass=0.213 (210/984)
+  round-1       pass=0.193 (190/984)
+  final-2       pass=0.225 (221/984)
+=== p18s1 mr-muon seed=0 done ===
+=== p18s1 mr-muon seed=1 gpu=0 ===
+  total=984 pass=178 (0.181)  4573.3s
+  LoRA[muon]: 178 pairs × 200 steps, last_loss=0.145, 32.9s
+
+========== seed=1 muon final-2 ==========
+  total=984 pass=254 (0.258)  5155.4s
+
+[P15S4 seed=1 muon] wrote scripts/phase18_s1/run_mr_muon_seed1.json
+  round-0       pass=0.216 (213/984)
+  round-1       pass=0.181 (178/984)
+  final-2       pass=0.258 (254/984)
+=== p18s1 mr-muon seed=1 done ===
+=== p18s1 mr-muon seed=2 gpu=0 ===
+  total=984 pass=151 (0.153)  4355.0s
+  LoRA[muon]: 151 pairs × 200 steps, last_loss=0.080, 35.3s
+
+========== seed=2 muon final-2 ==========
+  total=984 pass=246 (0.250)  5035.6s
+
+[P15S4 seed=2 muon] wrote scripts/phase18_s1/run_mr_muon_seed2.json
+  round-0       pass=0.220 (216/984)
+  round-1       pass=0.153 (151/984)
+  final-2       pass=0.250 (246/984)
+=== p18s1 mr-muon seed=2 done ===
+=== mr_muon_a done ===

@@ -1,0 +1,37 @@
+`torch_dtype` is deprecated! Use `dtype` instead!
+/usr/bin/nvidia-modprobe: unrecognized option: "-s"
+
+ERROR: Invalid commandline, please run `/usr/bin/nvidia-modprobe --help` for usage information.
+
+
+/usr/bin/nvidia-modprobe: unrecognized option: "-s"
+
+ERROR: Invalid commandline, please run `/usr/bin/nvidia-modprobe --help` for usage information.
+
+
+The attention mask is not set and cannot be inferred from input because pad token is same as eos token. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+[P18S5] seed=1 rounds=2 passk_k=10 MBPP
+[P18S5] base loaded in 3.1s
+trainable params: 1,081,344 || all params: 495,114,112 || trainable%: 0.2184
+
+========== seed=1 MBPP round-0 harvest ==========
+  total=600 pass=132 (0.220)  1716.4s
+  LoRA-FT: 132 pairs × 200 steps, last_loss=0.152, 19.1s
+
+========== seed=1 MBPP round-1 harvest ==========
+  total=600 pass=197 (0.328)  2618.7s
+  LoRA-FT: 197 pairs × 200 steps, last_loss=0.078, 19.4s
+
+========== seed=1 MBPP final pass@10 eval ==========
+  MBPP MR-SFT pass@k:
+    pass@1   = 0.460
+    pass@2   = 0.496
+    pass@5   = 0.522
+    pass@10  = 0.540
+  (4832.7s)
+
+[P18S5 seed=1] wrote scripts/phase18_s5/run_mr_passk_mbpp_seed1.json
+
+Cross-substrate comparison:
+  HumanEval base pass@10 = 0.524, MR-SFT pass@10 = 0.604 (Sa)
+  MBPP base pass@10 = 0.480 (S9), MR-SFT pass@10 = 0.540

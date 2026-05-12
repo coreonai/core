@@ -1,0 +1,43 @@
+=== p18s4 mr-revkl seed=0 gpu=5 ===
+========== seed=0 OPD round-1 ==========
+  total=984 pass=199 (0.202)  5450.9s
+  routed pairs: {'strings': 70, 'numbers': 38, 'collections': 91}
+  OPD-FT: 199 pairs × 200 steps, last_loss=0.056, 30.9s
+
+========== seed=0 OPD final-2 ==========
+  total=984 pass=288 (0.293)  5720.2s
+
+[P15S2-OPD seed=0] wrote scripts/phase18_s4/run_mr_revkl_seed0.json
+  round-0       pass=0.204 (201/984)
+  round-1       pass=0.202 (199/984)
+  final-2       pass=0.293 (288/984)
+=== p18s4 mr-revkl seed=0 done ===
+=== p18s4 mr-revkl seed=1 gpu=5 ===
+========== seed=1 OPD round-1 ==========
+  total=984 pass=153 (0.155)  3735.1s
+  routed pairs: {'strings': 53, 'numbers': 32, 'collections': 68}
+  OPD-FT: 153 pairs × 200 steps, last_loss=0.077, 28.9s
+
+========== seed=1 OPD final-2 ==========
+  total=984 pass=222 (0.226)  5383.3s
+
+[P15S2-OPD seed=1] wrote scripts/phase18_s4/run_mr_revkl_seed1.json
+  round-0       pass=0.216 (213/984)
+  round-1       pass=0.155 (153/984)
+  final-2       pass=0.226 (222/984)
+=== p18s4 mr-revkl seed=1 done ===
+=== p18s4 mr-revkl seed=2 gpu=5 ===
+========== seed=2 OPD round-1 ==========
+  total=984 pass=195 (0.198)  5632.8s
+  routed pairs: {'strings': 76, 'numbers': 37, 'collections': 82}
+  OPD-FT: 195 pairs × 200 steps, last_loss=0.086, 31.2s
+
+========== seed=2 OPD final-2 ==========
+  total=984 pass=263 (0.267)  5948.1s
+
+[P15S2-OPD seed=2] wrote scripts/phase18_s4/run_mr_revkl_seed2.json
+  round-0       pass=0.221 (217/984)
+  round-1       pass=0.198 (195/984)
+  final-2       pass=0.267 (263/984)
+=== p18s4 mr-revkl seed=2 done ===
+=== mr_revkl_a done ===

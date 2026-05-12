@@ -1,0 +1,43 @@
+=== p18s2 r3 seed=0 gpu=2 ===
+========== seed=0 round-2 ==========
+  total=984 pass=402 (0.409)  5703.8s
+  LoRA-FT: 402 pairs × 200 steps, last_loss=0.085, 20.7s
+
+========== seed=0 final-3 ==========
+  total=984 pass=464 (0.472)  5805.7s
+
+[P15S1 seed=0] wrote scripts/phase18_s2/run_r3_seed0.json
+  round-0       pass=0.213 (210/984)
+  round-1       pass=0.246 (242/984)
+  round-2       pass=0.409 (402/984)
+  final-3       pass=0.472 (464/984)
+=== p18s2 r3 seed=0 done ===
+=== p18s2 r3 seed=1 gpu=2 ===
+========== seed=1 round-2 ==========
+  total=984 pass=412 (0.419)  5938.6s
+  LoRA-FT: 412 pairs × 200 steps, last_loss=0.037, 21.6s
+
+========== seed=1 final-3 ==========
+  total=984 pass=506 (0.514)  5933.7s
+
+[P15S1 seed=1] wrote scripts/phase18_s2/run_r3_seed1.json
+  round-0       pass=0.216 (213/984)
+  round-1       pass=0.230 (226/984)
+  round-2       pass=0.419 (412/984)
+  final-3       pass=0.514 (506/984)
+=== p18s2 r3 seed=1 done ===
+=== p18s2 r3 seed=2 gpu=2 ===
+========== seed=2 round-2 ==========
+  total=984 pass=402 (0.409)  5663.9s
+  LoRA-FT: 402 pairs × 200 steps, last_loss=0.151, 20.8s
+
+========== seed=2 final-3 ==========
+  total=984 pass=455 (0.462)  5715.8s
+
+[P15S1 seed=2] wrote scripts/phase18_s2/run_r3_seed2.json
+  round-0       pass=0.220 (216/984)
+  round-1       pass=0.223 (219/984)
+  round-2       pass=0.409 (402/984)
+  final-3       pass=0.462 (455/984)
+=== p18s2 r3 seed=2 done ===
+=== r3_a done ===
