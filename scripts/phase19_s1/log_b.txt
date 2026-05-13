@@ -1,0 +1,33 @@
+=== p19s1 r5 seed=3 gpu=1 ===
+========== seed=3 round-4 ==========
+  total=984 pass=483 (0.491)  5652.3s
+  LoRA-FT: 483 pairs × 200 steps, last_loss=0.027, 21.4s
+
+========== seed=3 final-5 ==========
+  total=984 pass=520 (0.528)  5659.8s
+
+[P15S1 seed=3] wrote scripts/phase19_s1/run_r5_seed3.json
+  round-0       pass=0.221 (217/984)
+  round-1       pass=0.270 (266/984)
+  round-2       pass=0.397 (391/984)
+  round-3       pass=0.455 (448/984)
+  round-4       pass=0.491 (483/984)
+  final-5       pass=0.528 (520/984)
+=== p19s1 r5 seed=3 done ===
+=== p19s1 r5 seed=4 gpu=1 ===
+========== seed=4 round-4 ==========
+  total=984 pass=509 (0.517)  5859.7s
+  LoRA-FT: 509 pairs × 200 steps, last_loss=0.037, 20.8s
+
+========== seed=4 final-5 ==========
+  total=984 pass=526 (0.535)  5827.5s
+
+[P15S1 seed=4] wrote scripts/phase19_s1/run_r5_seed4.json
+  round-0       pass=0.210 (207/984)
+  round-1       pass=0.184 (181/984)
+  round-2       pass=0.383 (377/984)
+  round-3       pass=0.488 (480/984)
+  round-4       pass=0.517 (509/984)
+  final-5       pass=0.535 (526/984)
+=== p19s1 r5 seed=4 done ===
+=== r5_b done ===

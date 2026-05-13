@@ -1,0 +1,29 @@
+=== p19s2 bon_mr seed=3 gpu=6 ===
+
+========== seed=3 round-1 ==========
+  total=1640 pass=456 (0.278)  8608.4s
+  LoRA-FT: 456 pairs × 200 steps, last_loss=0.118, 20.5s
+
+========== seed=3 final-2 ==========
+  total=1640 pass=672 (0.410)  9648.8s
+
+[P15S1 seed=3] wrote scripts/phase19_s2/run_bon_mr_seed3.json
+  round-0       pass=0.216 (355/1640)
+  round-1       pass=0.278 (456/1640)
+  final-2       pass=0.410 (672/1640)
+=== p19s2 bon_mr seed=3 done ===
+=== p19s2 bon_mr seed=4 gpu=6 ===
+
+========== seed=4 round-1 ==========
+  total=1640 pass=430 (0.262)  8973.4s
+  LoRA-FT: 430 pairs × 200 steps, last_loss=0.122, 20.7s
+
+========== seed=4 final-2 ==========
+  total=1640 pass=648 (0.395)  9663.0s
+
+[P15S1 seed=4] wrote scripts/phase19_s2/run_bon_mr_seed4.json
+  round-0       pass=0.210 (345/1640)
+  round-1       pass=0.262 (430/1640)
+  final-2       pass=0.395 (648/1640)
+=== p19s2 bon_mr seed=4 done ===
+=== bon_mr_b done ===

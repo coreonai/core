@@ -1,0 +1,2005 @@
+{
+  "model": "Qwen/Qwen2.5-Coder-0.5B",
+  "seed": 3,
+  "n_challenges": 164,
+  "rounds": 2,
+  "samples": 10,
+  "lora_r": 16,
+  "lora_alpha": 32,
+  "train_steps": 200,
+  "lr": 0.0002,
+  "history": [
+    {
+      "label": "round-0",
+      "n": 1640,
+      "n_pass": 355,
+      "pass_rate": 0.21646341463414634,
+      "per_challenge": {
+        "he_0": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_1": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_2": {
+          "pass": 5,
+          "total": 10
+        },
+        "he_3": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_4": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_5": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_6": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_7": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_8": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_9": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_10": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_11": {
+          "pass": 5,
+          "total": 10
+        },
+        "he_12": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_13": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_14": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_15": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_16": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_17": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_18": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_19": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_20": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_21": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_22": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_23": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_24": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_25": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_26": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_27": {
+          "pass": 5,
+          "total": 10
+        },
+        "he_28": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_29": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_30": {
+          "pass": 8,
+          "total": 10
+        },
+        "he_31": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_32": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_33": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_34": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_35": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_36": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_37": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_38": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_39": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_40": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_41": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_42": {
+          "pass": 6,
+          "total": 10
+        },
+        "he_43": {
+          "pass": 6,
+          "total": 10
+        },
+        "he_44": {
+          "pass": 6,
+          "total": 10
+        },
+        "he_45": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_46": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_47": {
+          "pass": 8,
+          "total": 10
+        },
+        "he_48": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_49": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_50": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_51": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_52": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_53": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_54": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_55": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_56": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_57": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_58": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_59": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_60": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_61": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_62": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_63": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_64": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_65": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_66": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_67": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_68": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_69": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_70": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_71": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_72": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_73": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_74": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_75": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_76": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_77": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_78": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_79": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_80": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_81": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_82": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_83": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_84": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_85": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_86": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_87": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_88": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_89": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_90": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_91": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_92": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_93": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_94": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_95": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_96": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_97": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_98": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_99": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_100": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_101": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_102": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_103": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_104": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_105": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_106": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_107": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_108": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_109": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_110": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_111": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_112": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_113": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_114": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_115": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_116": {
+          "pass": 5,
+          "total": 10
+        },
+        "he_117": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_118": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_119": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_120": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_121": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_122": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_123": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_124": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_125": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_126": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_127": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_128": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_129": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_130": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_131": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_132": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_133": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_134": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_135": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_136": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_137": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_138": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_139": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_140": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_141": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_142": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_143": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_144": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_145": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_146": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_147": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_148": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_149": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_150": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_151": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_152": {
+          "pass": 5,
+          "total": 10
+        },
+        "he_153": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_154": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_155": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_156": {
+          "pass": 6,
+          "total": 10
+        },
+        "he_157": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_158": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_159": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_160": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_161": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_162": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_163": {
+          "pass": 0,
+          "total": 10
+        }
+      }
+    },
+    {
+      "label": "round-1",
+      "n": 1640,
+      "n_pass": 456,
+      "pass_rate": 0.2780487804878049,
+      "per_challenge": {
+        "he_0": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_1": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_2": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_3": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_4": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_5": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_6": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_7": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_8": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_9": {
+          "pass": 5,
+          "total": 10
+        },
+        "he_10": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_11": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_12": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_13": {
+          "pass": 8,
+          "total": 10
+        },
+        "he_14": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_15": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_16": {
+          "pass": 8,
+          "total": 10
+        },
+        "he_17": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_18": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_19": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_20": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_21": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_22": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_23": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_24": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_25": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_26": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_27": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_28": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_29": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_30": {
+          "pass": 8,
+          "total": 10
+        },
+        "he_31": {
+          "pass": 8,
+          "total": 10
+        },
+        "he_32": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_33": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_34": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_35": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_36": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_37": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_38": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_39": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_40": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_41": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_42": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_43": {
+          "pass": 6,
+          "total": 10
+        },
+        "he_44": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_45": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_46": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_47": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_48": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_49": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_50": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_51": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_52": {
+          "pass": 6,
+          "total": 10
+        },
+        "he_53": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_54": {
+          "pass": 6,
+          "total": 10
+        },
+        "he_55": {
+          "pass": 8,
+          "total": 10
+        },
+        "he_56": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_57": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_58": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_59": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_60": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_61": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_62": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_63": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_64": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_65": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_66": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_67": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_68": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_69": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_70": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_71": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_72": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_73": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_74": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_75": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_76": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_77": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_78": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_79": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_80": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_81": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_82": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_83": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_84": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_85": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_86": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_87": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_88": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_89": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_90": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_91": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_92": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_93": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_94": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_95": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_96": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_97": {
+          "pass": 5,
+          "total": 10
+        },
+        "he_98": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_99": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_100": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_101": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_102": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_103": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_104": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_105": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_106": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_107": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_108": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_109": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_110": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_111": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_112": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_113": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_114": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_115": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_116": {
+          "pass": 6,
+          "total": 10
+        },
+        "he_117": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_118": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_119": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_120": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_121": {
+          "pass": 8,
+          "total": 10
+        },
+        "he_122": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_123": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_124": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_125": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_126": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_127": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_128": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_129": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_130": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_131": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_132": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_133": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_134": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_135": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_136": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_137": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_138": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_139": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_140": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_141": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_142": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_143": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_144": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_145": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_146": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_147": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_148": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_149": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_150": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_151": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_152": {
+          "pass": 8,
+          "total": 10
+        },
+        "he_153": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_154": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_155": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_156": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_157": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_158": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_159": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_160": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_161": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_162": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_163": {
+          "pass": 0,
+          "total": 10
+        }
+      }
+    },
+    {
+      "label": "final-2",
+      "n": 1640,
+      "n_pass": 672,
+      "pass_rate": 0.4097560975609756,
+      "per_challenge": {
+        "he_0": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_1": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_2": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_3": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_4": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_5": {
+          "pass": 6,
+          "total": 10
+        },
+        "he_6": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_7": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_8": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_9": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_10": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_11": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_12": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_13": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_14": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_15": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_16": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_17": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_18": {
+          "pass": 6,
+          "total": 10
+        },
+        "he_19": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_20": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_21": {
+          "pass": 8,
+          "total": 10
+        },
+        "he_22": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_23": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_24": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_25": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_26": {
+          "pass": 5,
+          "total": 10
+        },
+        "he_27": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_28": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_29": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_30": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_31": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_32": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_33": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_34": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_35": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_36": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_37": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_38": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_39": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_40": {
+          "pass": 5,
+          "total": 10
+        },
+        "he_41": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_42": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_43": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_44": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_45": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_46": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_47": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_48": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_49": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_50": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_51": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_52": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_53": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_54": {
+          "pass": 8,
+          "total": 10
+        },
+        "he_55": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_56": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_57": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_58": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_59": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_60": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_61": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_62": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_63": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_64": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_65": {
+          "pass": 8,
+          "total": 10
+        },
+        "he_66": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_67": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_68": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_69": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_70": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_71": {
+          "pass": 5,
+          "total": 10
+        },
+        "he_72": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_73": {
+          "pass": 6,
+          "total": 10
+        },
+        "he_74": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_75": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_76": {
+          "pass": 9,
+          "total": 10
+        },
+        "he_77": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_78": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_79": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_80": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_81": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_82": {
+          "pass": 5,
+          "total": 10
+        },
+        "he_83": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_84": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_85": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_86": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_87": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_88": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_89": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_90": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_91": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_92": {
+          "pass": 8,
+          "total": 10
+        },
+        "he_93": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_94": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_95": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_96": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_97": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_98": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_99": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_100": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_101": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_102": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_103": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_104": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_105": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_106": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_107": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_108": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_109": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_110": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_111": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_112": {
+          "pass": 7,
+          "total": 10
+        },
+        "he_113": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_114": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_115": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_116": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_117": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_118": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_119": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_120": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_121": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_122": {
+          "pass": 6,
+          "total": 10
+        },
+        "he_123": {
+          "pass": 6,
+          "total": 10
+        },
+        "he_124": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_125": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_126": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_127": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_128": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_129": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_130": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_131": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_132": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_133": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_134": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_135": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_136": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_137": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_138": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_139": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_140": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_141": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_142": {
+          "pass": 2,
+          "total": 10
+        },
+        "he_143": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_144": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_145": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_146": {
+          "pass": 6,
+          "total": 10
+        },
+        "he_147": {
+          "pass": 1,
+          "total": 10
+        },
+        "he_148": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_149": {
+          "pass": 4,
+          "total": 10
+        },
+        "he_150": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_151": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_152": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_153": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_154": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_155": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_156": {
+          "pass": 3,
+          "total": 10
+        },
+        "he_157": {
+          "pass": 10,
+          "total": 10
+        },
+        "he_158": {
+          "pass": 8,
+          "total": 10
+        },
+        "he_159": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_160": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_161": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_162": {
+          "pass": 0,
+          "total": 10
+        },
+        "he_163": {
+          "pass": 0,
+          "total": 10
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+=== p19s3 r3+passk seed=0 gpu=7 ===
+  total=984 pass=210 (0.213)  5040.9s
+  LoRA-FT: 210 pairs × 200 steps, last_loss=0.142, 20.4s
+
+========== seed=0 round-1 harvest ==========
+  total=984 pass=242 (0.246)  4963.3s
+  LoRA-FT: 242 pairs × 200 steps, last_loss=0.059, 20.9s
+
+========== seed=0 round-2 harvest ==========
+  total=984 pass=402 (0.409)  5781.8s
+  LoRA-FT: 402 pairs × 200 steps, last_loss=0.085, 20.9s
+
+========== seed=0 final pass@10 eval ==========
+  Multi-round SFT pass@k:
+    pass@1   = 0.473
+    pass@2   = 0.525
+    pass@5   = 0.567
+    pass@10  = 0.591
+  (9767.5s)
+
+[P17SA seed=0] wrote scripts/phase19_s3/run_r3_passk_seed0.json
+
+Comparison vs base/single-round:
+  base (S6):           pass@1=0.216  pass@10=0.524
+  single-round SFT (S7b): pass@1=0.234  pass@10=0.494
+  multi-round SFT:     pass@1=0.473  pass@10=0.591
+=== p19s3 done ===
