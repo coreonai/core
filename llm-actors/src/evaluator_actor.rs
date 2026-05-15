@@ -52,8 +52,15 @@ impl EvalReport {
     }
 }
 
-pub struct EvaluatorActor {
-    pub model: ActorRef<ModelActor>,
+/// Phase 21 Stage E — generic over the backing model actor type so the
+/// same evaluator pipeline can serve `ModelActor` (nanogpt_rs) and
+/// `QwenModelActor` (Candle-native Qwen2) without changes. Default
+/// `M = ModelActor` preserves every existing call site.
+pub struct EvaluatorActor<M = ModelActor>
+where
+    M: Actor<Message = ModelMessage>,
+{
+    pub model: ActorRef<M>,
     pub tokenizer: Arc<Tokenizer>,
     pub domain: Arc<dyn Domain>,
     pub stop_char: Option<char>,
@@ -61,9 +68,12 @@ pub struct EvaluatorActor {
     pub keep_samples: usize,
 }
 
-impl EvaluatorActor {
+impl<M> EvaluatorActor<M>
+where
+    M: Actor<Message = ModelMessage>,
+{
     pub fn new(
-        model: ActorRef<ModelActor>,
+        model: ActorRef<M>,
         tokenizer: Arc<Tokenizer>,
         domain: Arc<dyn Domain>,
         stop_char: Option<char>,
@@ -79,7 +89,10 @@ impl EvaluatorActor {
     }
 }
 
-impl Actor for EvaluatorActor {
+impl<M> Actor for EvaluatorActor<M>
+where
+    M: Actor<Message = ModelMessage>,
+{
     type Message = EvaluatorMessage;
 
     fn receive(
@@ -104,7 +117,10 @@ impl Actor for EvaluatorActor {
     }
 }
 
-impl EvaluatorActor {
+impl<M> EvaluatorActor<M>
+where
+    M: Actor<Message = ModelMessage>,
+{
     async fn run(
         &self,
         n: usize,

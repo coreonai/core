@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use nanogpt_rs::{ewc::WeightAnchor, generate::GenerateConfig, train::TrainConfig};
-use pekko_actor::ActorRef;
+use pekko_actor::{Actor, ActorRef};
 use tokio::sync::oneshot;
 use tracing::info;
 
@@ -22,13 +22,20 @@ use crate::trainer_actor::{TrainerActor, TrainerMessage};
 use crate::types::RoundReport;
 use crate::verifier_actor::{VerifierActor, VerifierMessage};
 
-pub struct RoundActors {
-    pub model: ActorRef<ModelActor>,
-    pub generator: ActorRef<GeneratorActor>,
+/// Phase 21 Stage E — generic over the backing model actor type so
+/// `run_round` / `run_multi_round` drive both `ModelActor` (nanogpt_rs)
+/// and `QwenModelActor` (Candle-native Qwen2) with the same flow.
+/// Default `M = ModelActor` preserves every existing call site.
+pub struct RoundActors<M = ModelActor>
+where
+    M: Actor<Message = ModelMessage>,
+{
+    pub model: ActorRef<M>,
+    pub generator: ActorRef<GeneratorActor<M>>,
     pub verifier: ActorRef<VerifierActor>,
     pub curator: ActorRef<CuratorActor>,
     pub trainer: ActorRef<TrainerActor>,
-    pub evaluator: ActorRef<EvaluatorActor>,
+    pub evaluator: ActorRef<EvaluatorActor<M>>,
 }
 
 #[derive(Clone)]
@@ -98,7 +105,10 @@ pub struct RoundConfig {
     pub eval_passk: usize,
 }
 
-pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result<RoundReport> {
+pub async fn run_round<M>(actors: &RoundActors<M>, cfg: RoundConfig) -> anyhow::Result<RoundReport>
+where
+    M: Actor<Message = ModelMessage>,
+{
     let t0 = Instant::now();
     let mut report = RoundReport {
         round: cfg.round,
@@ -294,13 +304,16 @@ pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result
     Ok(report)
 }
 
-async fn ask_eval(
-    evaluator: &ActorRef<EvaluatorActor>,
+async fn ask_eval<M>(
+    evaluator: &ActorRef<EvaluatorActor<M>>,
     n: usize,
     seed: u64,
     sampling: GenerateConfig,
     passk: usize,
-) -> anyhow::Result<EvalReport> {
+) -> anyhow::Result<EvalReport>
+where
+    M: Actor<Message = ModelMessage>,
+{
     let (tx, rx) = oneshot::channel();
     evaluator
         .tell(EvaluatorMessage::Eval {
@@ -377,12 +390,13 @@ impl MultiRoundConfig {
 /// example.
 ///
 /// Returns the per-round `RoundReport` vector after all rounds complete.
-pub async fn run_multi_round<F>(
-    actors: &RoundActors,
+pub async fn run_multi_round<M, F>(
+    actors: &RoundActors<M>,
     cfg: MultiRoundConfig,
     mut on_round_done: F,
 ) -> anyhow::Result<Vec<RoundReport>>
 where
+    M: Actor<Message = ModelMessage>,
     F: FnMut(usize, &RoundReport),
 {
     let mut reports = Vec::with_capacity(cfg.rounds);

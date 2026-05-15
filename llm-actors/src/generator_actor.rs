@@ -38,8 +38,15 @@ pub enum GeneratorMessage {
     },
 }
 
-pub struct GeneratorActor {
-    pub model: ActorRef<ModelActor>,
+/// Phase 21 Stage E — generic over the backing model actor type, so
+/// the generator pipeline serves both `ModelActor` (nanogpt_rs) and
+/// `QwenModelActor` (Candle-native Qwen2). Default `M = ModelActor`
+/// preserves every existing call site.
+pub struct GeneratorActor<M = ModelActor>
+where
+    M: Actor<Message = ModelMessage>,
+{
+    pub model: ActorRef<M>,
     pub tokenizer: Arc<Tokenizer>,
     pub domain: Arc<dyn Domain>,
     /// Stop the completion when this char is emitted (after decode).
@@ -49,9 +56,12 @@ pub struct GeneratorActor {
     pub per_request_timeout: Duration,
 }
 
-impl GeneratorActor {
+impl<M> GeneratorActor<M>
+where
+    M: Actor<Message = ModelMessage>,
+{
     pub fn new(
-        model: ActorRef<ModelActor>,
+        model: ActorRef<M>,
         tokenizer: Arc<Tokenizer>,
         domain: Arc<dyn Domain>,
         stop_char: Option<char>,
@@ -144,7 +154,10 @@ impl GeneratorActor {
     }
 }
 
-impl Actor for GeneratorActor {
+impl<M> Actor for GeneratorActor<M>
+where
+    M: Actor<Message = ModelMessage>,
+{
     type Message = GeneratorMessage;
 
     fn receive(

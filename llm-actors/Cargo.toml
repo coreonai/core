@@ -129,3 +129,8 @@ required-features = []
 name = "phase21_b_eval_passk"
 path = "examples/phase21_b_eval_passk.rs"
 required-features = []
+
+[[example]]
+name = "phase21_e_smoke"
+path = "examples/phase21_e_smoke.rs"
+required-features = []
