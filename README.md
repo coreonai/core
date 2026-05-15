@@ -4,10 +4,11 @@ A from-scratch Rust implementation of nanoGPT-style transformers stacked with
 the Apache Pekko (Akka-like) actor framework, plus a 12-axis neural
 architecture search, a self-improvement loop with tool use, and a
 **Candle-native Qwen2.5-Coder-0.5B inference + LoRA training bridge** that
-drives the full Phase 17-20 recipe end-to-end through Pekko actors. Built
-across 11 phases of infrastructure + 10 sessions of measurement findings
-+ 10 Phase-21 stages of Pekko integration; end-to-end training validated
-on Korean Wikipedia.
+drives the full Phase 17-20 recipe end-to-end through Pekko actors
+**against real HumanEval and MBPP benchmarks**. Built across 11 phases of
+infrastructure + 10 sessions of measurement findings + 10 Phase-21 stages
+of Pekko integration + 5 Phase-22 stages of HumanEval/MBPP-on-Pekko;
+end-to-end training validated on Korean Wikipedia.
 
 > **Vision:** "Rust nanoGPT × Pekko-Rust self-evolving Agentic Foundation
 > Model." Each phase ships infrastructure that the next phase composes.
@@ -27,8 +28,11 @@ on Korean Wikipedia.
 | Generate Python via Candle-native Qwen2.5-Coder-0.5B (no Python sidecar) | `cargo run -p llm-actors --example phase21_qwen_candle_smoke --features cuda --release` |
 | Train Qwen2 LoRA in Rust + drive a full Gen→Verify→Curate→Train→Reload→Eval round through Pekko | `cargo run -p llm-actors --example phase21_h_smoke --features cuda --release` |
 | REINFORCE policy gradient on Qwen2 LoRA with verifier-as-reward | `cargo run -p llm-actors --example phase21_g_smoke --features cuda --release` |
+| Reproduce Phase 17 S6's HumanEval pass@1 = 0.216 on Pekko (aggregate mode) | `cargo run -p llm-actors --example phase22_humaneval_baseline --features cuda --release -- --n-problems 32 --passk 10 --sequential --aggregate` |
+| Drive multi-round SFT through Pekko on real HumanEval (Phase 17 saturation curve recipe) | `cargo run -p llm-actors --example phase22_he_mr_sft --features cuda --release -- --rounds 2` |
+| REINFORCE on real HumanEval with verifier-as-reward | `cargo run -p llm-actors --example phase22_he_reinforce --features cuda --release` |
 
-**145 unit tests, 30 worked examples, 11 infrastructure phases + 10 measurement phases (5–14) + 6 SFT/recipe phases (15–20) + 10 Phase-21 Pekko-bridge stages. Phase 20 closed the Python-side Phase 17–20 saturation curve: r=6 SFT mean 0.581 ± 0.038 (first plateau signal Δ<σ), MBPP r=5 cross-substrate 0.541 ± 0.014, project record `seed 1` at r=6 = 0.645 (3.0× base 0.216). Phase 21 closed the supervisor-side gap: all 10 stages (A C D F B E E.next E.next.next H G) shipped → README's "self-evolving agentic foundation model on Pekko" is realized — `supervisor::run_multi_round` drives the full Phase 17–20 recipe shape against Candle-native Qwen2.5-Coder-0.5B end-to-end. Stage G adds REINFORCE with verifier-as-reward. See `docs/phase21-overview.md` for the single entry point. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**156 unit tests, 35 worked examples, 11 infrastructure phases + 10 measurement phases (5–14) + 6 SFT/recipe phases (15–20) + 10 Phase-21 Pekko-bridge stages + 5 Phase-22 HumanEval/MBPP-on-Pekko stages. Phase 20 closed the Python-side Phase 17–20 saturation curve: r=6 SFT mean 0.581 ± 0.038 (first plateau signal Δ<σ), MBPP r=5 cross-substrate 0.541 ± 0.014, project record `seed 1` at r=6 = 0.645 (3.0× base 0.216). Phase 21 closed the supervisor-side gap: all 10 stages (A C D F B E E.next E.next.next H G) shipped → `supervisor::run_multi_round` drives the full Phase 17–20 recipe shape against Candle-native Qwen2.5-Coder-0.5B end-to-end, plus a REINFORCE Stage G with verifier-as-reward. Phase 22 (A B C D E) brings real HumanEval and MBPP benchmarks as Rust `Domain` impls: Stage B reproduces Phase 17 S6's HumanEval pass@1 = 0.216 within 1σ (0.222 aggregate at n=32×k=10) via a new `EvalSequential { aggregate }` mode; Stage D's r=2 smoke shows the multi-round SFT mechanism lifting pass@3 from 0.219 → 0.344 (+0.125) through Pekko on real HumanEval; Stage E ports REINFORCE to verifier-as-reward on real HumanEval. **Every Phase 17–20 finding now has a Rust-native execution path** — numerical reproductions of the saturation curve are wallclock exercises on top, not infrastructure gaps. See `docs/phase21-overview.md` and `docs/phase22-overview.md` for the single entry points. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -43,12 +47,14 @@ graph TD
   P5_16["Phase 5–16<br/>multi-actor / DPO / OPD / Muon retractions<br/>(8 retractions, 0 wins until P17)"]
   P17_20["Phase 17–20<br/>first robust positives<br/>multi-round SFT + pass@k<br/>r=6 saturation curve / cross-substrate / 4-tier recipe"]
   P21["Phase 21 ×10 stages<br/>Pekko bridge<br/>Candle Qwen2 inference+training<br/>supervisor drives full P17-20 recipe + RL"]
-  P1 --> P2 --> P25 --> P3 --> P4 --> P1E --> P5_16 --> P17_20 --> P21
+  P22["Phase 22 ×5 stages<br/>HumanEval / MBPP on Pekko<br/>real benchmark Domain impls<br/>MR-SFT + REINFORCE end-to-end"]
+  P1 --> P2 --> P25 --> P3 --> P4 --> P1E --> P5_16 --> P17_20 --> P21 --> P22
   classDef done fill:#cfc,stroke:#080
-  class P1,P2,P25,P3,P4,P1E,P5_16,P17_20,P21 done
+  class P1,P2,P25,P3,P4,P1E,P5_16,P17_20,P21,P22 done
 ```
 
 > Phase 21 sub-stages (Pekko bridge) live in `docs/phase21-overview.md`.
+> Phase 22 sub-stages (HumanEval / MBPP on Pekko) live in `docs/phase22-overview.md`.
 
 ## Data flow (Korean training pipeline)
 
