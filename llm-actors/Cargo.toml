@@ -159,3 +159,8 @@ required-features = []
 name = "phase22_humaneval_baseline"
 path = "examples/phase22_humaneval_baseline.rs"
 required-features = []
+
+[[example]]
+name = "phase22_mbpp_baseline"
+path = "examples/phase22_mbpp_baseline.rs"
+required-features = []
