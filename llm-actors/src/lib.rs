@@ -18,6 +18,7 @@ pub mod generator_actor;
 pub mod inference_http;
 pub mod inference_server_actor;
 pub mod model_actor;
+pub mod qwen_model_actor;
 pub mod supervisor;
 pub mod tool_executor_actor;
 pub mod tools;
@@ -37,7 +38,8 @@ pub use curator_actor::{CuratorActor, CuratorAddReport, CuratorMessage, Ensemble
 pub use ensemble::{ensemble_generate, EnsembleActors, EnsembleConfig};
 pub use evaluator_actor::{EvalReport, EvaluatorActor, EvaluatorMessage};
 pub use generator_actor::{GeneratorActor, GeneratorMessage};
-pub use model_actor::{ModelActor, ModelMessage};
+pub use model_actor::{GenerateReply, ModelActor, ModelMessage};
+pub use qwen_model_actor::QwenModelActor;
 pub use supervisor::{run_multi_round, run_round, MultiRoundConfig, RoundActors, RoundConfig};
 pub use trainer_actor::{TrainerActor, TrainerMessage};
 pub use types::{RoundReport, Trajectory, Verdict, VerifiedTrajectory};

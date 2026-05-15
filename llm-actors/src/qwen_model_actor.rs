@@ -1,0 +1,364 @@
+//! Phase 21 Stage D — actor wrapper around `candle_transformers::models::qwen2`.
+//!
+//! Bridges Phase 14-20's production model (Qwen2.5-Coder-0.5B served
+//! through HuggingFace transformers in Python) into the Rust `llm-actors`
+//! framework. The smoke binary `phase21_qwen_candle_smoke` proves Candle
+//! can load + serve the model natively; this actor wraps that into the
+//! same `ModelMessage` enum the rest of the actor pipeline already uses.
+//!
+//! ## Supported `ModelMessage` variants
+//! - `Ping` — health check (trivial)
+//! - `Generate { prompt, cfg, reply }` — HF-tokenize → generate → decode
+//! - `GenerateTokens { prompt_ids, cfg, reply }` — raw HF token IDs in/out
+//! - `ReloadCheckpoint { path, reply }` — re-load `model.safetensors`
+//!
+//! ## Stubbed (returns `Err`)
+//! - `LossOn` — Qwen2's `ModelForCausalLM::forward` returns only the
+//!   last-position logits; computing CE over all positions would
+//!   require duplicating the lm_head application path (deferred).
+//! - `ScoreLogProb` — same reason; needs all-position logits.
+//!
+//! ## NOT covered by this actor
+//! - Training (LoRA / SFT). The Trainer actor's path is heavily tied
+//!   to `nanogpt_rs::GPT` + Candle VarMap. A Qwen-side training stack
+//!   is its own multi-day project (deferred to Phase 21 Stage E+).
+//!
+//! ## Type compatibility
+//! `QwenModelActor::Message == ModelMessage` so the enum is shared with
+//! `ModelActor`. But `ActorRef<QwenModelActor>` and `ActorRef<ModelActor>`
+//! are different types — callers like `EvaluatorActor` that hold
+//! `ActorRef<ModelActor>` cannot directly accept a Qwen actor. Plumbing
+//! the eval/gen actors to be generic over the model type is Stage E.
+
+use std::path::Path;
+use std::sync::Arc;
+
+use candle_core::{DType, Device, Tensor};
+use candle_nn::VarBuilder;
+use candle_transformers::models::qwen2::{Config as Qwen2Config, ModelForCausalLM};
+use nanogpt_rs::generate::GenerateConfig;
+use pekko_actor::{Actor, ActorContext};
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+use tokenizers::Tokenizer as HfTokenizer;
+use tokio::sync::oneshot;
+use tracing::{error, info, warn};
+
+use crate::model_actor::{GenerateReply, ModelMessage};
+
+pub struct QwenModelActor {
+    pub model: ModelForCausalLM,
+    pub tokenizer: Arc<HfTokenizer>,
+    pub config: Qwen2Config,
+    pub device: Device,
+    pub dtype: DType,
+    /// Path of the most recently loaded safetensors checkpoint. Used by
+    /// `ReloadCheckpoint` to re-initialize the model.
+    pub model_path: std::path::PathBuf,
+}
+
+impl QwenModelActor {
+    /// Build a fresh actor by mmap-loading the safetensors at `model_path`
+    /// into a Qwen2 `ModelForCausalLM`. The tokenizer and config are
+    /// expected to live next to the safetensors but the caller passes
+    /// them in explicitly so this constructor is testable.
+    pub fn new(
+        model_path: std::path::PathBuf,
+        tokenizer: Arc<HfTokenizer>,
+        config: Qwen2Config,
+        device: Device,
+        dtype: DType,
+    ) -> anyhow::Result<Self> {
+        let model = load_qwen_model(&model_path, &config, dtype, &device)?;
+        Ok(Self {
+            model,
+            tokenizer,
+            config,
+            device,
+            dtype,
+            model_path,
+        })
+    }
+
+    /// Convenience loader: read `config.json` + `tokenizer.json` +
+    /// `model.safetensors` from a single HF snapshot directory.
+    pub fn from_snapshot_dir(
+        snapshot_dir: &Path,
+        device: Device,
+        dtype: DType,
+    ) -> anyhow::Result<Self> {
+        let cfg_text = std::fs::read_to_string(snapshot_dir.join("config.json"))?;
+        let config: Qwen2Config = serde_json::from_str(&cfg_text)?;
+        let tokenizer = HfTokenizer::from_file(snapshot_dir.join("tokenizer.json"))
+            .map_err(|e| anyhow::anyhow!("tokenizer: {e}"))?;
+        let model_path = snapshot_dir.join("model.safetensors");
+        Self::new(model_path, Arc::new(tokenizer), config, device, dtype)
+    }
+}
+
+fn load_qwen_model(
+    model_path: &Path,
+    config: &Qwen2Config,
+    dtype: DType,
+    device: &Device,
+) -> anyhow::Result<ModelForCausalLM> {
+    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[model_path], dtype, device)? };
+    let model = ModelForCausalLM::new(config, vb)?;
+    Ok(model)
+}
+
+impl Actor for QwenModelActor {
+    type Message = ModelMessage;
+
+    fn receive(
+        &mut self,
+        msg: Self::Message,
+        _ctx: &mut ActorContext<Self>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
+        Box::pin(async move {
+            match msg {
+                ModelMessage::Ping { reply } => {
+                    let _ = reply.send(());
+                }
+                ModelMessage::Generate { prompt, cfg, reply } => {
+                    let result = self.handle_generate(&prompt, &cfg);
+                    log_send(reply, result, "qwen_generate");
+                }
+                ModelMessage::GenerateTokens {
+                    prompt_ids,
+                    cfg,
+                    reply,
+                } => {
+                    let result = self.handle_generate_tokens(&prompt_ids, &cfg);
+                    log_send(reply, result, "qwen_generate_tokens");
+                }
+                ModelMessage::ReloadCheckpoint { path, reply } => {
+                    let result = self.handle_reload(&path);
+                    log_send(reply, result, "qwen_reload_checkpoint");
+                }
+                ModelMessage::LossOn { x: _, y: _, reply } => {
+                    let r: anyhow::Result<f32> = Err(anyhow::anyhow!(
+                        "QwenModelActor::LossOn not implemented \
+                         (requires multi-position logits forward)"
+                    ));
+                    log_send(reply, r, "qwen_loss_on");
+                }
+                ModelMessage::ScoreLogProb {
+                    prompt_ids: _,
+                    completion_ids: _,
+                    reply,
+                } => {
+                    let r: anyhow::Result<f32> = Err(anyhow::anyhow!(
+                        "QwenModelActor::ScoreLogProb not implemented \
+                         (requires multi-position logits forward)"
+                    ));
+                    log_send(reply, r, "qwen_score_log_prob");
+                }
+            }
+        })
+    }
+
+    fn pre_start(
+        &mut self,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
+        Box::pin(async {
+            info!("QwenModelActor started");
+        })
+    }
+}
+
+impl QwenModelActor {
+    fn handle_generate(
+        &mut self,
+        prompt: &str,
+        cfg: &GenerateConfig,
+    ) -> anyhow::Result<GenerateReply> {
+        let encoded = self
+            .tokenizer
+            .encode(prompt, true)
+            .map_err(|e| anyhow::anyhow!("encode: {e}"))?;
+        let prompt_ids: Vec<u32> = encoded.get_ids().to_vec();
+        let tokens = self.generate_autoregressive(&prompt_ids, cfg)?;
+        let comp_ids = if tokens.len() > prompt_ids.len() {
+            &tokens[prompt_ids.len()..]
+        } else {
+            &[][..]
+        };
+        let text = self
+            .tokenizer
+            .decode(comp_ids, true)
+            .map_err(|e| anyhow::anyhow!("decode: {e}"))?;
+        Ok(GenerateReply { text, tokens })
+    }
+
+    fn handle_generate_tokens(
+        &mut self,
+        prompt_ids: &[u32],
+        cfg: &GenerateConfig,
+    ) -> anyhow::Result<Vec<u32>> {
+        self.generate_autoregressive(prompt_ids, cfg)
+    }
+
+    fn handle_reload(&mut self, path: &Path) -> anyhow::Result<()> {
+        let new_model = load_qwen_model(path, &self.config, self.dtype, &self.device)?;
+        self.model = new_model;
+        self.model_path = path.to_path_buf();
+        info!(?path, "QwenModelActor checkpoint reloaded");
+        Ok(())
+    }
+
+    fn generate_autoregressive(
+        &mut self,
+        prompt_ids: &[u32],
+        cfg: &GenerateConfig,
+    ) -> anyhow::Result<Vec<u32>> {
+        // Each call is a fresh sequence — clear the KV cache so previous
+        // priming doesn't leak in.
+        self.model.clear_kv_cache();
+        let mut rng: StdRng = match cfg.seed {
+            Some(s) => StdRng::seed_from_u64(s),
+            None => StdRng::from_entropy(),
+        };
+        let mut tokens: Vec<u32> = prompt_ids.to_vec();
+        if tokens.is_empty() {
+            return Ok(tokens);
+        }
+
+        // Prime with the full prompt at seqlen_offset = 0.
+        let mut logits = self.forward_chunk(&tokens, 0)?;
+        let mut seqlen_offset = tokens.len();
+
+        for _ in 0..cfg.max_new_tokens {
+            let next = sample_logits(&logits, cfg, &mut rng)?;
+            // Qwen2 uses `eos_token_id` = 151643. Stop on EOS if encountered.
+            if next == 151_643 {
+                break;
+            }
+            tokens.push(next);
+            logits = self.forward_chunk(&[next], seqlen_offset)?;
+            seqlen_offset += 1;
+        }
+        Ok(tokens)
+    }
+
+    fn forward_chunk(&mut self, chunk: &[u32], seqlen_offset: usize) -> anyhow::Result<Tensor> {
+        let input = Tensor::from_slice(chunk, (1, chunk.len()), &self.device)?;
+        let logits = self.model.forward(&input, seqlen_offset)?; // (1, 1, vocab)
+        let logits = logits.squeeze(0)?.squeeze(0)?;
+        Ok(logits.to_dtype(DType::F32)?)
+    }
+}
+
+fn sample_logits(logits: &Tensor, cfg: &GenerateConfig, rng: &mut StdRng) -> anyhow::Result<u32> {
+    use rand::distributions::{Distribution, WeightedIndex};
+
+    // temperature == 0 → greedy
+    if cfg.temperature <= 0.0 {
+        let v = logits.to_vec1::<f32>()?;
+        let argmax = v
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(i, _)| i as u32)
+            .unwrap_or(0);
+        return Ok(argmax);
+    }
+
+    let logits = if cfg.temperature != 1.0 {
+        (logits / cfg.temperature)?
+    } else {
+        logits.clone()
+    };
+
+    let logits = if let Some(k) = cfg.top_k {
+        let v = logits.to_vec1::<f32>()?;
+        let k = k.min(v.len());
+        if k > 0 && k < v.len() {
+            let mut sorted = v.clone();
+            sorted.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+            let kth = sorted[k - 1];
+            let masked: Vec<f32> = v
+                .into_iter()
+                .map(|x| if x < kth { f32::NEG_INFINITY } else { x })
+                .collect();
+            Tensor::from_vec(masked, logits.shape(), logits.device())?
+        } else {
+            logits
+        }
+    } else {
+        logits
+    };
+
+    let probs = candle_nn::ops::softmax_last_dim(&logits)?;
+    let mut probs_v: Vec<f32> = probs.to_vec1()?;
+
+    if let Some(p) = cfg.top_p {
+        let p = p as f32;
+        let mut idx: Vec<usize> = (0..probs_v.len()).collect();
+        idx.sort_by(|a, b| {
+            probs_v[*b]
+                .partial_cmp(&probs_v[*a])
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        let mut cumsum = 0.0;
+        let mut keep = vec![false; probs_v.len()];
+        for i in &idx {
+            keep[*i] = true;
+            cumsum += probs_v[*i];
+            if cumsum >= p {
+                break;
+            }
+        }
+        for (i, k) in keep.iter().enumerate() {
+            if !k {
+                probs_v[i] = 0.0;
+            }
+        }
+        let s: f32 = probs_v.iter().sum();
+        if s > 0.0 {
+            for v in probs_v.iter_mut() {
+                *v /= s;
+            }
+        }
+    }
+
+    if !probs_v.iter().all(|x| x.is_finite()) || probs_v.iter().all(|x| *x <= 0.0) {
+        let argmax = probs_v
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(i, _)| i as u32)
+            .unwrap_or(0);
+        return Ok(argmax);
+    }
+
+    let dist = WeightedIndex::new(&probs_v).map_err(|e| anyhow::anyhow!("weighted index: {e}"))?;
+    Ok(dist.sample(rng) as u32)
+}
+
+fn log_send<T>(reply: oneshot::Sender<anyhow::Result<T>>, r: anyhow::Result<T>, op: &str) {
+    if let Err(e) = &r {
+        error!(op, error = %e, "actor op failed");
+    }
+    if reply.send(r).is_err() {
+        warn!(op, "reply channel dropped before response");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn qwen_model_actor_has_modelmessage() {
+        // Compile-time assertion that QwenModelActor uses the same
+        // ModelMessage enum as ModelActor, so the messages are
+        // interchangeable at the API level (only ActorRef<...> types differ).
+        fn assert_uses<A>()
+        where
+            A: Actor<Message = ModelMessage>,
+        {
+        }
+        assert_uses::<QwenModelActor>();
+    }
+}
