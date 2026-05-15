@@ -119,3 +119,8 @@ required-features = []
 name = "phase21_qwen_actor_smoke"
 path = "examples/phase21_qwen_actor_smoke.rs"
 required-features = []
+
+[[example]]
+name = "phase21_qwen_lora_smoke"
+path = "examples/phase21_qwen_lora_smoke.rs"
+required-features = []
