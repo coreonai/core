@@ -1,0 +1,65 @@
+=== p21b scale-up passk=1 eval_temp=0.0 gpu=5 ===
+[2m2026-05-15T14:18:06.178607Z[0m [32m INFO[0m [2mself_improve_rust[0m[2m:[0m device [3mdevice[0m[2m=[0mCuda(CudaDevice(DeviceId(1)))
+[2m2026-05-15T14:18:06.178870Z[0m [32m INFO[0m [2mself_improve_rust[0m[2m:[0m scratch project ready [3mscratch_dir[0m[2m=[0m/tmp/workllm-rust-scratch-b-passk1
+[2m2026-05-15T14:18:06.178879Z[0m [32m INFO[0m [2mself_improve_rust[0m[2m:[0m challenge filter resolved (Phase 6 Shape B = specialist mode iff < 10) [3mchallenge_indices[0m[2m=[0m[0, 1, 2, 3, 4, 5, 6, 7, 8, 9] [3mn_challenges[0m[2m=[0m10 [3mall_challenges[0m[2m=[0m10
+[2m2026-05-15T14:18:06.179124Z[0m [32m INFO[0m [2mself_improve_rust[0m[2m:[0m tokenizer + corpus [3mvocab[0m[2m=[0m97 [3mcorpus_chars[0m[2m=[0m20416
+[2m2026-05-15T14:18:06.179130Z[0m [32m INFO[0m [2mself_improve_rust[0m[2m:[0m model config [3mparams[0m[2m=[0m23698944 [3mlora_rank[0m[2m=[0m0 [3mlora_alpha[0m[2m=[0m16.0 [3mlora_scale[0m[2m=[0m0.0
+[2m2026-05-15T14:18:06.179138Z[0m [32m INFO[0m [2mself_improve_rust[0m[2m:[0m pretraining...
+[2m2026-05-15T14:19:17.488969Z[0m [32m INFO[0m [2mself_improve_rust[0m[2m:[0m pretrain done [3mtrain_loss[0m[2m=[0m0.45276910066604614 [3msteps[0m[2m=[0m3000
+[2m2026-05-15T14:19:17.508450Z[0m [32m INFO[0m [2mself_improve_rust[0m[2m:[0m seeding curator [3mcount[0m[2m=[0m32
+[2m2026-05-15T14:19:17.508491Z[0m [32m INFO[0m [2mllm_actors::model_actor[0m[2m:[0m ModelActor started
+[2m2026-05-15T14:19:17.508526Z[0m [32m INFO[0m [2mllm_actors::curator_actor[0m[2m:[0m curator add [3maccepted[0m[2m=[0m22 [3mrejected_incorrect[0m[2m=[0m0 [3mrejected_duplicate[0m[2m=[0m10 [3mbuffer[0m[2m=[0m22
+[2m2026-05-15T14:19:17.508554Z[0m [32m INFO[0m [2mself_improve_rust[0m[2m:[0m curator seeded [3mseeded[0m[2m=[0m22
+[2m2026-05-15T14:19:17.508614Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: eval-before [3mround[0m[2m=[0m0
+[2m2026-05-15T14:19:21.965884Z[0m [32m INFO[0m [2mllm_actors::evaluator_actor[0m[2m:[0m EvaluatorActor done [3mtotal[0m[2m=[0m24 [3mcorrect[0m[2m=[0m11 [3mpassk[0m[2m=[0m1 [3mpass_rate[0m[2m=[0m0.4583333432674408
+[2m2026-05-15T14:19:21.965966Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m eval-before done [3mround[0m[2m=[0m0 [3mbefore_correct[0m[2m=[0m11 [3mtotal[0m[2m=[0m24
+[2m2026-05-15T14:19:21.966025Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"before" [3mi[0m[2m=[0m0 [3mprompt[0m[2m=[0mfn main() { let z: i32 =  [3mcompletion[0m[2m=[0m10\n
+[2m2026-05-15T14:19:21.966031Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"before" [3mi[0m[2m=[0m1 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m2 * (10 - 5\n
+[2m2026-05-15T14:19:21.966035Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"before" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m"123"\n
+[2m2026-05-15T14:19:21.966038Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: generate [3mround[0m[2m=[0m0
+[2m2026-05-15T14:19:23.038633Z[0m [32m INFO[0m [2mllm_actors::generator_actor[0m[2m:[0m GeneratorActor batch done [3mgenerated[0m[2m=[0m24 [3merrors[0m[2m=[0m0 [3moversample[0m[2m=[0m1
+[2m2026-05-15T14:19:23.038732Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: verify [3mround[0m[2m=[0m0
+[2m2026-05-15T14:19:26.041253Z[0m [32m INFO[0m [2mllm_actors::verifier_actor[0m[2m:[0m VerifierActor batch done [3mverified[0m[2m=[0m24 [3mcorrect[0m[2m=[0m4
+[2m2026-05-15T14:19:26.041308Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: curate [3mround[0m[2m=[0m0
+[2m2026-05-15T14:19:26.041387Z[0m [32m INFO[0m [2mllm_actors::curator_actor[0m[2m:[0m curator add [3maccepted[0m[2m=[0m1 [3mrejected_incorrect[0m[2m=[0m20 [3mrejected_duplicate[0m[2m=[0m3 [3mbuffer[0m[2m=[0m23
+[2m2026-05-15T14:19:26.041458Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m padded corpus [3mround[0m[2m=[0m0 [3mcorpus_chars[0m[2m=[0m4794 [3mfactor[0m[2m=[0m6
+[2m2026-05-15T14:19:26.041464Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: train (SFT) [3mround[0m[2m=[0m0
+[2m2026-05-15T14:19:26.041482Z[0m [32m INFO[0m [2mllm_actors::trainer_actor[0m[2m:[0m TrainerActor: launching blocking training [3mcorpus_chars[0m[2m=[0m4794 [3msave_path[0m[2m=[0m"checkpoints/rust_round_b_passk1.r0.safetensors" [3minit_from[0m[2m=[0mSome("checkpoints/rust_seed_b_passk1.safetensors") [3msteps[0m[2m=[0m600 [3mewc[0m[2m=[0mfalse [3mfreeze_base[0m[2m=[0mfalse
+[2m2026-05-15T14:19:26.062181Z[0m [32m INFO[0m [2mnanogpt_rs::train[0m[2m:[0m loaded init weights for continual training [3mpath[0m[2m=[0m"checkpoints/rust_seed_b_passk1.safetensors"
+[2m2026-05-15T14:19:40.354752Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: reload [3mround[0m[2m=[0m0
+[2m2026-05-15T14:19:40.377828Z[0m [32m INFO[0m [2mllm_actors::model_actor[0m[2m:[0m checkpoint reloaded [3mpath[0m[2m=[0m"checkpoints/rust_round_b_passk1.r0.safetensors"
+[2m2026-05-15T14:19:40.377887Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: eval-after [3mround[0m[2m=[0m0
+[2m2026-05-15T14:19:44.446931Z[0m [32m INFO[0m [2mllm_actors::evaluator_actor[0m[2m:[0m EvaluatorActor done [3mtotal[0m[2m=[0m24 [3mcorrect[0m[2m=[0m10 [3mpassk[0m[2m=[0m1 [3mpass_rate[0m[2m=[0m0.4166666567325592
+[2m2026-05-15T14:19:44.446988Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m0 [3mprompt[0m[2m=[0mfn main() { let z: i32 =  [3mcompletion[0m[2m=[0m0 0\n
+[2m2026-05-15T14:19:44.447025Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m1 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 + 4 2 2\n
+[2m2026-05-15T14:19:44.447031Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m"hey"\n
+[round 0] gen_correct=4/24 (16.7%)  eval before=11/24  after=10/24  Δ=-1  loss=Some(0.3183999)  t=26938ms
+[2m2026-05-15T14:19:44.447079Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: eval-before [3mround[0m[2m=[0m1
+[2m2026-05-15T14:19:48.570597Z[0m [32m INFO[0m [2mllm_actors::evaluator_actor[0m[2m:[0m EvaluatorActor done [3mtotal[0m[2m=[0m24 [3mcorrect[0m[2m=[0m10 [3mpassk[0m[2m=[0m1 [3mpass_rate[0m[2m=[0m0.4166666567325592
+[2m2026-05-15T14:19:48.570681Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m eval-before done [3mround[0m[2m=[0m1 [3mbefore_correct[0m[2m=[0m10 [3mtotal[0m[2m=[0m24
+[2m2026-05-15T14:19:48.570720Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"before" [3mi[0m[2m=[0m0 [3mprompt[0m[2m=[0mfn main() { let z: i32 =  [3mcompletion[0m[2m=[0m0 0\n
+[2m2026-05-15T14:19:48.570727Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"before" [3mi[0m[2m=[0m1 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 + 4 2 2\n
+[2m2026-05-15T14:19:48.570730Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"before" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m"hey"\n
+[2m2026-05-15T14:19:48.570732Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: generate [3mround[0m[2m=[0m1
+[2m2026-05-15T14:19:49.782733Z[0m [32m INFO[0m [2mllm_actors::generator_actor[0m[2m:[0m GeneratorActor batch done [3mgenerated[0m[2m=[0m24 [3merrors[0m[2m=[0m0 [3moversample[0m[2m=[0m1
+[2m2026-05-15T14:19:49.782753Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: verify [3mround[0m[2m=[0m1
+[2m2026-05-15T14:19:52.936948Z[0m [32m INFO[0m [2mllm_actors::verifier_actor[0m[2m:[0m VerifierActor batch done [3mverified[0m[2m=[0m24 [3mcorrect[0m[2m=[0m10
+[2m2026-05-15T14:19:52.936987Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: curate [3mround[0m[2m=[0m1
+[2m2026-05-15T14:19:52.937033Z[0m [32m INFO[0m [2mllm_actors::curator_actor[0m[2m:[0m curator add [3maccepted[0m[2m=[0m0 [3mrejected_incorrect[0m[2m=[0m14 [3mrejected_duplicate[0m[2m=[0m10 [3mbuffer[0m[2m=[0m23
+[2m2026-05-15T14:19:52.937089Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m padded corpus [3mround[0m[2m=[0m1 [3mcorpus_chars[0m[2m=[0m4374 [3mfactor[0m[2m=[0m6
+[2m2026-05-15T14:19:52.937094Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: train (SFT) [3mround[0m[2m=[0m1
+[2m2026-05-15T14:19:52.937106Z[0m [32m INFO[0m [2mllm_actors::trainer_actor[0m[2m:[0m TrainerActor: launching blocking training [3mcorpus_chars[0m[2m=[0m4374 [3msave_path[0m[2m=[0m"checkpoints/rust_round_b_passk1.r1.safetensors" [3minit_from[0m[2m=[0mSome("checkpoints/rust_round_b_passk1.r0.safetensors") [3msteps[0m[2m=[0m600 [3mewc[0m[2m=[0mfalse [3mfreeze_base[0m[2m=[0mfalse
+[2m2026-05-15T14:19:52.958800Z[0m [32m INFO[0m [2mnanogpt_rs::train[0m[2m:[0m loaded init weights for continual training [3mpath[0m[2m=[0m"checkpoints/rust_round_b_passk1.r0.safetensors"
+[2m2026-05-15T14:20:07.283318Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: reload [3mround[0m[2m=[0m1
+[2m2026-05-15T14:20:07.303909Z[0m [32m INFO[0m [2mllm_actors::model_actor[0m[2m:[0m checkpoint reloaded [3mpath[0m[2m=[0m"checkpoints/rust_round_b_passk1.r1.safetensors"
+[2m2026-05-15T14:20:07.303937Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m phase: eval-after [3mround[0m[2m=[0m1
+[2m2026-05-15T14:20:11.756084Z[0m [32m INFO[0m [2mllm_actors::evaluator_actor[0m[2m:[0m EvaluatorActor done [3mtotal[0m[2m=[0m24 [3mcorrect[0m[2m=[0m10 [3mpassk[0m[2m=[0m1 [3mpass_rate[0m[2m=[0m0.4166666567325592
+[2m2026-05-15T14:20:11.756140Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m0 [3mprompt[0m[2m=[0mfn main() { let z: i32 =  [3mcompletion[0m[2m=[0m10 - 5\n
+[2m2026-05-15T14:20:11.756170Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m1 [3mprompt[0m[2m=[0mfn main() { assert_eq!( [3mcompletion[0m[2m=[0m1 + 4\n
+[2m2026-05-15T14:20:11.756176Z[0m [32m INFO[0m [2mllm_actors::supervisor[0m[2m:[0m sample [3mtag[0m[2m=[0m"after" [3mi[0m[2m=[0m2 [3mprompt[0m[2m=[0mfn main() { let t: &str =  [3mcompletion[0m[2m=[0m"abc"\n
+[round 1] gen_correct=10/24 (41.7%)  eval before=10/24  after=10/24  Δ=+0  loss=Some(0.32258606)  t=27309ms
+
+=== history ===
+round 0: gen=4/24 (16.7%)  eval before=11/24 after=10/24  Δ=-1
+round 1: gen=10/24 (41.7%)  eval before=10/24 after=10/24  Δ=+0
+=== p21b done passk=1 ===

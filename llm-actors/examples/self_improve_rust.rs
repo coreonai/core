@@ -162,6 +162,18 @@ struct Args {
     /// Top-k for generation.
     #[arg(long, default_value_t = 10)]
     gen_top_k: usize,
+    /// Eval temperature. `0.0` (default) is greedy — matches the
+    /// historical eval. Set `> 0` together with `--eval-top-k > 1`
+    /// and `--eval-passk > 1` for inference-time pass@k sampling
+    /// (Phase 21 Stage B). Greedy eval + passk > 1 produces k
+    /// identical samples and is useless for measuring pass@k lift.
+    #[arg(long, default_value_t = 0.0)]
+    eval_temperature: f64,
+    /// Top-k for eval. `1` (default) is greedy when paired with
+    /// `eval_temperature=0`. For pass@k experiments use a value
+    /// matching `--gen-top-k`.
+    #[arg(long, default_value_t = 1)]
+    eval_top_k: usize,
     /// Max tokens to generate per completion. Long enough for ".len()"
     /// + a few literal chars.
     #[arg(long, default_value_t = 16)]
@@ -650,8 +662,8 @@ async fn main() -> anyhow::Result<()> {
             eval_seed: 0xE5A2,
             eval_sampling: GenerateConfig {
                 max_new_tokens: args.max_new_tokens,
-                temperature: 0.0,
-                top_k: Some(1),
+                temperature: args.eval_temperature,
+                top_k: Some(args.eval_top_k.max(1)),
                 top_p: None,
                 seed: Some(0xE5A2),
             },

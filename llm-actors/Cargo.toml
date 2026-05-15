@@ -124,3 +124,8 @@ required-features = []
 name = "phase21_qwen_lora_smoke"
 path = "examples/phase21_qwen_lora_smoke.rs"
 required-features = []
+
+[[example]]
+name = "phase21_b_eval_passk"
+path = "examples/phase21_b_eval_passk.rs"
+required-features = []
