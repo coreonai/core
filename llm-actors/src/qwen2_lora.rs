@@ -550,6 +550,68 @@ impl ModelForCausalLM {
     }
 }
 
+/// Phase 21 Stage E.next.next — emit a "merged" safetensors file.
+///
+/// Reads the original frozen-base safetensors and, for every layer's
+/// `q_proj` and `v_proj`, adds the LoRA delta `B @ A * (α / r)` into
+/// the base `weight` tensor in place. All other tensors (k_proj /
+/// o_proj / norms / embed / lm_head) pass through unchanged. The
+/// resulting file is **drop-in compatible with the upstream
+/// `candle_transformers::models::qwen2` loader** — `QwenModelActor`
+/// can pick it up via the existing `ReloadCheckpoint` message,
+/// reflecting the trained adapter at inference time without any
+/// LoRA-awareness on the inference side.
+///
+/// Trade-off vs runtime LoRA loading: merging is one-time, but the
+/// merged file is the size of the base (~1.5 GB for 0.5B) instead of
+/// the ~4 MB LoRA-only adapter. For deployment / inference scaling
+/// this is the right shape.
+pub fn save_merged_lora(
+    base_safetensors_path: &std::path::Path,
+    lora_map: &candle_nn::VarMap,
+    cfg: &Config,
+    lora_cfg: LoraConfig,
+    device: &Device,
+    out_path: &std::path::Path,
+) -> Result<()> {
+    let mut tensors = candle_core::safetensors::load(base_safetensors_path, device)?;
+    let scale = (lora_cfg.alpha / lora_cfg.rank as f32) as f64;
+
+    let lora_vars_guard = lora_map.data().lock().unwrap();
+    let lora_vars: std::collections::HashMap<String, candle_core::Var> = lora_vars_guard
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    drop(lora_vars_guard);
+
+    for layer_idx in 0..cfg.num_hidden_layers {
+        for proj in ["q_proj", "v_proj"] {
+            let base_key = format!("model.layers.{layer_idx}.self_attn.{proj}.weight");
+            let a_key = format!("model.layers.{layer_idx}.self_attn.{proj}.lora_a.weight");
+            let b_key = format!("model.layers.{layer_idx}.self_attn.{proj}.lora_b.weight");
+            let base = tensors
+                .get(&base_key)
+                .ok_or_else(|| candle_core::Error::Msg(format!("missing base key {base_key}")))?
+                .clone();
+            let a = lora_vars
+                .get(&a_key)
+                .ok_or_else(|| candle_core::Error::Msg(format!("missing LoRA Var {a_key}")))?;
+            let b = lora_vars
+                .get(&b_key)
+                .ok_or_else(|| candle_core::Error::Msg(format!("missing LoRA Var {b_key}")))?;
+            // a: (rank, in_dim), b: (out_dim, rank) → delta = b @ a (out, in)
+            let a_t = a.as_tensor().to_dtype(base.dtype())?;
+            let b_t = b.as_tensor().to_dtype(base.dtype())?;
+            let delta = b_t.matmul(&a_t)?;
+            let delta = (delta * scale)?;
+            let merged = (&base + &delta)?;
+            tensors.insert(base_key, merged);
+        }
+    }
+    candle_core::safetensors::save(&tensors, out_path)?;
+    Ok(())
+}
+
 /// Single training step over a fixed (input, target) batch.
 ///
 /// `input_ids` and `target_ids` must both be `(B, T)` and represent the

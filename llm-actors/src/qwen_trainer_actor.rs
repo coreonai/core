@@ -31,7 +31,7 @@ use tokenizers::Tokenizer as HfTokenizer;
 use tokio::sync::oneshot;
 use tracing::{error, info, warn};
 
-use crate::qwen2_lora::{train_qwen_lora_step, LoraConfig, ModelForCausalLM};
+use crate::qwen2_lora::{save_merged_lora, train_qwen_lora_step, LoraConfig, ModelForCausalLM};
 
 pub enum QwenTrainerMessage {
     /// Train on a batch of free-form text examples for `train_steps`
@@ -49,6 +49,19 @@ pub enum QwenTrainerMessage {
     /// `VarMap::save`. Round-trips with `LoadLoraAdapter`.
     SaveLoraAdapter {
         path: PathBuf,
+        reply: oneshot::Sender<anyhow::Result<()>>,
+    },
+    /// Phase 21 Stage E.next.next — emit a merged safetensors that
+    /// folds the trained LoRA delta into the base weights for every
+    /// (q_proj, v_proj) layer. The output is drop-in compatible with
+    /// the upstream `candle_transformers::models::qwen2` loader, so
+    /// `QwenModelActor::ReloadCheckpoint(out_path)` picks up the
+    /// trained model without any LoRA-awareness on the inference
+    /// side. `base_path` is the SOURCE safetensors (the original
+    /// frozen Qwen checkpoint this trainer was built from).
+    SaveMergedCheckpoint {
+        base_path: PathBuf,
+        out_path: PathBuf,
         reply: oneshot::Sender<anyhow::Result<()>>,
     },
     /// Health check.
@@ -69,6 +82,10 @@ pub struct QwenTrainerActor {
     pub device: Device,
     pub dtype: DType,
     pub lora_map: VarMap,
+    /// Hyperparameters used when constructing the LoRA adapters.
+    /// Kept on the actor so `SaveMergedCheckpoint` can recompute the
+    /// `α / r` scale needed to bake the delta back into the base.
+    pub lora_cfg: LoraConfig,
     pub optimizer: AdamW,
 }
 
@@ -114,6 +131,7 @@ impl QwenTrainerActor {
             device,
             dtype,
             lora_map,
+            lora_cfg,
             optimizer,
         })
     }
@@ -153,6 +171,26 @@ impl Actor for QwenTrainerActor {
                 QwenTrainerMessage::SaveLoraAdapter { path, reply } => {
                     let result = self.lora_map.save(&path).map_err(anyhow::Error::from);
                     log_send(reply, result, "qwen_save_lora_adapter");
+                }
+                QwenTrainerMessage::SaveMergedCheckpoint {
+                    base_path,
+                    out_path,
+                    reply,
+                } => {
+                    let result = save_merged_lora(
+                        &base_path,
+                        &self.lora_map,
+                        &self.config,
+                        // Re-derive LoRA hyperparameters from the model
+                        // by inspecting any one LoRA Var shape. Simpler:
+                        // remember them on the actor. For now we keep
+                        // them on the actor; bake them in below.
+                        self.lora_cfg,
+                        &self.device,
+                        &out_path,
+                    )
+                    .map_err(anyhow::Error::from);
+                    log_send(reply, result, "qwen_save_merged_checkpoint");
                 }
             }
         })
