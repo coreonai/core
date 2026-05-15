@@ -99,7 +99,7 @@ New library modules in `llm-actors/src/`:
 |---|---|---|---|---|
 | B | HumanEval n=32×k=10 | base Qwen, temp=0.8, BF16 | aggregate pass@1 = **0.222** | matches Phase 17 S6's 0.216 within 1σ (Δ=+0.006) |
 | C | MBPP-100 n=16×k=10 | base Qwen, temp=0.8, BF16 | per-prompt pass@10 = 0.5625, aggregate pass@1 = 0.1875, **Δ=+0.375** | mechanism (sampling lift) matches Phase 17 S9's +0.30; absolute level subset-biased (task_id 11–26) |
-| D | HumanEval r=2 smoke | gen-n=16, eval-n=32, passk=3, train-steps=30 | round 1 pass@3 0.219→0.344, **Δ=+0.125** | direction matches Phase 17 S1 (mean Δ=+0.174 at full 164 + passk=10); round 0 empty-corpus anomaly flagged |
+| D | HumanEval r=2 smoke | gen-n=16, eval-n=32, passk=3, train-steps=30 | round 1 pass@3 0.219→0.344, **Δ=+0.125** | direction matches Phase 17 S1 (mean Δ=+0.174 at full 164 + passk=10); round 0 empty-corpus skip path now displays N/A correctly (the original "0.000" was a display bug, not model state) |
 | E | HumanEval r=3 smoke | n_prompts=6, k=2, max_new=16 | 0/12 passes (degenerate), loss=0.0 cleanly | wiring proven; signal-bearing run needs max_new ≥64 + multi-seed |
 
 ## Build / test surface
@@ -137,16 +137,15 @@ saturation run is ~165 GPU-h; a 5-seed MBPP r=5 run is ~30 GPU-h.
 
 - **Full Phase 17 saturation curve numerical reproduction.** ~165
   GPU-h; binary ready (`phase22_he_mr_sft --rounds 6 --gen-n 164
-  --eval-n 164 --eval-passk 10 --train-steps 100`). Gated on the
-  Stage D round-0 empty-corpus anomaly being resolved first.
-- **Stage D anomaly investigation.** When the supervisor `skip
-  training: empty corpus`s on round 0, eval-after still drops to
-  0.000 from 0.219 — implies save/reload cycle perturbs model state
-  even with no LoRA delta change. Possible causes: LoRA init isn't
-  exactly zero-delta in F32, `SaveMergedCheckpoint` dtype quirk,
-  reload-side state mutation. Round 1's positive +0.125 lift
-  proceeds normally, so the issue is localized to the empty-corpus
-  path.
+  --eval-n 164 --eval-passk 10 --train-steps 100`). The original
+  "round-0 anomaly" turned out to be a display bug
+  (`unwrap_or(0.0)` conflated "skipped" with "measured zero"); the
+  supervisor's `skip training: empty corpus` early-return cleanly
+  no-ops save/reload/eval-after and leaves the model unchanged.
+  The real prep work is sparse-corpus robustness: with p≈0.10
+  per-attempt, P(empty 0/16 corpus) ≈ 0.185, so a long sweep needs
+  gen-n ≥ 32 with `gen_oversample ≥ 2` to keep `E[correct] ≥ 6`
+  per round.
 - **Aggregate eval inside supervisor.** Per-round eval uses
   `EvalRandom`; benchmark-aligned aggregate is a separate
   `phase22_humaneval_baseline` invocation on the saved

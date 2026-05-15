@@ -93,44 +93,82 @@ cargo run -p llm-actors --example phase22_he_mr_sft \
     --gen-n 164 --eval-n 164 --eval-passk 10 --train-steps 100
 ```
 
-## Measurement (r=2 smoke, partial)
+## Measurement (r=2 smoke)
 
 Smoke args: `--rounds 2 --gen-n 16 --eval-n 32 --eval-passk 3
---train-steps 30 --max-new-tokens 200`.
+--train-steps 30 --max-new-tokens 200`. Full smoke wallclock: ~12 min.
 
-**Round 0**:
-
+**Round 0** (with the original buggy display from commit 5896d01):
 ```
 [Phase22D] round 0  gen=0/16  pass@3=0.219→0.000  Δ=-0.219  elapsed_ms=289302
 ```
 
-`eval-before = 0.219 (pass@3 on 32 random HumanEval problems)` is in
-the right ballpark for base Qwen2.5-Coder-0.5B (Stage B aggregate
-ref: 0.222 at k=10 on n=32 subset). **No completions verified** out
-of the 16 generated → supervisor honestly logs `skip training: empty
-corpus round=0` and does not train. P(0/16 successes | p≈0.10) ≈
-0.185 — within distribution at gen-n=16 with a per-attempt pass-rate
-of ~10%, but a bigger gen-n would have been a more robust signal.
+**Round 1**:
+```
+[Phase22D] round 1  gen=2/16  pass@3=0.219→0.344  Δ=+0.125  elapsed_ms=451090
+```
 
-The eval-after = 0.000 is the **open puzzle**: same model (no
-training ran), same `eval_seed=7`, same `eval_sampling`, so eval-after
-should equal eval-before deterministically. The drop implies the
-save/reload cycle perturbed model state even with an empty corpus —
-candidates: LoRA delta is not exactly zero at init (A is kaiming-
-random, B is zero, so `B @ A = 0` *should* hold but maybe doesn't in
-F32 boundaries), or `SaveMergedCheckpoint` writes a slightly
-different-dtype tensor, or there's a side-effect in the reload path
-we don't see. Worth investigating before Stage D's full saturation
-curve run — it would distort r=1's true baseline reading.
+### The round-0 "anomaly" — resolved (was a display bug, not a wiring bug)
 
-**Round 1** running at commit time; full smoke completes ~12 min after
-this commit. Updated measurement will be appended to the memory entry.
+The original commit captured the round-0 `pass@3=0.219→0.000` as an
+open puzzle: the supervisor had logged `skip training: empty corpus`
+yet eval-after still appeared to be 0.000 from a baseline of 0.219.
 
-The smoke deliverable in this commit is **the binary + wiring +
-honest anomaly capture**, not a numerical match to Phase 17's 0.404.
-The numerical match is a separate measurement effort (full 164 ×
-passk=10 × multi-seed, ~30 GPU-min/round) that needs the eval-after
-puzzle resolved first.
+**Resolution**: there was no eval-after measurement on round 0.
+`supervisor::run_round` early-returns immediately after the empty-
+corpus skip log (`supervisor.rs` lines 256–259):
+
+```rust
+if corpus.is_empty() {
+    info!(round = cfg.round, "skip training: empty corpus");
+    report.elapsed_ms = t0.elapsed().as_millis();
+    return Ok(report);                       // ← skips train + save + reload + eval-after
+}
+```
+
+So `report.eval_correct_after` stays `None`. The binary's display
+callback used `.unwrap_or(0.0)` and printed that as "0.000",
+conflating "skipped" with "measured zero" and producing a fake
+Δ=−0.219 that looked like model collapse.
+
+**Fix** (this commit): the display callback now prints `N/A` for
+`None` and `Δ=N/A` when either eval is skipped. The actual model
+state on round 0 was unchanged (no save, no reload — supervisor
+never reached those steps). Round 1 then proceeded normally from
+the same base weights and produced the +0.125 lift.
+
+**Updated round 0 display** (this commit):
+
+```
+[Phase22D] round 0  gen=0/16  pass@3=0.219→N/A  Δ=N/A  elapsed_ms=289302
+```
+
+### Round 1 — the structural positive
+
+`gen=2/16` of generations verified → supervisor trained on those 2
+trajectories → save → reload → eval-after `pass@3 = 0.344` from a
+baseline of `0.219`, **Δ=+0.125**. Direction matches Phase 17 S1's
++0.174 r=1→r=2 lift even at smoke scale (gen-n=16 vs Phase 17's 164,
+eval-n=32 vs 164, single seed vs 5).
+
+The smoke deliverable is **the binary + wiring + a measured
+mechanism lift**. Numerical match to Phase 17 r=2 = 0.404 is a
+separate effort (full 164 × passk=10 × multi-seed, ~30 GPU-min/round).
+
+### Sparse-corpus implication for full saturation curve
+
+A naive r=1..6 sweep at small gen-n on HumanEval will hit the
+empty-corpus skip frequently: with p≈0.10 per-attempt, P(0/16) ≈
+0.185 and P(0/32) ≈ 0.034. For a 6-round sweep the cumulative
+"any-round-was-skipped" probability is non-trivial. Mitigations
+(separate scope):
+1. **gen-n ≥ 32 + gen_oversample ≥ 2** to keep `E[correct] ≥ 6` even
+   at p≈0.10.
+2. **Per-round `min_corpus_chars` floor → repeat-fill** (the
+   supervisor already has this for non-empty-but-tiny corpora; the
+   gap is the strict zero case).
+3. **Pre-filter prompts** to ones the base has ≥1 pass on (Phase 9 S5
+   cold-start observation; trade-off with selection bias).
 
 ## Acceptance — all pass
 

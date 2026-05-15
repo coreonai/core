@@ -268,22 +268,34 @@ async fn main() -> Result<()> {
         &actors,
         MultiRoundConfig::new(args.rounds, base),
         |r, rep| {
-            let pass_before = rep
-                .eval_correct_before
-                .map(|c| c as f32 / rep.eval_total.max(1) as f32)
-                .unwrap_or(0.0);
-            let pass_after = rep
-                .eval_correct_after
-                .map(|c| c as f32 / rep.eval_total.max(1) as f32)
-                .unwrap_or(0.0);
+            // Distinguish "measured 0/N" from "skipped (None)". On
+            // empty-corpus rounds, supervisor early-returns BEFORE
+            // train/save/reload/eval-after — `eval_correct_after` stays
+            // None. Conflating that with a measured zero (as a
+            // `unwrap_or(0.0)` does) prints a misleading Δ=-pass_before
+            // and looks like the model collapsed when in fact eval-after
+            // simply didn't run.
+            let fmt_pass = |c: Option<usize>| -> String {
+                match c {
+                    Some(n) => format!("{:.3}", n as f32 / rep.eval_total.max(1) as f32),
+                    None => "N/A".to_string(),
+                }
+            };
+            let delta_str = match (rep.eval_correct_before, rep.eval_correct_after) {
+                (Some(b), Some(a)) => {
+                    let denom = rep.eval_total.max(1) as f32;
+                    format!("Δ={:+.3}", (a as f32 - b as f32) / denom)
+                }
+                _ => "Δ=N/A".to_string(),
+            };
             println!(
-                "[Phase22D] round {r}  gen={}/{}  pass@{}={:.3}→{:.3}  Δ={:+.3}  elapsed_ms={}",
+                "[Phase22D] round {r}  gen={}/{}  pass@{}={}→{}  {}  elapsed_ms={}",
                 rep.correct,
                 rep.generated,
                 args.eval_passk,
-                pass_before,
-                pass_after,
-                pass_after - pass_before,
+                fmt_pass(rep.eval_correct_before),
+                fmt_pass(rep.eval_correct_after),
+                delta_str,
                 rep.elapsed_ms,
             );
             let _ = std::fs::copy(
@@ -299,14 +311,11 @@ async fn main() -> Result<()> {
     // Final summary: Phase 17 r=2 reference for context.
     println!("\n[Phase22D] === multi-round summary ===");
     for (i, rep) in reports.iter().enumerate() {
-        let pa = rep
-            .eval_correct_after
-            .map(|c| c as f32 / rep.eval_total.max(1) as f32)
-            .unwrap_or(0.0);
-        println!(
-            "  round {i}  eval_after pass@{} = {:.3}",
-            args.eval_passk, pa
-        );
+        let pa = match rep.eval_correct_after {
+            Some(c) => format!("{:.3}", c as f32 / rep.eval_total.max(1) as f32),
+            None => "N/A (skipped)".to_string(),
+        };
+        println!("  round {i}  eval_after pass@{} = {}", args.eval_passk, pa);
     }
     println!("\n[Phase22D] Phase 17 reference (full 164 × passk=10, mean over 5 seeds):");
     println!(
