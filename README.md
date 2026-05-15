@@ -2,9 +2,12 @@
 
 A from-scratch Rust implementation of nanoGPT-style transformers stacked with
 the Apache Pekko (Akka-like) actor framework, plus a 12-axis neural
-architecture search and a self-improvement loop with tool use. Built across
-11 phases as a real project, with end-to-end training validated on Korean
-Wikipedia.
+architecture search, a self-improvement loop with tool use, and a
+**Candle-native Qwen2.5-Coder-0.5B inference + LoRA training bridge** that
+drives the full Phase 17-20 recipe end-to-end through Pekko actors. Built
+across 11 phases of infrastructure + 10 sessions of measurement findings
++ 10 Phase-21 stages of Pekko integration; end-to-end training validated
+on Korean Wikipedia.
 
 > **Vision:** "Rust nanoGPT × Pekko-Rust self-evolving Agentic Foundation
 > Model." Each phase ships infrastructure that the next phase composes.
@@ -21,8 +24,11 @@ Wikipedia.
 | Distill a 50M teacher to a 12M student (KL, T=2, α=0.7) | `cargo run -p nanogpt-rs --example distill_kowiki --features cuda --release` |
 | Compare a self-trained vs HuggingFace-pretrained Korean BPE | `cargo run -p nanogpt-rs --example compare_tokenizers --release` |
 | Serve inference over HTTP (axum) | `cargo run -p llm-actors --example serve_inference --release` |
+| Generate Python via Candle-native Qwen2.5-Coder-0.5B (no Python sidecar) | `cargo run -p llm-actors --example phase21_qwen_candle_smoke --features cuda --release` |
+| Train Qwen2 LoRA in Rust + drive a full Gen→Verify→Curate→Train→Reload→Eval round through Pekko | `cargo run -p llm-actors --example phase21_h_smoke --features cuda --release` |
+| REINFORCE policy gradient on Qwen2 LoRA with verifier-as-reward | `cargo run -p llm-actors --example phase21_g_smoke --features cuda --release` |
 
-**136 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11/12/13/14 sessions. Phase 14 S1 ROBUST positive: 5-seed σ on Qwen2.5-Coder-0.5B + LoRA + 25-problem set is **0.011** (final pass rate 0.851), 13–27× tighter than K9 1M σ (0.142 within-batch / 0.292 cross-batch). Substrate qualified for algorithmic comparisons (C2 Muon LoRA, C3 DPO variants, C4 OPD) at 0.022 significance threshold. 21/25 problems saturate (focused-subset eval needed for C2-C4). Phase 13 closed with substrate-level lesson: K9 1M is smoke-test infrastructure, not measurement substrate. S1 retracted Phase 12's Muon +78% as seed-0 outlier; S2 found A1 challenge expansion confounds scale comparisons; S3 isolate showed 10M under-trains at same budget AND cross-batch σ (~7/24) is bigger than within-batch σ (~3.4/24) — same 3-ch tiny config gave 9.8±1.6 in S1 batch vs 3.0±1.9 in S3a batch. All Phase 11-13 single-run K9 algorithmic claims sit at the same noise floor. Future algorithmic comparisons → Stage C (Qwen + HumanEval via Phase 9 path); Stage B/D deferred. Risks #14 (5-seed insufficient at K9 1M) + #15 (compute-budget × scale interaction) added. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
+**145 unit tests, 30 worked examples, 11 infrastructure phases + 10 measurement phases (5–14) + 6 SFT/recipe phases (15–20) + 10 Phase-21 Pekko-bridge stages. Phase 20 closed the Python-side Phase 17–20 saturation curve: r=6 SFT mean 0.581 ± 0.038 (first plateau signal Δ<σ), MBPP r=5 cross-substrate 0.541 ± 0.014, project record `seed 1` at r=6 = 0.645 (3.0× base 0.216). Phase 21 closed the supervisor-side gap: all 10 stages (A C D F B E E.next E.next.next H G) shipped → README's "self-evolving agentic foundation model on Pekko" is realized — `supervisor::run_multi_round` drives the full Phase 17–20 recipe shape against Candle-native Qwen2.5-Coder-0.5B end-to-end. Stage G adds REINFORCE with verifier-as-reward. See `docs/phase21-overview.md` for the single entry point. CUDA 12.5 toolchain pinning required (driver 555). Zero clippy warnings under `-D warnings`, zero fmt drift.**
 
 ## Phase lineage
 
@@ -34,10 +40,15 @@ graph TD
   P3["Phase 3 ×7 turns<br/>12-axis NAS<br/>independently rediscovers Llama recipe"]
   P4["Phase 4 ×11 turns<br/>tool-use + agentic loop<br/>+ EWC + LoRA + axum HTTP"]
   P1E["Phase 1 epilogue<br/>real KoWiki 50M<br/>+ tokenizer A/B<br/>+ distillation eval"]
-  P1 --> P2 --> P25 --> P3 --> P4 --> P1E
+  P5_16["Phase 5–16<br/>multi-actor / DPO / OPD / Muon retractions<br/>(8 retractions, 0 wins until P17)"]
+  P17_20["Phase 17–20<br/>first robust positives<br/>multi-round SFT + pass@k<br/>r=6 saturation curve / cross-substrate / 4-tier recipe"]
+  P21["Phase 21 ×10 stages<br/>Pekko bridge<br/>Candle Qwen2 inference+training<br/>supervisor drives full P17-20 recipe + RL"]
+  P1 --> P2 --> P25 --> P3 --> P4 --> P1E --> P5_16 --> P17_20 --> P21
   classDef done fill:#cfc,stroke:#080
-  class P1,P2,P25,P3,P4,P1E done
+  class P1,P2,P25,P3,P4,P1E,P5_16,P17_20,P21 done
 ```
+
+> Phase 21 sub-stages (Pekko bridge) live in `docs/phase21-overview.md`.
 
 ## Data flow (Korean training pipeline)
 
@@ -99,7 +110,7 @@ graph TB
 | 3 ×7  | 12-axis NAS that **rediscovers Llama recipe** | 32 | RoPE+GQA+MoE+SwiGLU+RmsNorm-Pre+untied head, fitness 0.49 |
 | 4 ×11 | tool-use head, agentic loop, distillation, EWC, real Fisher, full LoRA | 60+ | Self-evolving agent infrastructure complete |
 
-**136 unit tests, 20 worked examples, 11 phases + Phase 5/6/7/8/9/10/11/12/13/14 sessions. See the run-order list below.**
+**145 unit tests, 30 worked examples, 11 infrastructure phases + 16 measurement sessions (5–20) + 10 Phase-21 Pekko-bridge stages. See the run-order list below.**
 
 ## What it does
 
