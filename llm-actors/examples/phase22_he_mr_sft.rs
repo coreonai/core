@@ -1,0 +1,320 @@
+//! Phase 22 Stage D — Multi-round SFT on HumanEval through Pekko.
+//!
+//! Phase 17 S1 measured r=1 → r=2 lift of +0.174 on HumanEval (mean
+//! 0.230 → 0.404) using a Python pipeline. Phase 18-20 extended to
+//! r=3..6 (0.475, 0.519, 0.556, 0.581). Stage D reproduces this
+//! mechanism end-to-end through `supervisor::run_multi_round` against
+//! `QwenTrainerActorHandle` and `HumanEvalDomain`.
+//!
+//! Architecture (every step a Pekko actor message):
+//!   - Generator   = `GeneratorActor::<QwenModelActor>`
+//!   - Verifier    = `VerifierActor` (HumanEvalDomain — python3 subprocess)
+//!   - Curator     = `CuratorActor` (keeps correct trajectories)
+//!   - Trainer     = `QwenTrainerActor` via `QwenTrainerActorHandle`
+//!     (rendered corpus → Train → SaveMergedCheckpoint)
+//!   - Reload      = `ModelMessage::ReloadCheckpoint` on `QwenModelActor`
+//!   - Evaluator   = `EvaluatorActor::<QwenModelActor>` (pass@k random)
+//!
+//! Note: the per-round eval here is `EvalRandom` (sampling with
+//! replacement) — that's what `supervisor::run_round` invokes today.
+//! The Phase 17 S6 / Stage B aggregate measurement is a separate
+//! benchmark anchor; this binary is the **mechanism reproduction**.
+//! Once the saturation curve compounds round-over-round we know the
+//! Pekko-side recipe works; numeric calibration to Phase 17 r=2 = 0.404
+//! is then a wallclock question (full 164 × passk=10 × multi-round).
+//!
+//! Smoke recipe (r=2, gen 16, eval 32, train 30 steps/round, ~12 min):
+//!   cargo run -p llm-actors --example phase22_he_mr_sft \
+//!       --features cuda --release -- --rounds 2
+//!
+//! Larger smoke (r=3, gen 32, eval 64, train 50 steps/round, ~30 min):
+//!   cargo run -p llm-actors --example phase22_he_mr_sft \
+//!       --features cuda --release -- --rounds 3 \
+//!       --gen-n 32 --eval-n 64 --train-steps 50
+
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use anyhow::{anyhow, Context, Result};
+use candle_core::{DType, Device};
+use clap::Parser;
+use llm_actors::{
+    curator_actor::SampleMode,
+    domain::{human_eval::HumanEvalDomain, Domain},
+    qwen2_lora::LoraConfig,
+    run_multi_round,
+    supervisor::MultiRoundConfig,
+    CuratorActor, EvaluatorActor, GeneratorActor, QwenModelActor, QwenTrainerActor,
+    QwenTrainerActorHandle, RoundActors, RoundConfig, TrainerHandle, VerifierActor,
+};
+use nanogpt_rs::{
+    generate::GenerateConfig,
+    train::{OptimizerKind, TrainConfig},
+    Tokenizer as NgptTokenizer,
+};
+use pekko_actor::ActorSystem;
+
+#[derive(Parser, Debug)]
+struct Args {
+    /// Number of MR rounds. Phase 17 saturation curve covers 1..6.
+    #[arg(long, default_value_t = 2)]
+    rounds: usize,
+    /// Generation count per round (problems sampled with replacement).
+    /// Phase 17 used the full 164; smoke uses 16 by default.
+    #[arg(long, default_value_t = 16)]
+    gen_n: usize,
+    /// Eval count per round. Phase 17 evaluated all 164 at temp=0.8/k=10;
+    /// supervisor's per-round eval is random-with-replacement (Stage B
+    /// aggregate is a separate benchmark step). Smoke uses 32 with k=3.
+    #[arg(long, default_value_t = 32)]
+    eval_n: usize,
+    /// passk for the per-round eval inside `run_multi_round`.
+    #[arg(long, default_value_t = 3)]
+    eval_passk: usize,
+    /// AdamW steps per round inside `QwenTrainerActorHandle`. Phase 17
+    /// used ~100 steps/round for the full 164-problem set; smoke
+    /// uses 30 against gen_n=16.
+    #[arg(long, default_value_t = 30)]
+    train_steps: usize,
+    /// max tokens per generation. Phase 17 used 200.
+    #[arg(long, default_value_t = 200)]
+    max_new_tokens: usize,
+    /// HumanEval JSONL path.
+    #[arg(long)]
+    jsonl: Option<PathBuf>,
+    /// Generation sampling temperature. Phase 17 used 0.8 throughout.
+    #[arg(long, default_value_t = 0.8)]
+    temperature: f64,
+    /// LoRA rank (Phase 14-20 recipe = 16).
+    #[arg(long, default_value_t = 16)]
+    lora_rank: usize,
+    /// LoRA alpha (Phase 14-20 recipe = 32, so scale = α/r = 2.0).
+    #[arg(long, default_value_t = 32.0)]
+    lora_alpha: f32,
+    /// AdamW learning rate. Phase 14-20 recipe = 2e-4.
+    #[arg(long, default_value_t = 2e-4)]
+    lr: f64,
+    /// Output dir for per-round merged checkpoints.
+    #[arg(long, default_value = "checkpoints/phase22_he_mr_sft")]
+    out_dir: PathBuf,
+}
+
+fn pick_device() -> Device {
+    #[cfg(feature = "cuda")]
+    {
+        if let Ok(d) = Device::new_cuda(0) {
+            return d;
+        }
+    }
+    Device::Cpu
+}
+
+fn resolve_default_snapshot() -> Result<PathBuf> {
+    let home = std::env::var("HOME").context("HOME unset")?;
+    let snapshots_dir = PathBuf::from(format!(
+        "{home}/.cache/huggingface/hub/models--Qwen--Qwen2.5-Coder-0.5B/snapshots"
+    ));
+    let entries = std::fs::read_dir(&snapshots_dir)
+        .with_context(|| format!("read_dir {snapshots_dir:?}"))?
+        .collect::<Result<Vec<_>, _>>()?;
+    entries
+        .into_iter()
+        .map(|e| e.path())
+        .find(|p| p.is_dir() && p.join("config.json").exists())
+        .ok_or_else(|| anyhow!("no snapshot under {snapshots_dir:?} has a config.json"))
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
+
+    let args = Args::parse();
+    let device = pick_device();
+    let on_cuda = device.is_cuda();
+    println!(
+        "[Phase22D] device = {device:?}, on_cuda = {on_cuda}, rounds = {}",
+        args.rounds
+    );
+    std::fs::create_dir_all(&args.out_dir)?;
+
+    let snapshot = resolve_default_snapshot()?;
+    let base_safetensors = snapshot.join("model.safetensors");
+    println!("[Phase22D] snapshot = {}", snapshot.display());
+
+    // Inference in F16 (Phase 21 D pattern); training in F32 for stable
+    // LoRA gradient accumulation. SaveMergedCheckpoint casts down to
+    // base dtype on disk so ReloadCheckpoint stays F16.
+    let inference_dtype = if on_cuda { DType::F16 } else { DType::F32 };
+    let train_dtype = DType::F32;
+    let lora_cfg = LoraConfig {
+        rank: args.lora_rank,
+        alpha: args.lora_alpha,
+    };
+
+    let tk = Arc::new(NgptTokenizer::from_hf_file(
+        snapshot.join("tokenizer.json"),
+    )?);
+
+    let jsonl = args
+        .jsonl
+        .unwrap_or_else(|| PathBuf::from("data/humaneval/HumanEval.jsonl"));
+    let scratch = std::env::temp_dir().join("workllm-phase22d-humaneval");
+    let humaneval = HumanEvalDomain::from_jsonl(&jsonl, &scratch)
+        .with_context(|| format!("loading HumanEval from {}", jsonl.display()))?;
+    println!(
+        "[Phase22D] HumanEvalDomain loaded {} problems",
+        humaneval.n_problems()
+    );
+    let domain: Arc<dyn Domain> = Arc::new(humaneval);
+
+    // ===== Actors =====
+    let qwen_model = QwenModelActor::from_snapshot_dir(&snapshot, device.clone(), inference_dtype)?;
+    let qwen_trainer = QwenTrainerActor::from_snapshot_dir(
+        &snapshot,
+        device.clone(),
+        train_dtype,
+        lora_cfg,
+        args.lr,
+    )?;
+
+    let system = ActorSystem::new("phase22-d");
+    let model_ref = system.spawn(qwen_model, "qwen-model").await?;
+    let trainer_ref = system.spawn(qwen_trainer, "qwen-trainer").await?;
+
+    let generator = GeneratorActor::<QwenModelActor>::new(
+        model_ref.clone(),
+        tk.clone(),
+        domain.clone(),
+        None,
+        "qwen".to_string(),
+    );
+    let generator_ref = system.spawn(generator, "generator").await?;
+    let verifier_ref = system
+        .spawn(VerifierActor::new(domain.clone()), "verifier")
+        .await?;
+    let curator_ref = system.spawn(CuratorActor::new(1024), "curator").await?;
+    let evaluator =
+        EvaluatorActor::<QwenModelActor>::new(model_ref.clone(), tk.clone(), domain.clone(), None);
+    let evaluator_ref = system.spawn(evaluator, "evaluator").await?;
+
+    let trainer_handle = Arc::new(QwenTrainerActorHandle::new(
+        trainer_ref,
+        args.train_steps,
+        base_safetensors.clone(),
+    )) as Arc<dyn TrainerHandle>;
+
+    let actors = RoundActors::<QwenModelActor> {
+        model: model_ref,
+        generator: generator_ref,
+        verifier: verifier_ref,
+        curator: curator_ref,
+        trainer: trainer_handle,
+        evaluator: evaluator_ref,
+    };
+    println!("[Phase22D] 6 actors spawned + RoundActors built\n");
+
+    // train_cfg is required by RoundConfig but ignored by
+    // QwenTrainerActorHandle. We populate it with a sensible-looking
+    // smoke config so downstream logging is honest.
+    let mut train_cfg = TrainConfig::smoke();
+    train_cfg.max_steps = args.train_steps;
+    train_cfg.optimizer = OptimizerKind::Adam;
+
+    let base = RoundConfig {
+        round: 0,
+        gen_n: args.gen_n,
+        gen_seed: 42,
+        gen_sampling: GenerateConfig {
+            max_new_tokens: args.max_new_tokens,
+            temperature: args.temperature,
+            top_k: Some(40),
+            top_p: Some(0.95),
+            seed: Some(42),
+        },
+        eval_n: args.eval_n,
+        eval_seed: 7,
+        eval_sampling: GenerateConfig {
+            max_new_tokens: args.max_new_tokens,
+            // Per-round eval at temp=0.8 + passk>1 mirrors Phase 17 S6
+            // / Stage B's recipe for "pass@1 (raw)" measurement (which
+            // is the correct apples-to-apples Phase 17 metric).
+            temperature: 0.8,
+            top_k: Some(40),
+            top_p: Some(0.95),
+            seed: Some(7),
+        },
+        train_cfg,
+        init_from: None,
+        save_path: args.out_dir.join("r0_merged.safetensors"),
+        min_corpus_chars: 32,
+        sample_mode: SampleMode::Uniform,
+        corpus_seed: Some(0),
+        anchor: None,
+        freeze_base: false,
+        gen_oversample: 1,
+        dpo_beta: None,
+        dpo_reference_path: None,
+        dpo_max_pairs_per_prompt: 0,
+        dpo_sft_anchor_weight: 0.0,
+        eval_passk: args.eval_passk,
+    };
+
+    // `run_multi_round` auto-chains init_from and bumps seeds per round.
+    // We also rewrite save_path per round so each checkpoint is kept.
+    let out_dir = args.out_dir.clone();
+    let reports = run_multi_round(
+        &actors,
+        MultiRoundConfig::new(args.rounds, base),
+        |r, rep| {
+            let pass_before = rep
+                .eval_correct_before
+                .map(|c| c as f32 / rep.eval_total.max(1) as f32)
+                .unwrap_or(0.0);
+            let pass_after = rep
+                .eval_correct_after
+                .map(|c| c as f32 / rep.eval_total.max(1) as f32)
+                .unwrap_or(0.0);
+            println!(
+                "[Phase22D] round {r}  gen={}/{}  pass@{}={:.3}→{:.3}  Δ={:+.3}  elapsed_ms={}",
+                rep.correct,
+                rep.generated,
+                args.eval_passk,
+                pass_before,
+                pass_after,
+                pass_after - pass_before,
+                rep.elapsed_ms,
+            );
+            let _ = std::fs::copy(
+                out_dir.join("r0_merged.safetensors"),
+                out_dir.join(format!("r{r}_merged.safetensors")),
+            );
+        },
+    )
+    .await?;
+
+    assert_eq!(reports.len(), args.rounds, "round-count mismatch");
+
+    // Final summary: Phase 17 r=2 reference for context.
+    println!("\n[Phase22D] === multi-round summary ===");
+    for (i, rep) in reports.iter().enumerate() {
+        let pa = rep
+            .eval_correct_after
+            .map(|c| c as f32 / rep.eval_total.max(1) as f32)
+            .unwrap_or(0.0);
+        println!(
+            "  round {i}  eval_after pass@{} = {:.3}",
+            args.eval_passk, pa
+        );
+    }
+    println!("\n[Phase22D] Phase 17 reference (full 164 × passk=10, mean over 5 seeds):");
+    println!(
+        "           r=1 = 0.230, r=2 = 0.404, r=3 = 0.475, r=4 = 0.519, r=5 = 0.556, r=6 = 0.581"
+    );
+    println!("           This binary's mechanism reproduces the Pekko-side wiring;");
+    println!("           numerical match to those numbers requires gen_n=164, eval_n=164,");
+    println!("           passk=10, train_steps=~100 — wallclock ~30 GPU-min per round.");
+    println!("\nphase22_he_mr_sft: PASS");
+    Ok(())
+}
