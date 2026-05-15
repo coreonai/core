@@ -25,6 +25,7 @@ pub mod supervisor;
 pub mod tool_executor_actor;
 pub mod tools;
 pub mod trainer_actor;
+pub mod trainer_handle;
 pub mod types;
 pub mod verifier_actor;
 
@@ -47,5 +48,6 @@ pub use qwen_trainer_actor::{
 };
 pub use supervisor::{run_multi_round, run_round, MultiRoundConfig, RoundActors, RoundConfig};
 pub use trainer_actor::{TrainerActor, TrainerMessage};
+pub use trainer_handle::{QwenTrainerActorHandle, TrainRequest, TrainerActorHandle, TrainerHandle};
 pub use types::{RoundReport, Trajectory, Verdict, VerifiedTrajectory};
 pub use verifier_actor::{VerifierActor, VerifierMessage};

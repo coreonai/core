@@ -27,7 +27,8 @@ use llm_actors::{
     run_multi_round,
     supervisor::MultiRoundConfig,
     CuratorActor, CuratorMessage, EvaluatorActor, GeneratorActor, ModelActor, RoundActors,
-    RoundConfig, TrainerActor, Trajectory, Verdict, VerifiedTrajectory, VerifierActor,
+    RoundConfig, TrainerActor, TrainerActorHandle, Trajectory, Verdict, VerifiedTrajectory,
+    VerifierActor,
 };
 use nanogpt_rs::{
     config::GPTConfig,
@@ -157,7 +158,7 @@ async fn main() -> anyhow::Result<()> {
         generator: generator_ref,
         verifier: verifier_ref,
         curator: curator_ref,
-        trainer: trainer_ref,
+        trainer: Arc::new(TrainerActorHandle::new(trainer_ref)),
         evaluator: evaluator_ref,
     };
 

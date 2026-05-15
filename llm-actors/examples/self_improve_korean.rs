@@ -55,7 +55,8 @@ use llm_actors::{
     curator_actor::SampleMode,
     domain::{korean_completion::KoreanCompletionDomain, Domain},
     run_round, CuratorActor, CuratorMessage, EvaluatorActor, GeneratorActor, ModelActor,
-    RoundActors, RoundConfig, TrainerActor, Trajectory, Verdict, VerifiedTrajectory, VerifierActor,
+    RoundActors, RoundConfig, TrainerActor, TrainerActorHandle, Trajectory, Verdict,
+    VerifiedTrajectory, VerifierActor,
 };
 use nanogpt_rs::{
     config::GPTConfig, generate::GenerateConfig, tokenizer::Tokenizer, train::TrainConfig,
@@ -282,7 +283,7 @@ async fn main() -> anyhow::Result<()> {
         generator: generator_ref,
         verifier: verifier_ref,
         curator: curator_ref.clone(),
-        trainer: trainer_ref,
+        trainer: Arc::new(TrainerActorHandle::new(trainer_ref)),
         evaluator: evaluator_ref,
     };
 

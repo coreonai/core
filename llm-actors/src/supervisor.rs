@@ -18,7 +18,7 @@ use crate::curator_actor::{CuratorActor, CuratorMessage, SampleMode};
 use crate::evaluator_actor::{EvalReport, EvaluatorActor, EvaluatorMessage};
 use crate::generator_actor::{GeneratorActor, GeneratorMessage};
 use crate::model_actor::{ModelActor, ModelMessage};
-use crate::trainer_actor::{TrainerActor, TrainerMessage};
+use crate::trainer_handle::{TrainRequest, TrainerHandle};
 use crate::types::RoundReport;
 use crate::verifier_actor::{VerifierActor, VerifierMessage};
 
@@ -34,7 +34,13 @@ where
     pub generator: ActorRef<GeneratorActor<M>>,
     pub verifier: ActorRef<VerifierActor>,
     pub curator: ActorRef<CuratorActor>,
-    pub trainer: ActorRef<TrainerActor>,
+    /// Phase 21 Stage H — trainer is now polymorphic via the
+    /// `TrainerHandle` trait. Wrap an `ActorRef<TrainerActor>` in
+    /// `TrainerActorHandle` for the historical nanogpt_rs path, or
+    /// an `ActorRef<QwenTrainerActor>` in `QwenTrainerActorHandle`
+    /// for the Candle-native Qwen2 LoRA path. The trait abstracts
+    /// `Train` / `TrainDpo` dispatch and adapter merging.
+    pub trainer: Arc<dyn TrainerHandle>,
     pub evaluator: ActorRef<EvaluatorActor<M>>,
 }
 
@@ -177,8 +183,10 @@ where
     let _add_report = rx.await?;
 
     // 5. Train. Phase 11 S2 fork: DPO if `dpo_beta` set, otherwise the
-    // existing SFT path (RenderCorpus + train_from).
-    let outcome = if let Some(beta) = cfg.dpo_beta {
+    // existing SFT path (RenderCorpus + trainer). Phase 21 Stage H:
+    // dispatch via `TrainerHandle` so both nanogpt_rs and Qwen2 LoRA
+    // trainers can drive this loop.
+    let train_req = if let Some(beta) = cfg.dpo_beta {
         let reference_path = cfg
             .dpo_reference_path
             .clone()
@@ -215,21 +223,15 @@ where
             beta,
             "phase: train (DPO)"
         );
-        let (tx, rx) = oneshot::channel();
-        actors
-            .trainer
-            .tell(TrainerMessage::TrainDpo {
-                pairs,
-                save_path: cfg.save_path.clone(),
-                init_from,
-                reference_path,
-                train_cfg: cfg.train_cfg.clone(),
-                beta,
-                sft_anchor_weight: cfg.dpo_sft_anchor_weight,
-                reply: tx,
-            })
-            .map_err(|e| anyhow::anyhow!("{e:?}"))?;
-        rx.await??
+        TrainRequest::Dpo {
+            pairs,
+            save_path: cfg.save_path.clone(),
+            init_from,
+            reference_path,
+            train_cfg: cfg.train_cfg.clone(),
+            beta,
+            sft_anchor_weight: cfg.dpo_sft_anchor_weight,
+        }
     } else {
         let (tx, rx) = oneshot::channel();
         actors
@@ -257,21 +259,16 @@ where
             return Ok(report);
         }
         info!(round = cfg.round, "phase: train (SFT)");
-        let (tx, rx) = oneshot::channel();
-        actors
-            .trainer
-            .tell(TrainerMessage::Train {
-                corpus,
-                save_path: cfg.save_path.clone(),
-                init_from: cfg.init_from.clone(),
-                train_cfg: cfg.train_cfg.clone(),
-                anchor: cfg.anchor.clone(),
-                freeze_base: cfg.freeze_base,
-                reply: tx,
-            })
-            .map_err(|e| anyhow::anyhow!("{e:?}"))?;
-        rx.await??
+        TrainRequest::Sft {
+            corpus,
+            save_path: cfg.save_path.clone(),
+            init_from: cfg.init_from.clone(),
+            train_cfg: cfg.train_cfg.clone(),
+            anchor: cfg.anchor.clone(),
+            freeze_base: cfg.freeze_base,
+        }
     };
+    let outcome = actors.trainer.train(train_req).await?;
     report.training_steps = outcome.final_step;
     report.last_train_loss = Some(outcome.last_train_loss);
 
