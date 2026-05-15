@@ -16,7 +16,15 @@
 //! - `LossOn` — Qwen2's `ModelForCausalLM::forward` returns only the
 //!   last-position logits; computing CE over all positions would
 //!   require duplicating the lm_head application path (deferred).
-//! - `ScoreLogProb` — same reason; needs all-position logits.
+//!
+//! ## Implemented (Phase 22 follow-up)
+//! - `ScoreLogProb` — uses the same KV-cache + last-position forward
+//!   trick as `generate_autoregressive`: feed prompt → last logits =
+//!   P(next | prompt) → look up `completion[0]` log-prob → feed
+//!   `completion[0]` → last logits = P(next | prompt + comp[..=0]) →
+//!   ... etc. Returns the **mean** log-prob per completion token
+//!   matching `ModelActor`'s semantics. Unlocks Phase 6 Shape C
+//!   best-of-K filter (`--gen-oversample > 1`) on QwenModelActor.
 //!
 //! ## NOT covered by this actor
 //! - Training (LoRA / SFT). The Trainer actor's path is heavily tied
@@ -144,15 +152,12 @@ impl Actor for QwenModelActor {
                     log_send(reply, r, "qwen_loss_on");
                 }
                 ModelMessage::ScoreLogProb {
-                    prompt_ids: _,
-                    completion_ids: _,
+                    prompt_ids,
+                    completion_ids,
                     reply,
                 } => {
-                    let r: anyhow::Result<f32> = Err(anyhow::anyhow!(
-                        "QwenModelActor::ScoreLogProb not implemented \
-                         (requires multi-position logits forward)"
-                    ));
-                    log_send(reply, r, "qwen_score_log_prob");
+                    let result = self.handle_score_log_prob(&prompt_ids, &completion_ids);
+                    log_send(reply, result, "qwen_score_log_prob");
                 }
             }
         })
@@ -205,6 +210,60 @@ impl QwenModelActor {
         self.model_path = path.to_path_buf();
         info!(?path, "QwenModelActor checkpoint reloaded");
         Ok(())
+    }
+
+    /// Compute the model's mean log-probability per completion token.
+    /// Matches `ModelActor::ScoreLogProb` semantics (length-normalized,
+    /// returns `mean` not `sum`) so callers like `GeneratorActor`'s
+    /// oversample-and-rerank path work identically regardless of the
+    /// underlying model.
+    ///
+    /// Algorithm: forward the prompt, take its last-position logits
+    /// (= distribution over `completion[0]`), look up the log-prob of
+    /// `completion[0]`, then advance one token at a time, each forward
+    /// emitting the distribution over the next completion token.
+    /// Total: `completion.len()` forward steps using the existing
+    /// KV-cache pattern from `generate_autoregressive`.
+    fn handle_score_log_prob(
+        &mut self,
+        prompt_ids: &[u32],
+        completion_ids: &[u32],
+    ) -> anyhow::Result<f32> {
+        if completion_ids.is_empty() {
+            return Ok(0.0);
+        }
+        if prompt_ids.is_empty() {
+            anyhow::bail!("ScoreLogProb requires a non-empty prompt");
+        }
+        self.model.clear_kv_cache();
+        // Prime with the full prompt → last-position logits is the
+        // distribution over `completion[0]`.
+        let mut logits = self.forward_chunk(prompt_ids, 0)?;
+        let mut seqlen_offset = prompt_ids.len();
+        let vocab = logits.dims1()?;
+        let mut total_log_prob = 0.0f64;
+        for (i, &target) in completion_ids.iter().enumerate() {
+            if (target as usize) >= vocab {
+                anyhow::bail!("completion token id {target} out of vocab range (vocab={vocab})");
+            }
+            // log_softmax along the last dim. logits is (vocab,).
+            let log_probs = candle_nn::ops::log_softmax(&logits, 0)?;
+            let tgt_log_prob = log_probs.narrow(0, target as usize, 1)?.to_vec1::<f32>()?[0];
+            if !tgt_log_prob.is_finite() {
+                anyhow::bail!(
+                    "non-finite log-prob {tgt_log_prob} at completion index {i} token {target}"
+                );
+            }
+            total_log_prob += tgt_log_prob as f64;
+            // Advance KV cache by one token unless this was the last one
+            // (no need to forward past it; we already scored it).
+            if i + 1 < completion_ids.len() {
+                logits = self.forward_chunk(&[target], seqlen_offset)?;
+                seqlen_offset += 1;
+            }
+        }
+        let mean = (total_log_prob / completion_ids.len() as f64) as f32;
+        Ok(mean)
     }
 
     fn generate_autoregressive(
