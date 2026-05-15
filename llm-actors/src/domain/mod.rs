@@ -9,6 +9,7 @@ use rand::rngs::StdRng;
 use crate::types::Verdict;
 
 pub mod arithmetic;
+pub mod human_eval;
 pub mod korean_completion;
 pub mod python_code;
 pub mod rust_code;
