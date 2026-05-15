@@ -142,10 +142,13 @@ saturation run is ~165 GPU-h; a 5-seed MBPP r=5 run is ~30 GPU-h.
   (`unwrap_or(0.0)` conflated "skipped" with "measured zero"); the
   supervisor's `skip training: empty corpus` early-return cleanly
   no-ops save/reload/eval-after and leaves the model unchanged.
-  The real prep work is sparse-corpus robustness: with p≈0.10
-  per-attempt, P(empty 0/16 corpus) ≈ 0.185, so a long sweep needs
-  gen-n ≥ 32 with `gen_oversample ≥ 2` to keep `E[correct] ≥ 6`
-  per round.
+  The real prep work is sparse-corpus robustness: at p≈0.10
+  per-attempt, P(empty 0/16 corpus) ≈ 0.185. Stage D's
+  `phase22_he_mr_sft --gen-n` default is now 32 (P(skip)≈3% per
+  round); for a clean 6-round saturation sweep use `--gen-n 64` or
+  `--gen-n 164`. `--gen-oversample` is a separate quality lever
+  (best-of-K by `ScoreLogProb`), not a quantity multiplier — see
+  Stage D doc for the distinction.
 - **Aggregate eval inside supervisor.** Per-round eval uses
   `EvalRandom`; benchmark-aligned aggregate is a separate
   `phase22_humaneval_baseline` invocation on the saved

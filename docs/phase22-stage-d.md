@@ -158,17 +158,38 @@ separate effort (full 164 × passk=10 × multi-seed, ~30 GPU-min/round).
 ### Sparse-corpus implication for full saturation curve
 
 A naive r=1..6 sweep at small gen-n on HumanEval will hit the
-empty-corpus skip frequently: with p≈0.10 per-attempt, P(0/16) ≈
-0.185 and P(0/32) ≈ 0.034. For a 6-round sweep the cumulative
-"any-round-was-skipped" probability is non-trivial. Mitigations
-(separate scope):
-1. **gen-n ≥ 32 + gen_oversample ≥ 2** to keep `E[correct] ≥ 6` even
-   at p≈0.10.
-2. **Per-round `min_corpus_chars` floor → repeat-fill** (the
-   supervisor already has this for non-empty-but-tiny corpora; the
-   gap is the strict zero case).
-3. **Pre-filter prompts** to ones the base has ≥1 pass on (Phase 9 S5
-   cold-start observation; trade-off with selection bias).
+empty-corpus skip frequently: with p≈0.10 per-attempt:
+
+| gen-n | P(0/N corpus) | P(any of 6 rounds empty) |
+|---|---|---|
+| 16  | (0.9)^16 ≈ 0.185 | ≈ 0.71 |
+| 32  | (0.9)^32 ≈ 0.034 | ≈ 0.19 |
+| 64  | (0.9)^64 ≈ 0.001 | ≈ 0.007 |
+| 164 | (0.9)^164 ≈ 3e-8 | ≈ 2e-7 |
+
+**This commit's CLI default bumps `--gen-n` from 16 to 32**, keeping
+P(skipped) ≈ 3% per round (≈19% over 6 rounds). For a clean full
+saturation run, use `--gen-n 64` (≈0.7% over 6 rounds) or `--gen-n
+164` (the Phase 17 standard, effectively never skipped).
+
+**`--gen-oversample` is a separate lever, not a sparse-corpus fix.**
+It's the Phase 6 Shape C best-of-K filter: for each of `gen_n`
+sampled prompts, generate K candidates and keep only the
+highest-`ModelMessage::ScoreLogProb` one. Output trajectory count
+stays `gen_n` — quality filter, not quantity multiplier. Helps
+modestly because Qwen2.5-Coder-0.5B's log-prob has sum-AUC ≈
+0.55–0.70 against verifier verdicts (Phase 7/9 calibration), so
+best-of-K nudges per-trajectory pass-rate up by a few percentage
+points. Default `1` (off). Use it when you want a quality bump on
+top of a sufficient gen-n, not as a substitute for sufficient gen-n.
+
+Other mitigations (deferred):
+- **Per-round `min_corpus_chars` floor → repeat-fill** — the
+  supervisor already has this for non-empty-but-tiny corpora; the
+  gap is the strict zero case.
+- **Pre-filter prompts** to ones the base model has ≥1 pass on
+  (Phase 9 S5 cold-start observation). Trade-off with selection
+  bias — the filtered set isn't representative of the full benchmark.
 
 ## Acceptance — all pass
 

@@ -23,14 +23,18 @@
 //! Pekko-side recipe works; numeric calibration to Phase 17 r=2 = 0.404
 //! is then a wallclock question (full 164 × passk=10 × multi-round).
 //!
-//! Smoke recipe (r=2, gen 16, eval 32, train 30 steps/round, ~12 min):
+//! Smoke recipe (r=2, gen 32, eval 32, train 30 steps/round, ~20 min):
 //!   cargo run -p llm-actors --example phase22_he_mr_sft \
 //!       --features cuda --release -- --rounds 2
 //!
-//! Larger smoke (r=3, gen 32, eval 64, train 50 steps/round, ~30 min):
+//! Larger smoke (r=3, gen 64, eval 64, train 50 steps/round, ~50 min):
 //!   cargo run -p llm-actors --example phase22_he_mr_sft \
 //!       --features cuda --release -- --rounds 3 \
-//!       --gen-n 32 --eval-n 64 --train-steps 50
+//!       --gen-n 64 --eval-n 64 --train-steps 50
+//!
+//! Best-of-2 quality filter (modest pass-rate lift via model log-prob):
+//!   cargo run -p llm-actors --example phase22_he_mr_sft \
+//!       --features cuda --release -- --gen-oversample 2
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -60,9 +64,22 @@ struct Args {
     #[arg(long, default_value_t = 2)]
     rounds: usize,
     /// Generation count per round (problems sampled with replacement).
-    /// Phase 17 used the full 164; smoke uses 16 by default.
-    #[arg(long, default_value_t = 16)]
+    /// Phase 17 used the full 164; Stage D default is 32 — large enough
+    /// to keep P(empty 0/N corpus | p≈0.10) ≈ 0.034, so the supervisor's
+    /// empty-corpus skip path is hit < 5% of rounds. Bump to 64+ for
+    /// long sweeps where any skipped round breaks the saturation chain.
+    #[arg(long, default_value_t = 32)]
     gen_n: usize,
+    /// Best-of-k filter on the generation step (Phase 6 Shape C).
+    /// `oversample = K` → for each of `gen_n` sampled prompts, generate
+    /// K candidates with different per-(prompt, k) seeds, score each
+    /// via `ModelMessage::ScoreLogProb`, keep the highest-confidence
+    /// trajectory. Output count is still `gen_n` — this is a quality
+    /// filter, NOT a quantity multiplier. Helps modestly when the
+    /// model's log-prob is calibrated to the verifier (Phase 7 found
+    /// sum-AUC ~0.55-0.65 for Qwen). Default 1 = off.
+    #[arg(long, default_value_t = 1)]
+    gen_oversample: usize,
     /// Eval count per round. Phase 17 evaluated all 164 at temp=0.8/k=10;
     /// supervisor's per-round eval is random-with-replacement (Stage B
     /// aggregate is a separate benchmark step). Smoke uses 32 with k=3.
@@ -253,7 +270,7 @@ async fn main() -> Result<()> {
         corpus_seed: Some(0),
         anchor: None,
         freeze_base: false,
-        gen_oversample: 1,
+        gen_oversample: args.gen_oversample.max(1),
         dpo_beta: None,
         dpo_reference_path: None,
         dpo_max_pairs_per_prompt: 0,
