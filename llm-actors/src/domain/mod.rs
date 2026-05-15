@@ -34,4 +34,25 @@ pub trait Domain: Send + Sync {
     /// Charset that must be present in any tokenizer used with this domain
     /// (for char-level tokenizers). Used to seed CharTokenizer.
     fn charset(&self) -> &str;
+
+    /// Phase 22 Stage B — number of distinct prompts the domain
+    /// offers when iterated sequentially. Returns `None` for
+    /// infinite-prompt domains (e.g., `ArithmeticDomain` generates
+    /// arbitrarily many `(a, b)` pairs at random). Returns `Some(n)`
+    /// for fixed-set domains like `HumanEvalDomain` (n=164).
+    ///
+    /// When `Some(n)`, `nth_prompt(i)` is expected to return prompts
+    /// for `i ∈ 0..n` deterministically. `EvaluatorActor::EvalSequential`
+    /// uses this to do a no-replacement sweep instead of
+    /// `sample_prompt`'s with-replacement sampling.
+    fn n_prompts(&self) -> Option<usize> {
+        None
+    }
+
+    /// Phase 22 Stage B — deterministic indexed accessor. Returns
+    /// `None` when the index is out of range or the domain is infinite.
+    /// Domains that override `n_prompts` should also override this.
+    fn nth_prompt(&self, _i: usize) -> Option<String> {
+        None
+    }
 }

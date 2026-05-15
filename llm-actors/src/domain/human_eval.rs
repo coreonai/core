@@ -198,6 +198,17 @@ impl Domain for HumanEvalDomain {
         // Unused for the BPE tokenizer path that QwenModelActor uses.
         ""
     }
+
+    /// Stage B sequential-sweep support — exposes the fixed 164-problem
+    /// set as an indexed series so `EvaluatorActor::EvalSequential` can
+    /// iterate problems without replacement.
+    fn n_prompts(&self) -> Option<usize> {
+        Some(self.problems.len())
+    }
+
+    fn nth_prompt(&self, i: usize) -> Option<String> {
+        self.problems.get(i).map(|p| p.prompt.clone())
+    }
 }
 
 #[cfg(test)]

@@ -58,6 +58,20 @@ struct Args {
     /// Eval RNG seed (determines which problems are sampled).
     #[arg(long, default_value_t = 7)]
     seed: u64,
+    /// Phase 22 Stage B — when `true`, use `EvalSequential` (no
+    /// replacement) over `domain.nth_prompt(0..n)` instead of
+    /// `Eval`'s with-replacement RNG sampling. Required for
+    /// bit-exact Phase 17 baseline reproduction (Phase 17 evaluates
+    /// each of 164 problems exactly once).
+    #[arg(long, default_value_t = false)]
+    sequential: bool,
+    /// Phase 22 Stage B — aggregate mode for `--sequential`. When
+    /// `true`, exhaust all `passk` samples per prompt (no short-circuit)
+    /// and report aggregate pass-rate `total_passes / total_attempts`
+    /// alongside per-prompt pass@k. Matches Phase 17 S6's "pass@1 raw"
+    /// number (0.216 at temp=0.8, k=10).
+    #[arg(long, default_value_t = false)]
+    aggregate: bool,
 }
 
 fn pick_device() -> Device {
@@ -141,24 +155,33 @@ async fn main() -> Result<()> {
     };
 
     println!(
-        "[Phase22A] starting eval n={} passk={} temperature={} top_k={:?} top_p={:?}",
-        args.n_problems, args.passk, temperature, top_k, top_p
+        "[Phase22A] starting eval n={} passk={} temperature={} top_k={:?} top_p={:?} sequential={}",
+        args.n_problems, args.passk, temperature, top_k, top_p, args.sequential
     );
     let t0 = std::time::Instant::now();
     let (tx, rx) = oneshot::channel();
-    evaluator_ref
-        .tell(EvaluatorMessage::Eval {
+    let msg = if args.sequential {
+        EvaluatorMessage::EvalSequential {
+            n: args.n_problems,
+            sampling,
+            passk: args.passk,
+            aggregate: args.aggregate,
+            reply: tx,
+        }
+    } else {
+        EvaluatorMessage::Eval {
             n: args.n_problems,
             seed: args.seed,
             sampling,
             passk: args.passk,
             reply: tx,
-        })
-        .map_err(|e| anyhow!("{e:?}"))?;
+        }
+    };
+    evaluator_ref.tell(msg).map_err(|e| anyhow!("{e:?}"))?;
     let report = rx.await??;
     let elapsed = t0.elapsed();
     println!(
-        "\n[Phase22A] pass@{} = {:.4}  ({}/{})  elapsed={:.1}s  wallclock_per_problem={:.2}s",
+        "\n[Phase22A] per-prompt pass@{} = {:.4}  ({}/{})  elapsed={:.1}s  wallclock_per_problem={:.2}s",
         args.passk,
         report.pass_rate(),
         report.correct,
@@ -166,6 +189,15 @@ async fn main() -> Result<()> {
         elapsed.as_secs_f64(),
         elapsed.as_secs_f64() / args.n_problems.max(1) as f64,
     );
+    // Phase 17 S6-style "pass@1 raw" reporting when in aggregate mode.
+    if let (Some(att), Some(passes)) = (report.total_attempts, report.total_passes) {
+        let p1_raw = passes as f64 / att.max(1) as f64;
+        println!(
+            "[Phase22A] aggregate pass@1 (raw, all samples) = {:.4}  ({}/{})  \
+             — comparable to Phase 17 S6's 0.216 at temp=0.8/k=10",
+            p1_raw, passes, att
+        );
+    }
     // Sample dump
     for (i, s) in report.samples.iter().take(3).enumerate() {
         let first_line = s

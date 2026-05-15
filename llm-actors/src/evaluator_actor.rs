@@ -30,6 +30,26 @@ pub enum EvaluatorMessage {
         passk: usize,
         reply: oneshot::Sender<anyhow::Result<EvalReport>>,
     },
+    /// Phase 22 Stage B — sequential / no-replacement sweep. Iterates
+    /// `domain.nth_prompt(i)` for `i ∈ 0..n` (clamped to the domain's
+    /// `n_prompts()` when present). Each prompt is evaluated exactly
+    /// once; `passk` per prompt still applies.
+    ///
+    /// `aggregate=false` (default behavior): short-circuits on first
+    /// pass per prompt → reports per-prompt pass@k (`correct` = number
+    /// of prompts where ANY of `passk` samples passed).
+    ///
+    /// `aggregate=true`: exhausts all `passk` samples per prompt and
+    /// reports both per-prompt pass@k AND aggregate `total_passes /
+    /// total_attempts`. Matches Phase 17 S6's "pass@1 (raw) at
+    /// temperature 0.8" measurement.
+    EvalSequential {
+        n: usize,
+        sampling: GenerateConfig,
+        passk: usize,
+        aggregate: bool,
+        reply: oneshot::Sender<anyhow::Result<EvalReport>>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +60,17 @@ pub struct EvalReport {
     /// `passk` used for this eval (≥1). Echoed back from the message so
     /// callers can include it in logs and reports.
     pub passk: usize,
+    /// Phase 22 Stage B — populated only by `EvalSequential { aggregate:
+    /// true }`. Total individual completions sampled across all prompts
+    /// (= n_prompts * passk when k samples are exhausted per prompt
+    /// instead of short-circuiting on first pass).
+    pub total_attempts: Option<usize>,
+    /// Phase 22 Stage B — populated only by `EvalSequential { aggregate:
+    /// true }`. Sum of per-completion `Correct` verdicts across all
+    /// prompts × all `passk` samples. Together with `total_attempts`
+    /// gives the per-attempt pass rate = Phase 17 S6's "pass@1 (raw)
+    /// at temp=0.8".
+    pub total_passes: Option<usize>,
 }
 
 impl EvalReport {
@@ -110,6 +141,16 @@ where
                     reply,
                 } => {
                     let result = self.run(n, seed, sampling, passk).await;
+                    let _ = reply.send(result);
+                }
+                EvaluatorMessage::EvalSequential {
+                    n,
+                    sampling,
+                    passk,
+                    aggregate,
+                    reply,
+                } => {
+                    let result = self.run_sequential(n, sampling, passk, aggregate).await;
                     let _ = reply.send(result);
                 }
             }
@@ -206,6 +247,119 @@ where
             correct,
             samples,
             passk,
+            total_attempts: None,
+            total_passes: None,
+        })
+    }
+
+    /// Phase 22 Stage B — no-replacement sweep over the domain's
+    /// fixed prompt set. Uses `domain.nth_prompt(i)` for `i ∈ 0..n`
+    /// (clamped to the domain's `n_prompts()` when present). Pass@k
+    /// per prompt still applies; each k-th sample uses a deterministic
+    /// per-(prompt_idx, k) seed.
+    async fn run_sequential(
+        &self,
+        n: usize,
+        sampling: GenerateConfig,
+        passk: usize,
+        aggregate: bool,
+    ) -> anyhow::Result<EvalReport> {
+        let passk = passk.max(1);
+        let n_effective = match self.domain.n_prompts() {
+            Some(np) => n.min(np),
+            None => n,
+        };
+        let mut correct = 0usize;
+        let mut total = 0usize;
+        let mut total_passes = 0usize;
+        let mut total_attempts = 0usize;
+        let mut samples = Vec::with_capacity(self.keep_samples);
+        for prompt_idx in 0..n_effective {
+            let prompt = match self.domain.nth_prompt(prompt_idx) {
+                Some(p) => p,
+                None => continue,
+            };
+            let prompt_ids = self.tokenizer.encode(&prompt)?;
+            let mut any_pass = false;
+            let mut first_completion: Option<String> = None;
+
+            for k in 0..passk {
+                let mut cfg_k = sampling.clone();
+                let k_seed = (prompt_idx as u64)
+                    .wrapping_mul(passk as u64)
+                    .wrapping_add(k as u64);
+                cfg_k.seed = Some(k_seed);
+
+                let (tx, rx) = oneshot::channel();
+                self.model
+                    .tell(ModelMessage::GenerateTokens {
+                        prompt_ids: prompt_ids.clone(),
+                        cfg: cfg_k,
+                        reply: tx,
+                    })
+                    .map_err(|e| anyhow::anyhow!("send GenerateTokens: {e:?}"))?;
+                let tokens = timeout(self.per_request_timeout, rx).await???;
+                let comp_ids = if tokens.len() > prompt_ids.len() {
+                    &tokens[prompt_ids.len()..]
+                } else {
+                    &[][..]
+                };
+                let mut completion = self.tokenizer.decode(comp_ids)?;
+                if let Some(stop) = self.stop_char {
+                    if let Some(idx) = completion.find(stop) {
+                        completion.truncate(idx + stop.len_utf8());
+                    }
+                }
+                let v = self.domain.verify(&prompt, &completion);
+                total_attempts += 1;
+                if v.is_correct() {
+                    any_pass = true;
+                    total_passes += 1;
+                }
+                if first_completion.is_none() {
+                    first_completion = Some(completion);
+                }
+                // `aggregate=true`: keep sampling to count total_passes.
+                // `aggregate=false`: short-circuit on first pass.
+                if any_pass && !aggregate {
+                    break;
+                }
+            }
+
+            total += 1;
+            if any_pass {
+                correct += 1;
+            }
+            if samples.len() < self.keep_samples {
+                samples.push(Trajectory {
+                    prompt,
+                    completion: first_completion.unwrap_or_default(),
+                    source: "eval-seq".to_string(),
+                });
+            }
+        }
+        let (agg_attempts, agg_passes) = if aggregate {
+            (Some(total_attempts), Some(total_passes))
+        } else {
+            (None, None)
+        };
+        info!(
+            total,
+            correct,
+            passk,
+            aggregate,
+            total_attempts,
+            total_passes,
+            pass_rate = correct as f32 / total.max(1) as f32,
+            "EvaluatorActor EvalSequential done"
+        );
+        Ok(EvalReport {
+            total,
+            correct,
+            samples,
+            passk,
+            total_attempts: agg_attempts,
+            total_passes: agg_passes,
         })
     }
 }
