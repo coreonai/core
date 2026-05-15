@@ -114,6 +114,29 @@ struct Args {
     /// Output dir for per-round merged checkpoints.
     #[arg(long, default_value = "checkpoints/phase22_he_mr_sft")]
     out_dir: PathBuf,
+    /// Scratch dir for `HumanEvalDomain::verify` python3 invocations.
+    /// **Required to be unique per concurrent run** — `verify` writes
+    /// `solution.py` under this path and an in-process write_lock that
+    /// does NOT extend across processes. Two parallel
+    /// `phase22_he_mr_sft` runs sharing the same scratch dir will
+    /// clobber each other's solution.py.
+    #[arg(long)]
+    scratch_dir: Option<PathBuf>,
+    /// Optional comma-separated list of HumanEval task indices to
+    /// skip during generation and eval. Useful for the Phase 9 S5
+    /// cold-start mitigation: exclude prompts the base Qwen has 0/k
+    /// pass-rate on, so they don't dominate the empty-corpus skip
+    /// path. Selection bias warning — filtered subset isn't
+    /// representative of the full benchmark.
+    ///
+    /// NOTE: this flag is parsed but the supervisor's per-round eval
+    /// (`EvalRandom`) and the generator (`sample_prompt`) don't yet
+    /// consume it — wiring through the supervisor requires a
+    /// `RoundConfig` extension that's separate scope. For now it's
+    /// surfaced for forward-compat + as a hook for future filtering
+    /// at the `Domain` level.
+    #[arg(long, value_delimiter = ',')]
+    prompt_skip_list: Vec<usize>,
 }
 
 fn pick_device() -> Device {
@@ -177,7 +200,16 @@ async fn main() -> Result<()> {
     let jsonl = args
         .jsonl
         .unwrap_or_else(|| PathBuf::from("data/humaneval/HumanEval.jsonl"));
-    let scratch = std::env::temp_dir().join("workllm-phase22d-humaneval");
+    let scratch = args
+        .scratch_dir
+        .clone()
+        .unwrap_or_else(|| std::env::temp_dir().join("workllm-phase22d-humaneval"));
+    if !args.prompt_skip_list.is_empty() {
+        println!(
+            "[Phase22D] prompt_skip_list = {:?} (parsed, not yet wired through supervisor)",
+            args.prompt_skip_list
+        );
+    }
     let humaneval = HumanEvalDomain::from_jsonl(&jsonl, &scratch)
         .with_context(|| format!("loading HumanEval from {}", jsonl.display()))?;
     println!(
