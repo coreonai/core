@@ -149,3 +149,8 @@ required-features = []
 name = "phase21_h_smoke"
 path = "examples/phase21_h_smoke.rs"
 required-features = []
+
+[[example]]
+name = "phase21_g_smoke"
+path = "examples/phase21_g_smoke.rs"
+required-features = []

@@ -550,6 +550,67 @@ impl ModelForCausalLM {
     }
 }
 
+/// Phase 21 Stage G — one REINFORCE-style policy-gradient step.
+///
+/// Each entry of `samples` is `(prompt_ids, completion_ids, reward)`.
+/// For each sample:
+///   1. Concat `[prompt | completion]` into a 1-d tensor, unsqueezed to `(1, P+C)`.
+///   2. Forward all positions through `forward_train` → logits `(1, P+C, V)`.
+///   3. Slice the logits at positions `P-1 .. P-1+C` — those are the
+///      logits the model used to predict each completion token.
+///   4. `mean_ce = cross_entropy(pred_logits, completion_ids)` ≈ −mean log P.
+///   5. Sample contributes `reward * mean_ce` to the loss.
+///
+/// The aggregate loss is the mean over samples of `reward_i * mean_ce_i`.
+/// Minimizing this is equivalent to ascending `reward_i * mean_log_p_i`
+/// — the REINFORCE objective. Use baseline-subtracted rewards (e.g.,
+/// `verdict_i − mean(verdict_for_prompt)`) at the call site for variance
+/// reduction; that's the standard RLOO trick.
+///
+/// Returns the pre-step loss value (the conventional REINFORCE logging
+/// choice).
+pub fn train_qwen_lora_pg_step(
+    model: &mut ModelForCausalLM,
+    optimizer: &mut candle_nn::AdamW,
+    device: &Device,
+    samples: &[(Vec<u32>, Vec<u32>, f32)],
+) -> Result<f32> {
+    use candle_nn::Optimizer;
+    if samples.is_empty() {
+        candle_core::bail!("train_qwen_lora_pg_step: samples is empty");
+    }
+    let mut loss: Option<Tensor> = None;
+    for (prompt, comp, reward) in samples {
+        if comp.is_empty() {
+            continue;
+        }
+        let mut full = prompt.clone();
+        full.extend_from_slice(comp);
+        let full_len = full.len();
+        let full_t = Tensor::from_slice(&full, (1, full_len), device)?;
+        let logits = model.forward_train(&full_t)?; // (1, P+C, V)
+        let p_len = prompt.len();
+        let c_len = comp.len();
+        // logits[0..P-1] predict prompt tokens; logits[P-1..P-1+C] predict completion tokens.
+        let pred = logits.narrow(1, p_len.saturating_sub(1), c_len)?;
+        let (_, c, v) = pred.dims3()?;
+        let pred_flat = pred.reshape((c, v))?.to_dtype(DType::F32)?;
+        let comp_t = Tensor::from_slice(comp, c_len, device)?;
+        let mean_ce = candle_nn::loss::cross_entropy(&pred_flat, &comp_t)?;
+        let contrib = (&mean_ce * (*reward as f64))?;
+        loss = Some(match loss {
+            Some(prev) => (prev + contrib)?,
+            None => contrib,
+        });
+    }
+    let loss = loss.ok_or_else(|| candle_core::Error::Msg("no usable samples".into()))?;
+    let n = samples.len() as f64;
+    let loss = (loss / n)?;
+    let loss_value = loss.to_scalar::<f32>()?;
+    optimizer.backward_step(&loss)?;
+    Ok(loss_value)
+}
+
 /// Phase 21 Stage E.next.next — emit a "merged" safetensors file.
 ///
 /// Reads the original frozen-base safetensors and, for every layer's

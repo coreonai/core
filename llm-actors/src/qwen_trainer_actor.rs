@@ -31,7 +31,9 @@ use tokenizers::Tokenizer as HfTokenizer;
 use tokio::sync::oneshot;
 use tracing::{error, info, warn};
 
-use crate::qwen2_lora::{save_merged_lora, train_qwen_lora_step, LoraConfig, ModelForCausalLM};
+use crate::qwen2_lora::{
+    save_merged_lora, train_qwen_lora_pg_step, train_qwen_lora_step, LoraConfig, ModelForCausalLM,
+};
 
 pub enum QwenTrainerMessage {
     /// Train on a batch of free-form text examples for `train_steps`
@@ -63,6 +65,20 @@ pub enum QwenTrainerMessage {
         base_path: PathBuf,
         out_path: PathBuf,
         reply: oneshot::Sender<anyhow::Result<()>>,
+    },
+    /// Phase 21 Stage G — REINFORCE policy-gradient training step
+    /// against a batch of pre-generated `(prompt_ids, completion_ids,
+    /// reward)` samples. The reward is reward-weighted log-prob loss
+    /// over the completion span; baseline-subtracted rewards (e.g.,
+    /// per-prompt RLOO) belong at the call site.
+    ///
+    /// One actor message = one optimizer step (single batch update).
+    /// Run multiple via repeated sends for multi-step RL.
+    TrainPolicyGradient {
+        /// `(prompt_ids, completion_ids, reward)` triples. Empty
+        /// completions are skipped silently.
+        samples: Vec<(Vec<u32>, Vec<u32>, f32)>,
+        reply: oneshot::Sender<anyhow::Result<f32>>,
     },
     /// Health check.
     Ping { reply: oneshot::Sender<()> },
@@ -171,6 +187,16 @@ impl Actor for QwenTrainerActor {
                 QwenTrainerMessage::SaveLoraAdapter { path, reply } => {
                     let result = self.lora_map.save(&path).map_err(anyhow::Error::from);
                     log_send(reply, result, "qwen_save_lora_adapter");
+                }
+                QwenTrainerMessage::TrainPolicyGradient { samples, reply } => {
+                    let result = train_qwen_lora_pg_step(
+                        &mut self.model,
+                        &mut self.optimizer,
+                        &self.device,
+                        &samples,
+                    )
+                    .map_err(anyhow::Error::from);
+                    log_send(reply, result, "qwen_train_pg");
                 }
                 QwenTrainerMessage::SaveMergedCheckpoint {
                     base_path,
