@@ -31,6 +31,7 @@ pub struct RoundActors {
     pub evaluator: ActorRef<EvaluatorActor>,
 }
 
+#[derive(Clone)]
 pub struct RoundConfig {
     pub round: usize,
     pub gen_n: usize,
@@ -322,5 +323,165 @@ fn log_samples(tag: &str, eval: &EvalReport) {
             completion = %s.completion.replace('\n', "\\n"),
             "sample"
         );
+    }
+}
+
+/// Phase 21 Stage C — config for `run_multi_round`. Wraps a single-round
+/// `base` template and applies per-round mutations so each round chains
+/// `init_from ← previous round's save_path`. Seeds also bump per round
+/// so the harvest set varies across rounds.
+///
+/// Per-round mutations applied to `base`:
+/// - `round` ← current round index (0..rounds)
+/// - `init_from` ← previous round's save_path (round 0 uses `base.init_from`)
+/// - `save_path` ← `<base.save_path stripped of .safetensors>.r{N}.safetensors`
+/// - `gen_seed` ← `base.gen_seed + round * gen_seed_stride`
+/// - `gen_sampling.seed` ← `Some(base.gen_seed.seed.unwrap_or(0) + round)`
+/// - `corpus_seed` ← `base.corpus_seed.map(|s| s + round)`
+///
+/// Everything else (eval_seed, train_cfg, anchor, dpo_*, freeze_base,
+/// eval_passk, ...) is held constant across rounds.
+#[derive(Clone)]
+pub struct MultiRoundConfig {
+    pub rounds: usize,
+    pub base: RoundConfig,
+    /// Per-round bump applied to `gen_seed`. Default `1` (each round
+    /// is `base + round`). Larger values spread the per-round entropy
+    /// further; `0` makes harvest deterministic across rounds (rarely
+    /// what you want).
+    pub gen_seed_stride: u64,
+}
+
+impl MultiRoundConfig {
+    /// Constructor with the common defaults: `gen_seed_stride: 1`.
+    pub fn new(rounds: usize, base: RoundConfig) -> Self {
+        Self {
+            rounds,
+            base,
+            gen_seed_stride: 1,
+        }
+    }
+}
+
+/// Phase 21 Stage C — multi-round orchestration helper.
+///
+/// Runs `cfg.rounds` rounds of the standard
+/// `Gen → Verify → Curate → Train → Reload → Eval` cycle, chaining
+/// each round's `save_path` into the next round's `init_from`. The
+/// supplied callback is invoked after each round with `(round_idx,
+/// report)` so callers can stream progress without owning the loop.
+///
+/// Bridges the Phase 17-20 multi-round SFT findings (HumanEval r=5 mean
+/// 0.556, r=6 plateau 0.581) into the Rust actor stack as a first-class
+/// helper instead of an ad-hoc `for round in 0..rounds` loop in every
+/// example.
+///
+/// Returns the per-round `RoundReport` vector after all rounds complete.
+pub async fn run_multi_round<F>(
+    actors: &RoundActors,
+    cfg: MultiRoundConfig,
+    mut on_round_done: F,
+) -> anyhow::Result<Vec<RoundReport>>
+where
+    F: FnMut(usize, &RoundReport),
+{
+    let mut reports = Vec::with_capacity(cfg.rounds);
+    let template = save_path_template(&cfg.base.save_path);
+    let mut current_init = cfg.base.init_from.clone();
+    let base_gen_sampling_seed = cfg.base.gen_sampling.seed.unwrap_or(0);
+
+    for r in 0..cfg.rounds {
+        let save_path: PathBuf = format!("{template}.r{r}.safetensors").into();
+        let mut round_cfg = cfg.base.clone();
+        round_cfg.round = r;
+        round_cfg.init_from = current_init.clone();
+        round_cfg.save_path = save_path.clone();
+        round_cfg.gen_seed = cfg
+            .base
+            .gen_seed
+            .wrapping_add((r as u64).wrapping_mul(cfg.gen_seed_stride));
+        round_cfg.gen_sampling.seed = Some(base_gen_sampling_seed.wrapping_add(r as u64));
+        round_cfg.corpus_seed = cfg.base.corpus_seed.map(|s| s.wrapping_add(r as u64));
+
+        let report = run_round(actors, round_cfg).await?;
+        on_round_done(r, &report);
+        current_init = Some(save_path);
+        reports.push(report);
+    }
+    Ok(reports)
+}
+
+/// Strip a trailing `.safetensors` from the supplied path and return
+/// the remainder as a String — used as the template for per-round save
+/// paths so `checkpoints/run.safetensors` becomes `checkpoints/run.r0.safetensors`.
+fn save_path_template(p: &std::path::Path) -> String {
+    p.to_string_lossy()
+        .trim_end_matches(".safetensors")
+        .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn save_path_template_strips_safetensors_suffix() {
+        let p: PathBuf = "checkpoints/run.safetensors".into();
+        assert_eq!(save_path_template(&p), "checkpoints/run");
+    }
+
+    #[test]
+    fn save_path_template_leaves_paths_without_suffix() {
+        let p: PathBuf = "checkpoints/run".into();
+        assert_eq!(save_path_template(&p), "checkpoints/run");
+    }
+
+    #[test]
+    fn save_path_template_strips_only_trailing_safetensors() {
+        let p: PathBuf = "ckpt.safetensors.bak".into();
+        // Trailing suffix doesn't match → no change.
+        assert_eq!(save_path_template(&p), "ckpt.safetensors.bak");
+    }
+
+    #[test]
+    fn multi_round_config_new_defaults_stride_to_one() {
+        // Build a minimal base RoundConfig — we only need to inspect
+        // fields that `run_multi_round` reads, not run anything.
+        let base = RoundConfig {
+            round: 0,
+            gen_n: 1,
+            gen_seed: 42,
+            gen_sampling: GenerateConfig::default(),
+            eval_n: 1,
+            eval_seed: 0,
+            eval_sampling: GenerateConfig::default(),
+            train_cfg: nanogpt_rs::train::TrainConfig::smoke(),
+            init_from: None,
+            save_path: PathBuf::from("checkpoints/x.safetensors"),
+            min_corpus_chars: 0,
+            sample_mode: crate::curator_actor::SampleMode::Uniform,
+            corpus_seed: Some(7),
+            anchor: None,
+            freeze_base: false,
+            gen_oversample: 1,
+            dpo_beta: None,
+            dpo_reference_path: None,
+            dpo_max_pairs_per_prompt: 0,
+            dpo_sft_anchor_weight: 0.0,
+            eval_passk: 1,
+        };
+        let cfg = MultiRoundConfig::new(5, base);
+        assert_eq!(cfg.rounds, 5);
+        assert_eq!(cfg.gen_seed_stride, 1);
+        assert_eq!(cfg.base.gen_seed, 42);
+        assert_eq!(cfg.base.corpus_seed, Some(7));
+    }
+
+    #[test]
+    fn round_config_is_clone() {
+        // Compile-time assertion that derive(Clone) on RoundConfig holds.
+        fn assert_clone<T: Clone>() {}
+        assert_clone::<RoundConfig>();
+        assert_clone::<MultiRoundConfig>();
     }
 }

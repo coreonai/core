@@ -38,7 +38,7 @@ pub use ensemble::{ensemble_generate, EnsembleActors, EnsembleConfig};
 pub use evaluator_actor::{EvalReport, EvaluatorActor, EvaluatorMessage};
 pub use generator_actor::{GeneratorActor, GeneratorMessage};
 pub use model_actor::{ModelActor, ModelMessage};
-pub use supervisor::{run_round, RoundActors, RoundConfig};
+pub use supervisor::{run_multi_round, run_round, MultiRoundConfig, RoundActors, RoundConfig};
 pub use trainer_actor::{TrainerActor, TrainerMessage};
 pub use types::{RoundReport, Trajectory, Verdict, VerifiedTrajectory};
 pub use verifier_actor::{VerifierActor, VerifierMessage};
