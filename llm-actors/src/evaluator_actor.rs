@@ -23,6 +23,11 @@ pub enum EvaluatorMessage {
         n: usize,
         seed: u64,
         sampling: GenerateConfig,
+        /// Phase 21: number of samples per prompt; the prompt is counted
+        /// correct if ANY of the `passk` completions verifies. `1` is the
+        /// historical pass@1 behavior. Each k-th sample uses a deterministic
+        /// per-k seed override so the eval remains reproducible.
+        passk: usize,
         reply: oneshot::Sender<anyhow::Result<EvalReport>>,
     },
 }
@@ -32,6 +37,9 @@ pub struct EvalReport {
     pub total: usize,
     pub correct: usize,
     pub samples: Vec<Trajectory>,
+    /// `passk` used for this eval (≥1). Echoed back from the message so
+    /// callers can include it in logs and reports.
+    pub passk: usize,
 }
 
 impl EvalReport {
@@ -85,9 +93,10 @@ impl Actor for EvaluatorActor {
                     n,
                     seed,
                     sampling,
+                    passk,
                     reply,
                 } => {
-                    let result = self.run(n, seed, sampling).await;
+                    let result = self.run(n, seed, sampling, passk).await;
                     let _ = reply.send(result);
                 }
             }
@@ -101,44 +110,70 @@ impl EvaluatorActor {
         n: usize,
         seed: u64,
         sampling: GenerateConfig,
+        passk: usize,
     ) -> anyhow::Result<EvalReport> {
+        let passk = passk.max(1);
         let mut rng = StdRng::seed_from_u64(seed);
         let mut correct = 0usize;
         let mut total = 0usize;
         let mut samples = Vec::with_capacity(self.keep_samples);
 
-        for _ in 0..n {
+        for prompt_idx in 0..n {
             let prompt = self.domain.sample_prompt(&mut rng);
             let prompt_ids = self.tokenizer.encode(&prompt)?;
-            let (tx, rx) = oneshot::channel();
-            self.model
-                .tell(ModelMessage::GenerateTokens {
-                    prompt_ids: prompt_ids.clone(),
-                    cfg: sampling.clone(),
-                    reply: tx,
-                })
-                .map_err(|e| anyhow::anyhow!("send GenerateTokens: {e:?}"))?;
-            let tokens = timeout(self.per_request_timeout, rx).await???;
-            let comp_ids = if tokens.len() > prompt_ids.len() {
-                &tokens[prompt_ids.len()..]
-            } else {
-                &[][..]
-            };
-            let mut completion = self.tokenizer.decode(comp_ids)?;
-            if let Some(stop) = self.stop_char {
-                if let Some(idx) = completion.find(stop) {
-                    completion.truncate(idx + stop.len_utf8());
+            let mut any_pass = false;
+            let mut first_completion: Option<String> = None;
+
+            for k in 0..passk {
+                // Deterministic per-(prompt, k) seed so the k samples diverge
+                // and the eval remains fully reproducible across runs.
+                let mut cfg_k = sampling.clone();
+                let k_seed = seed
+                    .wrapping_add(prompt_idx as u64)
+                    .wrapping_mul(passk as u64)
+                    .wrapping_add(k as u64);
+                cfg_k.seed = Some(k_seed);
+
+                let (tx, rx) = oneshot::channel();
+                self.model
+                    .tell(ModelMessage::GenerateTokens {
+                        prompt_ids: prompt_ids.clone(),
+                        cfg: cfg_k,
+                        reply: tx,
+                    })
+                    .map_err(|e| anyhow::anyhow!("send GenerateTokens: {e:?}"))?;
+                let tokens = timeout(self.per_request_timeout, rx).await???;
+                let comp_ids = if tokens.len() > prompt_ids.len() {
+                    &tokens[prompt_ids.len()..]
+                } else {
+                    &[][..]
+                };
+                let mut completion = self.tokenizer.decode(comp_ids)?;
+                if let Some(stop) = self.stop_char {
+                    if let Some(idx) = completion.find(stop) {
+                        completion.truncate(idx + stop.len_utf8());
+                    }
+                }
+                let v = self.domain.verify(&prompt, &completion);
+                if v.is_correct() {
+                    any_pass = true;
+                }
+                if first_completion.is_none() {
+                    first_completion = Some(completion);
+                }
+                if any_pass {
+                    break; // short-circuit; saves work on easy prompts
                 }
             }
-            let v = self.domain.verify(&prompt, &completion);
+
             total += 1;
-            if v.is_correct() {
+            if any_pass {
                 correct += 1;
             }
             if samples.len() < self.keep_samples {
                 samples.push(Trajectory {
                     prompt,
-                    completion,
+                    completion: first_completion.unwrap_or_default(),
                     source: "eval".to_string(),
                 });
             }
@@ -146,6 +181,7 @@ impl EvaluatorActor {
         info!(
             total,
             correct,
+            passk,
             pass_rate = correct as f32 / total.max(1) as f32,
             "EvaluatorActor done"
         );
@@ -153,6 +189,7 @@ impl EvaluatorActor {
             total,
             correct,
             samples,
+            passk,
         })
     }
 }

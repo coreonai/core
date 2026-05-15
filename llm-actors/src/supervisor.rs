@@ -87,6 +87,14 @@ pub struct RoundConfig {
     /// the multi-round mode collapse seen in S3/S4. Ignored when
     /// `dpo_beta` is `None`.
     pub dpo_sft_anchor_weight: f64,
+    /// Phase 21: pass@k at the eval-before / eval-after phases of the
+    /// round. `1` (default) is historical pass@1. `> 1` samples k
+    /// completions per prompt and counts a prompt correct if ANY of
+    /// them verifies — the inference-time-scaling axis discovered in
+    /// Phase 17 S6 (base Qwen pass@10 = 0.524 vs pass@1 = 0.216 on
+    /// HumanEval). At the small Candle scales used here it surfaces
+    /// stochastic-decode capability the greedy eval misses.
+    pub eval_passk: usize,
 }
 
 pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result<RoundReport> {
@@ -104,6 +112,7 @@ pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result
         cfg.eval_n,
         cfg.eval_seed,
         cfg.eval_sampling.clone(),
+        cfg.eval_passk,
     )
     .await?;
     report.eval_correct_before = Some(before.correct);
@@ -274,6 +283,7 @@ pub async fn run_round(actors: &RoundActors, cfg: RoundConfig) -> anyhow::Result
         cfg.eval_n,
         cfg.eval_seed,
         cfg.eval_sampling,
+        cfg.eval_passk,
     )
     .await?;
     report.eval_correct_after = Some(after.correct);
@@ -288,6 +298,7 @@ async fn ask_eval(
     n: usize,
     seed: u64,
     sampling: GenerateConfig,
+    passk: usize,
 ) -> anyhow::Result<EvalReport> {
     let (tx, rx) = oneshot::channel();
     evaluator
@@ -295,6 +306,7 @@ async fn ask_eval(
             n,
             seed,
             sampling,
+            passk: passk.max(1),
             reply: tx,
         })
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;

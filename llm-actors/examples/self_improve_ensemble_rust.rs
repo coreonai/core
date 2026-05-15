@@ -584,6 +584,7 @@ async fn ask_eval(
             n,
             seed,
             sampling,
+            passk: 1,
             reply: tx,
         })
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;

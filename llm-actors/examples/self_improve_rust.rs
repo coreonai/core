@@ -277,6 +277,13 @@ struct Args {
     /// style Newton-Schulz orthogonalized SGD-momentum optimizer.
     #[arg(long, default_value = "adam")]
     optimizer: String,
+    /// Phase 21: pass@k at eval-before / eval-after. `1` (default) is the
+    /// historical pass@1 behavior — the greedy eval samples once per
+    /// prompt. `> 1` samples k times per prompt and counts a prompt
+    /// correct if ANY of them verifies. Captures stochastic-decode
+    /// capability that greedy hides; cross-substrate Phase 17 finding.
+    #[arg(long, default_value_t = 1)]
+    eval_passk: usize,
 }
 
 fn pick_device() -> Device {
@@ -678,6 +685,7 @@ async fn main() -> anyhow::Result<()> {
             },
             dpo_max_pairs_per_prompt: args.dpo_max_pairs_per_prompt,
             dpo_sft_anchor_weight: args.dpo_sft_anchor_weight,
+            eval_passk: args.eval_passk.max(1),
         };
 
         let report = run_round(&actors, cfg).await?;
