@@ -111,7 +111,11 @@ struct Args {
     /// AdamW learning rate. Phase 14-20 recipe = 2e-4.
     #[arg(long, default_value_t = 2e-4)]
     lr: f64,
-    /// Output dir for per-round merged checkpoints.
+    /// Output dir for per-round merged checkpoints. For best
+    /// wallclock, point at tmpfs (e.g., `--out-dir /dev/shm/...`):
+    /// each merged-safetensors save/reload roundtrip writes ~988 MB,
+    /// and `/dev/shm` cuts the disk-I/O portion (~10-15s per round).
+    /// `/tmp` on this box is `/dev/md0` (disk-backed) — not tmpfs.
     #[arg(long, default_value = "checkpoints/phase22_he_mr_sft")]
     out_dir: PathBuf,
     /// Base seed for all RNGs (gen, gen_sampling, eval, eval_sampling,

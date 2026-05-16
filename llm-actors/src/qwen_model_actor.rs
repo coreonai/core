@@ -12,12 +12,7 @@
 //! - `GenerateTokens { prompt_ids, cfg, reply }` — raw HF token IDs in/out
 //! - `ReloadCheckpoint { path, reply }` — re-load `model.safetensors`
 //!
-//! ## Stubbed (returns `Err`)
-//! - `LossOn` — Qwen2's `ModelForCausalLM::forward` returns only the
-//!   last-position logits; computing CE over all positions would
-//!   require duplicating the lm_head application path (deferred).
-//!
-//! ## Implemented (Phase 22 follow-up)
+//! ## Implemented (Phase 22 follow-ups)
 //! - `ScoreLogProb` — uses the same KV-cache + last-position forward
 //!   trick as `generate_autoregressive`: feed prompt → last logits =
 //!   P(next | prompt) → look up `completion[0]` log-prob → feed
@@ -25,6 +20,13 @@
 //!   ... etc. Returns the **mean** log-prob per completion token
 //!   matching `ModelActor`'s semantics. Unlocks Phase 6 Shape C
 //!   best-of-K filter (`--gen-oversample > 1`) on QwenModelActor.
+//! - `LossOn` — slow per-position cross-entropy using the same
+//!   KV-cache pattern. For (B, T) input/target tensors, runs T
+//!   forward steps; at each step computes -log_softmax(logits)[y[:, t]]
+//!   and averages over (B × T). Wallclock: ~T × 50ms (~12 s at T=256).
+//!   Acceptable for evaluation (PPL); not designed for hot training
+//!   paths. Unlocks OPD / multi-teacher distillation against
+//!   `QwenModelActor`.
 //!
 //! ## NOT covered by this actor
 //! - Training (LoRA / SFT). The Trainer actor's path is heavily tied
@@ -144,12 +146,9 @@ impl Actor for QwenModelActor {
                     let result = self.handle_reload(&path);
                     log_send(reply, result, "qwen_reload_checkpoint");
                 }
-                ModelMessage::LossOn { x: _, y: _, reply } => {
-                    let r: anyhow::Result<f32> = Err(anyhow::anyhow!(
-                        "QwenModelActor::LossOn not implemented \
-                         (requires multi-position logits forward)"
-                    ));
-                    log_send(reply, r, "qwen_loss_on");
+                ModelMessage::LossOn { x, y, reply } => {
+                    let result = self.handle_loss_on(&x, &y);
+                    log_send(reply, result, "qwen_loss_on");
                 }
                 ModelMessage::ScoreLogProb {
                     prompt_ids,
@@ -210,6 +209,52 @@ impl QwenModelActor {
         self.model_path = path.to_path_buf();
         info!(?path, "QwenModelActor checkpoint reloaded");
         Ok(())
+    }
+
+    /// Per-position cross-entropy. Input `x` and target `y` are
+    /// `(B, T)` u32 token tensors. For each position `t ∈ 0..T`, we
+    /// forward `x[:, t]` (shape `(B, 1)`) at `seqlen_offset = t` to
+    /// get logits `(B, 1, vocab)`, narrowed by qwen2's forward to
+    /// the last position. We log_softmax along vocab, gather
+    /// `-log P(y[:, t])`, and accumulate. Final return is the mean
+    /// over `B × T`, matching `ModelActor::LossOn` semantics.
+    ///
+    /// Wallclock: T sequential forwards on the GPU. At T=256 and
+    /// ~50 ms per forward step, ~13 s per LossOn call. Acceptable for
+    /// PPL evaluation; not designed for hot training paths (a true
+    /// all-position forward + lm_head over `(B, T, hidden)` would
+    /// require forking `candle_transformers::models::qwen2` like
+    /// Stage F did for LoRA training).
+    fn handle_loss_on(&mut self, x: &Tensor, y: &Tensor) -> anyhow::Result<f32> {
+        let (b, t) = x.dims2()?;
+        if t == 0 {
+            return Ok(0.0);
+        }
+        let (yb, yt) = y.dims2()?;
+        anyhow::ensure!(
+            yb == b && yt == t,
+            "LossOn shape mismatch: x={b}x{t}, y={yb}x{yt}"
+        );
+        self.model.clear_kv_cache();
+        let mut total_loss = 0.0f64;
+        for (seqlen_offset, pos) in (0..t).enumerate() {
+            // x[:, pos:pos+1] → (B, 1)
+            let x_step = x.narrow(1, pos, 1)?;
+            // forward returns (B, 1, vocab); cast to F32 for log_softmax.
+            let logits = self
+                .model
+                .forward(&x_step, seqlen_offset)?
+                .squeeze(1)?
+                .to_dtype(DType::F32)?;
+            let log_probs = candle_nn::ops::log_softmax(&logits, 1)?;
+            // y[:, pos:pos+1] → (B, 1). gather expects same rank as input.
+            let y_step = y.narrow(1, pos, 1)?;
+            let gathered = log_probs.gather(&y_step, 1)?; // (B, 1)
+            let neg_log_prob_sum = gathered.sum_all()?.to_scalar::<f32>()?;
+            total_loss += -neg_log_prob_sum as f64;
+        }
+        let count = (b * t) as f64;
+        Ok((total_loss / count) as f32)
     }
 
     /// Compute the model's mean log-probability per completion token.
