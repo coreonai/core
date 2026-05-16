@@ -197,7 +197,20 @@ saturation run is ~165 GPU-h; a 5-seed MBPP r=5 run is ~30 GPU-h.
   Phase 17 S6's 0.216
 - `docs/phase22-stage-c.md` — `MbppDomain` cross-substrate mirror
 - `docs/phase22-stage-d.md` — MR SFT through Pekko on HumanEval
+  (the main Stage D doc; CLI surface + sparse-corpus probability
+  table + the display-fix story + per-round eval semantics)
 - `docs/phase22-stage-e.md` — REINFORCE on HumanEval
+
+### Stage D follow-up docs
+
+- `docs/phase22-stage-d-parallel-smokes.md` — first 5-seed gen-n=32
+  batch (mean Δ=+0.100 ± 0.078, 5/5 positive) + smoke #4b's
+  ScoreLogProb fix verification
+- `docs/phase22-stage-d-A-batch-gen-n-164.md` — Phase-17-scale
+  gen-n=164 batch that surfaced the r=2 < r=1 regression at
+  train-steps=100 (5/5 seeds)
+- `docs/phase22-stage-d-train-steps-ablation.md` — the recipe to
+  test the over-training hypothesis (train-steps=30 at gen-n=164)
 
 ## See also
 

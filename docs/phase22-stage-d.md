@@ -244,6 +244,14 @@ Stage D ships the mechanism through Pekko; Stage E ports REINFORCE
 - `docs/phase22-stage-a.md` — HumanEvalDomain library
 - `docs/phase22-stage-b.md` — aggregate eval (benchmark-aligned)
 - `docs/phase22-stage-c.md` — MbppDomain (cross-substrate)
+- `docs/phase22-stage-e.md` — REINFORCE on HumanEval (this stage's sibling)
+- `docs/phase22-stage-d-parallel-smokes.md` — first 5-seed gen-n=32
+  multi-seed batch results + smoke #4b's ScoreLogProb fix
+  verification
+- `docs/phase22-stage-d-A-batch-gen-n-164.md` — Phase-17-scale
+  gen-n=164 batch (surfaced r=2 < r=1 regression at train-steps=100)
+- `docs/phase22-stage-d-train-steps-ablation.md` — the recipe for
+  testing the over-training hypothesis
 - `docs/phase21-stage-h.md` — TrainerHandle + supervisor wiring
 - `docs/phase21-overview.md` — Phase 21 single entry point
 - `scripts/phase17_sa/run_mr_passk.py` — Python reference for the
