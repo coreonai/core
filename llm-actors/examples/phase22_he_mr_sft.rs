@@ -44,7 +44,7 @@ use candle_core::{DType, Device};
 use clap::Parser;
 use llm_actors::{
     curator_actor::SampleMode,
-    domain::{human_eval::HumanEvalDomain, Domain},
+    domain::{filtered::FilteredDomain, human_eval::HumanEvalDomain, Domain},
     qwen2_lora::LoraConfig,
     run_multi_round,
     supervisor::MultiRoundConfig,
@@ -133,14 +133,14 @@ struct Args {
     /// cold-start mitigation: exclude prompts the base Qwen has 0/k
     /// pass-rate on, so they don't dominate the empty-corpus skip
     /// path. Selection bias warning — filtered subset isn't
-    /// representative of the full benchmark.
+    /// representative of the full benchmark; use this for *training*
+    /// convenience and run benchmark-aligned eval against the
+    /// unfiltered domain via `phase22_humaneval_baseline`.
     ///
-    /// NOTE: this flag is parsed but the supervisor's per-round eval
-    /// (`EvalRandom`) and the generator (`sample_prompt`) don't yet
-    /// consume it — wiring through the supervisor requires a
-    /// `RoundConfig` extension that's separate scope. For now it's
-    /// surfaced for forward-compat + as a hook for future filtering
-    /// at the `Domain` level.
+    /// Wired through `FilteredDomain` (a `Domain` wrapper) — no
+    /// supervisor changes required; the wrapped Domain just
+    /// renumbers `sample_prompt`/`nth_prompt` to skip the hidden
+    /// indices.
     #[arg(long, value_delimiter = ',')]
     prompt_skip_list: Vec<usize>,
 }
@@ -210,19 +210,25 @@ async fn main() -> Result<()> {
         .scratch_dir
         .clone()
         .unwrap_or_else(|| std::env::temp_dir().join("workllm-phase22d-humaneval"));
-    if !args.prompt_skip_list.is_empty() {
-        println!(
-            "[Phase22D] prompt_skip_list = {:?} (parsed, not yet wired through supervisor)",
-            args.prompt_skip_list
-        );
-    }
     let humaneval = HumanEvalDomain::from_jsonl(&jsonl, &scratch)
         .with_context(|| format!("loading HumanEval from {}", jsonl.display()))?;
-    println!(
-        "[Phase22D] HumanEvalDomain loaded {} problems",
-        humaneval.n_problems()
-    );
-    let domain: Arc<dyn Domain> = Arc::new(humaneval);
+    let total = humaneval.n_problems();
+    println!("[Phase22D] HumanEvalDomain loaded {} problems", total);
+    let inner_domain: Arc<dyn Domain> = Arc::new(humaneval);
+    let domain: Arc<dyn Domain> = if args.prompt_skip_list.is_empty() {
+        inner_domain
+    } else {
+        let filtered = FilteredDomain::new(inner_domain, args.prompt_skip_list.iter().copied());
+        let surviving = filtered.n_surviving();
+        println!(
+            "[Phase22D] FilteredDomain: hiding {} indices, {} surviving (= {}/{})",
+            args.prompt_skip_list.len(),
+            surviving,
+            surviving,
+            total,
+        );
+        Arc::new(filtered)
+    };
 
     // ===== Actors =====
     let qwen_model = QwenModelActor::from_snapshot_dir(&snapshot, device.clone(), inference_dtype)?;
