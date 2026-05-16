@@ -115,6 +115,29 @@ pub async fn run_round<M>(actors: &RoundActors<M>, cfg: RoundConfig) -> anyhow::
 where
     M: Actor<Message = ModelMessage>,
 {
+    run_round_with_prev(actors, cfg, None).await
+}
+
+/// Phase 22 Stage D follow-up #1 — pipelined `run_multi_round`
+/// optimization. Round N+1's eval-before is deterministically equal
+/// to round N's eval-after (same model state, same `eval_seed`,
+/// same `eval_sampling`, same `eval_n` since `run_multi_round`
+/// doesn't change eval params per round). Passing the cached value
+/// in `prev_eval_after` skips re-running eval-before, saving ~5 min
+/// per round at gen-n=164 + eval-n=32 + passk=3.
+///
+/// `prev_eval_after` is `None` for the first round (no previous
+/// model to reuse from) and `Some(prev_report)` for rounds 1+ when
+/// driven by `run_multi_round`. Direct callers of `run_round` get
+/// the historical full-eval behavior.
+pub async fn run_round_with_prev<M>(
+    actors: &RoundActors<M>,
+    cfg: RoundConfig,
+    prev_eval_after: Option<EvalReport>,
+) -> anyhow::Result<RoundReport>
+where
+    M: Actor<Message = ModelMessage>,
+{
     let t0 = Instant::now();
     let mut report = RoundReport {
         round: cfg.round,
@@ -122,24 +145,35 @@ where
         ..RoundReport::default()
     };
 
-    // 1. Eval BEFORE
-    info!(round = cfg.round, "phase: eval-before");
-    let before = ask_eval(
-        &actors.evaluator,
-        cfg.eval_n,
-        cfg.eval_seed,
-        cfg.eval_sampling.clone(),
-        cfg.eval_passk,
-    )
-    .await?;
+    // 1. Eval BEFORE — reuse previous round's eval-after when available.
+    // Same model state + same eval params → deterministic, no need to
+    // re-run the eval. Saves ~5 min per round at gen-n=164.
+    let before = if let Some(prev) = prev_eval_after {
+        info!(
+            round = cfg.round,
+            "phase: eval-before (reused from previous round's eval-after)"
+        );
+        prev
+    } else {
+        info!(round = cfg.round, "phase: eval-before");
+        let before = ask_eval(
+            &actors.evaluator,
+            cfg.eval_n,
+            cfg.eval_seed,
+            cfg.eval_sampling.clone(),
+            cfg.eval_passk,
+        )
+        .await?;
+        info!(
+            round = cfg.round,
+            before_correct = before.correct,
+            total = before.total,
+            "eval-before done"
+        );
+        log_samples("before", &before);
+        before
+    };
     report.eval_correct_before = Some(before.correct);
-    info!(
-        round = cfg.round,
-        before_correct = before.correct,
-        total = before.total,
-        "eval-before done"
-    );
-    log_samples("before", &before);
 
     // 2. Generate
     info!(round = cfg.round, "phase: generate");
@@ -400,6 +434,13 @@ where
     let template = save_path_template(&cfg.base.save_path);
     let mut current_init = cfg.base.init_from.clone();
     let base_gen_sampling_seed = cfg.base.gen_sampling.seed.unwrap_or(0);
+    // Phase 22 Stage D follow-up #1 — track previous round's
+    // eval-after to reuse as next round's eval-before. Saves ~5
+    // min/round at gen-n=164 + eval-n=32 + passk=3 (the eval-before
+    // and eval-after of consecutive rounds measure the SAME model
+    // state with the SAME seed, so the result is deterministic and
+    // re-running just wastes wallclock).
+    let mut prev_eval_after: Option<EvalReport> = None;
 
     for r in 0..cfg.rounds {
         let save_path: PathBuf = format!("{template}.r{r}.safetensors").into();
@@ -414,7 +455,17 @@ where
         round_cfg.gen_sampling.seed = Some(base_gen_sampling_seed.wrapping_add(r as u64));
         round_cfg.corpus_seed = cfg.base.corpus_seed.map(|s| s.wrapping_add(r as u64));
 
-        let report = run_round(actors, round_cfg).await?;
+        let report = run_round_with_prev(actors, round_cfg, prev_eval_after.take()).await?;
+        // Stash the eval-after if it was run (skip-training rounds
+        // don't produce one).
+        prev_eval_after = report.eval_correct_after.map(|correct| EvalReport {
+            total: report.eval_total,
+            correct,
+            samples: Vec::new(),
+            passk: cfg.base.eval_passk,
+            total_attempts: None,
+            total_passes: None,
+        });
         on_round_done(r, &report);
         current_init = Some(save_path);
         reports.push(report);
