@@ -283,46 +283,108 @@ where
             let mut any_pass = false;
             let mut first_completion: Option<String> = None;
 
-            for k in 0..passk {
-                let mut cfg_k = sampling.clone();
-                let k_seed = (prompt_idx as u64)
-                    .wrapping_mul(passk as u64)
-                    .wrapping_add(k as u64);
-                cfg_k.seed = Some(k_seed);
+            if aggregate {
+                // Phase 22 Stage D follow-up — pipelined aggregate mode.
+                // All `passk` samples must be generated and verified,
+                // so we can fire each verify in the background via
+                // `tokio::spawn_blocking` and continue to the next
+                // generate immediately. The verifies overlap with the
+                // subsequent gens. Net: per-prompt latency drops from
+                // `passk * (gen + verify)` to roughly `passk * gen +
+                // last_verify` since verify (~0.5s) << gen (~3s).
+                let mut handles: Vec<tokio::task::JoinHandle<bool>> = Vec::with_capacity(passk);
+                for k in 0..passk {
+                    let mut cfg_k = sampling.clone();
+                    let k_seed = (prompt_idx as u64)
+                        .wrapping_mul(passk as u64)
+                        .wrapping_add(k as u64);
+                    cfg_k.seed = Some(k_seed);
 
-                let (tx, rx) = oneshot::channel();
-                self.model
-                    .tell(ModelMessage::GenerateTokens {
-                        prompt_ids: prompt_ids.clone(),
-                        cfg: cfg_k,
-                        reply: tx,
-                    })
-                    .map_err(|e| anyhow::anyhow!("send GenerateTokens: {e:?}"))?;
-                let tokens = timeout(self.per_request_timeout, rx).await???;
-                let comp_ids = if tokens.len() > prompt_ids.len() {
-                    &tokens[prompt_ids.len()..]
-                } else {
-                    &[][..]
-                };
-                let mut completion = self.tokenizer.decode(comp_ids)?;
-                if let Some(stop) = self.stop_char {
-                    if let Some(idx) = completion.find(stop) {
-                        completion.truncate(idx + stop.len_utf8());
+                    let (tx, rx) = oneshot::channel();
+                    self.model
+                        .tell(ModelMessage::GenerateTokens {
+                            prompt_ids: prompt_ids.clone(),
+                            cfg: cfg_k,
+                            reply: tx,
+                        })
+                        .map_err(|e| anyhow::anyhow!("send GenerateTokens: {e:?}"))?;
+                    let tokens = timeout(self.per_request_timeout, rx).await???;
+                    let comp_ids = if tokens.len() > prompt_ids.len() {
+                        &tokens[prompt_ids.len()..]
+                    } else {
+                        &[][..]
+                    };
+                    let mut completion = self.tokenizer.decode(comp_ids)?;
+                    if let Some(stop) = self.stop_char {
+                        if let Some(idx) = completion.find(stop) {
+                            completion.truncate(idx + stop.len_utf8());
+                        }
+                    }
+                    if first_completion.is_none() {
+                        first_completion = Some(completion.clone());
+                    }
+                    // Dispatch verify to the blocking-thread pool and
+                    // move on to the next generation immediately.
+                    let domain = Arc::clone(&self.domain);
+                    let prompt_for_verify = prompt.clone();
+                    let handle = tokio::task::spawn_blocking(move || {
+                        domain.verify(&prompt_for_verify, &completion).is_correct()
+                    });
+                    handles.push(handle);
+                }
+                // Drain all dispatched verifies for this prompt.
+                for h in handles {
+                    let passed = h.await.unwrap_or(false);
+                    total_attempts += 1;
+                    if passed {
+                        any_pass = true;
+                        total_passes += 1;
                     }
                 }
-                let v = self.domain.verify(&prompt, &completion);
-                total_attempts += 1;
-                if v.is_correct() {
-                    any_pass = true;
-                    total_passes += 1;
-                }
-                if first_completion.is_none() {
-                    first_completion = Some(completion);
-                }
-                // `aggregate=true`: keep sampling to count total_passes.
-                // `aggregate=false`: short-circuit on first pass.
-                if any_pass && !aggregate {
-                    break;
+            } else {
+                // Non-aggregate path keeps the historical serial
+                // semantics with short-circuit on first pass —
+                // pipelining there requires cancel-on-first-pass
+                // which complicates the model-actor lifetime.
+                for k in 0..passk {
+                    let mut cfg_k = sampling.clone();
+                    let k_seed = (prompt_idx as u64)
+                        .wrapping_mul(passk as u64)
+                        .wrapping_add(k as u64);
+                    cfg_k.seed = Some(k_seed);
+
+                    let (tx, rx) = oneshot::channel();
+                    self.model
+                        .tell(ModelMessage::GenerateTokens {
+                            prompt_ids: prompt_ids.clone(),
+                            cfg: cfg_k,
+                            reply: tx,
+                        })
+                        .map_err(|e| anyhow::anyhow!("send GenerateTokens: {e:?}"))?;
+                    let tokens = timeout(self.per_request_timeout, rx).await???;
+                    let comp_ids = if tokens.len() > prompt_ids.len() {
+                        &tokens[prompt_ids.len()..]
+                    } else {
+                        &[][..]
+                    };
+                    let mut completion = self.tokenizer.decode(comp_ids)?;
+                    if let Some(stop) = self.stop_char {
+                        if let Some(idx) = completion.find(stop) {
+                            completion.truncate(idx + stop.len_utf8());
+                        }
+                    }
+                    let v = self.domain.verify(&prompt, &completion);
+                    total_attempts += 1;
+                    if v.is_correct() {
+                        any_pass = true;
+                        total_passes += 1;
+                    }
+                    if first_completion.is_none() {
+                        first_completion = Some(completion);
+                    }
+                    if any_pass {
+                        break;
+                    }
                 }
             }
 
