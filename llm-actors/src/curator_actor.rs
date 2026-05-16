@@ -85,6 +85,17 @@ pub enum CuratorMessage {
         seed: Option<u64>,
         reply: oneshot::Sender<String>,
     },
+    /// Phase 22 Stage D fix — return the buffer's items as
+    /// `(prompt, completion)` pairs (NOT concatenated). Lets the
+    /// trainer compute the prompt boundary per pair and mask prompt
+    /// positions out of the CE loss (Phase 17 Python's
+    /// `labels[:prompt_ids.shape[0]] = -100` semantics). Iteration
+    /// order follows the same `mode` rules as `RenderCorpus`.
+    RenderPairs {
+        mode: SampleMode,
+        seed: Option<u64>,
+        reply: oneshot::Sender<Vec<(String, String)>>,
+    },
     /// Current buffer size.
     Size { reply: oneshot::Sender<usize> },
 }
@@ -364,6 +375,26 @@ impl Actor for CuratorActor {
                         s.push_str(&self.buf[i].trajectory.full_text());
                     }
                     let _ = reply.send(s);
+                }
+                CuratorMessage::RenderPairs { mode, seed, reply } => {
+                    let mut rng: StdRng = match seed {
+                        Some(s) => StdRng::seed_from_u64(s),
+                        None => StdRng::from_entropy(),
+                    };
+                    let order: Vec<usize> = match mode {
+                        SampleMode::Uniform => (0..self.buf.len()).collect(),
+                        SampleMode::Priority { recency_decay } => {
+                            self.weighted_indices(self.buf.len(), recency_decay, &mut rng)
+                        }
+                    };
+                    let pairs: Vec<(String, String)> = order
+                        .into_iter()
+                        .map(|i| {
+                            let t = &self.buf[i].trajectory;
+                            (t.prompt.clone(), t.completion.clone())
+                        })
+                        .collect();
+                    let _ = reply.send(pairs);
                 }
                 CuratorMessage::Size { reply } => {
                     let _ = reply.send(self.buf.len());

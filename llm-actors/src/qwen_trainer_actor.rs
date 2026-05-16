@@ -32,7 +32,8 @@ use tokio::sync::oneshot;
 use tracing::{error, info, warn};
 
 use crate::qwen2_lora::{
-    save_merged_lora, train_qwen_lora_pg_step, train_qwen_lora_step, LoraConfig, ModelForCausalLM,
+    save_merged_lora, train_qwen_lora_pg_step, train_qwen_lora_step, train_qwen_lora_step_masked,
+    LoraConfig, ModelForCausalLM,
 };
 
 pub enum QwenTrainerMessage {
@@ -41,8 +42,33 @@ pub enum QwenTrainerMessage {
     /// and runs one `train_qwen_lora_step` (next-token CE loss on the
     /// full sequence). The model's LoRA Vars are mutated in place;
     /// the frozen base safetensors are not touched.
+    ///
+    /// ⚠ This is the **prompt-unmasked** path — every position
+    /// (including the prompt prefix) contributes to the loss. For
+    /// HumanEval / MBPP-style SFT where the prompt dominates the
+    /// sequence, prefer `TrainSftPairs` below — it implements
+    /// Phase 17's `labels[:prompt_ids.shape[0]] = -100` completion-
+    /// only loss.
     Train {
         texts: Vec<String>,
+        train_steps: usize,
+        reply: oneshot::Sender<anyhow::Result<TrainOutcome>>,
+    },
+    /// Phase 22 Stage D fix — **completion-only SFT**. Each example is
+    /// passed in as a `(prompt, completion)` pair. The trainer
+    /// tokenizes prompt and completion separately, computes the
+    /// prompt boundary `P = len(prompt_ids)`, encodes the full
+    /// `prompt + completion`, and runs `train_qwen_lora_step_masked`
+    /// to compute CE loss ONLY on the last `C` positions
+    /// (completion-token predictions). Matches Phase 17 Python's
+    /// `labels[:prompt_ids.shape[0]] = -100` semantics.
+    ///
+    /// This is the recipe that lets Phase 17's r=2 = 0.404 result
+    /// reproduce; the unmasked `Train` path catastrophically
+    /// over-trains on prompt reproduction (Phase 22 Stage D's
+    /// A-batch + G1 + G2 batches all confirmed this).
+    TrainSftPairs {
+        pairs: Vec<(String, String)>,
         train_steps: usize,
         reply: oneshot::Sender<anyhow::Result<TrainOutcome>>,
     },
@@ -184,6 +210,14 @@ impl Actor for QwenTrainerActor {
                     let result = self.handle_train(&texts, train_steps);
                     log_send(reply, result, "qwen_train");
                 }
+                QwenTrainerMessage::TrainSftPairs {
+                    pairs,
+                    train_steps,
+                    reply,
+                } => {
+                    let result = self.handle_train_sft_pairs(&pairs, train_steps);
+                    log_send(reply, result, "qwen_train_sft_pairs");
+                }
                 QwenTrainerMessage::SaveLoraAdapter { path, reply } => {
                     let result = self.lora_map.save(&path).map_err(anyhow::Error::from);
                     log_send(reply, result, "qwen_save_lora_adapter");
@@ -273,6 +307,79 @@ impl QwenTrainerActor {
         info!(
             steps = losses.len(),
             initial_loss, final_loss, "QwenTrainerActor train done"
+        );
+        Ok(TrainOutcome {
+            losses,
+            initial_loss,
+            final_loss,
+        })
+    }
+
+    /// Phase 22 Stage D fix — completion-only SFT (Phase 17 recipe).
+    fn handle_train_sft_pairs(
+        &mut self,
+        pairs: &[(String, String)],
+        train_steps: usize,
+    ) -> anyhow::Result<TrainOutcome> {
+        if pairs.is_empty() {
+            anyhow::bail!("QwenTrainerActor::TrainSftPairs: pairs is empty");
+        }
+        // Pre-tokenize each (prompt, completion) pair, remembering the
+        // prompt boundary so the training step can mask prompt
+        // positions out of the CE loss.
+        let mut encoded: Vec<(Vec<u32>, usize)> = Vec::with_capacity(pairs.len());
+        for (prompt, completion) in pairs {
+            let prompt_enc = self
+                .tokenizer
+                .encode(prompt.as_str(), true)
+                .map_err(|e| anyhow::anyhow!("encode prompt: {e}"))?;
+            let prompt_ids = prompt_enc.get_ids().to_vec();
+            let full_enc = self
+                .tokenizer
+                .encode((prompt.clone() + completion).as_str(), true)
+                .map_err(|e| anyhow::anyhow!("encode prompt+completion: {e}"))?;
+            let full_ids = full_enc.get_ids().to_vec();
+            if full_ids.len() <= prompt_ids.len() {
+                warn!(
+                    prompt_len = prompt_ids.len(),
+                    full_len = full_ids.len(),
+                    "skipping pair: full_ids no longer than prompt_ids (empty completion or tokenizer collision)"
+                );
+                continue;
+            }
+            if full_ids.len() < 2 {
+                warn!("skipping pair: full_ids shorter than 2 tokens");
+                continue;
+            }
+            encoded.push((full_ids, prompt_ids.len()));
+        }
+        if encoded.is_empty() {
+            anyhow::bail!("QwenTrainerActor::TrainSftPairs: all pairs rejected");
+        }
+
+        let mut losses = Vec::with_capacity(train_steps);
+        for step in 0..train_steps {
+            let (ids, prompt_len) = &encoded[step % encoded.len()];
+            let n = ids.len();
+            let input = Tensor::from_slice(&ids[..n - 1], (1, n - 1), &self.device)?;
+            let target = Tensor::from_slice(&ids[1..], (1, n - 1), &self.device)?;
+            let loss = train_qwen_lora_step_masked(
+                &mut self.model,
+                &mut self.optimizer,
+                &input,
+                &target,
+                *prompt_len,
+            )?;
+            losses.push(loss);
+        }
+        let initial_loss = losses.first().copied().unwrap_or(f32::NAN);
+        let final_loss = losses.last().copied().unwrap_or(f32::NAN);
+        info!(
+            steps = losses.len(),
+            initial_loss,
+            final_loss,
+            n_pairs = encoded.len(),
+            "QwenTrainerActor train_sft_pairs done"
         );
         Ok(TrainOutcome {
             losses,

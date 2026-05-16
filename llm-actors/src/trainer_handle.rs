@@ -39,6 +39,15 @@ use crate::trainer_actor::{TrainerActor, TrainerMessage};
 pub enum TrainRequest {
     Sft {
         corpus: String,
+        /// Phase 22 Stage D fix — optional `(prompt, completion)`
+        /// pairs alongside the legacy `corpus` string. Trainer handles
+        /// that support completion-only loss (currently
+        /// `QwenTrainerActorHandle`) will use this when `Some` and
+        /// dispatch to `QwenTrainerMessage::TrainSftPairs` instead of
+        /// the legacy `Train`. Trainers without masking support
+        /// (`TrainerActorHandle` on nanogpt_rs) ignore this and fall
+        /// back to the corpus string.
+        sft_pairs: Option<Vec<(String, String)>>,
         save_path: PathBuf,
         init_from: Option<PathBuf>,
         train_cfg: TrainConfig,
@@ -84,6 +93,7 @@ impl TrainerHandle for TrainerActorHandle {
         match req {
             TrainRequest::Sft {
                 corpus,
+                sft_pairs: _, // nanogpt path doesn't support per-pair masking; ignored
                 save_path,
                 init_from,
                 train_cfg,
@@ -173,27 +183,51 @@ impl TrainerHandle for QwenTrainerActorHandle {
     async fn train(&self, req: TrainRequest) -> anyhow::Result<TrainOutcome> {
         match req {
             TrainRequest::Sft {
-                corpus, save_path, ..
+                corpus,
+                sft_pairs,
+                save_path,
+                ..
             } => {
-                // Curator renders a single newline-delimited corpus string.
-                // For Qwen we treat each non-empty line as a training text.
-                let texts: Vec<String> = corpus
-                    .lines()
-                    .filter(|l| !l.trim().is_empty())
-                    .map(|l| l.to_string())
-                    .collect();
-                if texts.is_empty() {
-                    anyhow::bail!("QwenTrainerActorHandle::train: empty corpus");
-                }
-                let (tx, rx) = oneshot::channel();
-                self.trainer
-                    .tell(QwenTrainerMessage::Train {
-                        texts,
-                        train_steps: self.train_steps,
-                        reply: tx,
-                    })
-                    .map_err(|e| anyhow::anyhow!("{e:?}"))?;
-                let outcome = rx.await??;
+                // Phase 22 Stage D fix — if the supervisor passes
+                // `(prompt, completion)` pairs, dispatch to
+                // `TrainSftPairs` (completion-only CE loss, Phase 17
+                // recipe). Falls back to the legacy `Train` path for
+                // back-compat when pairs are None.
+                let outcome = if let Some(pairs) = sft_pairs {
+                    if pairs.is_empty() {
+                        anyhow::bail!("QwenTrainerActorHandle::train: empty sft_pairs");
+                    }
+                    let (tx, rx) = oneshot::channel();
+                    self.trainer
+                        .tell(QwenTrainerMessage::TrainSftPairs {
+                            pairs,
+                            train_steps: self.train_steps,
+                            reply: tx,
+                        })
+                        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+                    rx.await??
+                } else {
+                    // Legacy: curator renders a single newline-delimited
+                    // corpus string. Treat each non-empty line as a
+                    // training text (prompt-unmasked).
+                    let texts: Vec<String> = corpus
+                        .lines()
+                        .filter(|l| !l.trim().is_empty())
+                        .map(|l| l.to_string())
+                        .collect();
+                    if texts.is_empty() {
+                        anyhow::bail!("QwenTrainerActorHandle::train: empty corpus");
+                    }
+                    let (tx, rx) = oneshot::channel();
+                    self.trainer
+                        .tell(QwenTrainerMessage::Train {
+                            texts,
+                            train_steps: self.train_steps,
+                            reply: tx,
+                        })
+                        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+                    rx.await??
+                };
 
                 // Save merged checkpoint so the inference actor can
                 // ReloadCheckpoint(save_path) and see the trained model.

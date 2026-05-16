@@ -339,6 +339,7 @@ async fn main() -> Result<()> {
         dpo_max_pairs_per_prompt: 0,
         dpo_sft_anchor_weight: 0.0,
         eval_passk: args.eval_passk,
+        sft_mask_prompt: true,
     };
 
     // `run_multi_round` auto-chains init_from and bumps seeds per round.

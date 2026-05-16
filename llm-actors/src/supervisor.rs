@@ -109,6 +109,19 @@ pub struct RoundConfig {
     /// HumanEval). At the small Candle scales used here it surfaces
     /// stochastic-decode capability the greedy eval misses.
     pub eval_passk: usize,
+    /// Phase 22 Stage D fix — when `true`, the supervisor pulls
+    /// `(prompt, completion)` pairs from the curator alongside the
+    /// concatenated corpus and passes both into `TrainRequest::Sft`.
+    /// Trainers that support completion-only loss
+    /// (`QwenTrainerActorHandle`) use the pairs and mask prompt
+    /// positions out of CE (Phase 17 Python recipe). Trainers
+    /// without masking (`TrainerActorHandle` on nanogpt_rs) ignore
+    /// the pairs and fall back to the corpus string.
+    ///
+    /// Default `true` because Phase 22 A-batch + G1 + G2 batches
+    /// all confirmed that prompt-unmasked SFT catastrophically
+    /// over-trains at HumanEval/MBPP prompt scales.
+    pub sft_mask_prompt: bool,
 }
 
 pub async fn run_round<M>(actors: &RoundActors<M>, cfg: RoundConfig) -> anyhow::Result<RoundReport>
@@ -292,9 +305,33 @@ where
             report.elapsed_ms = t0.elapsed().as_millis();
             return Ok(report);
         }
-        info!(round = cfg.round, "phase: train (SFT)");
+        // Phase 22 Stage D fix — also pull `(prompt, completion)`
+        // pairs so trainers that support completion-only loss
+        // (`QwenTrainerActorHandle` → `TrainSftPairs`) can mask the
+        // prompt tokens out of the CE loss. The legacy `corpus`
+        // string is also passed for nanogpt_rs path back-compat.
+        let sft_pairs = if cfg.sft_mask_prompt {
+            let (tx2, rx2) = oneshot::channel();
+            actors
+                .curator
+                .tell(CuratorMessage::RenderPairs {
+                    mode: cfg.sample_mode,
+                    seed: cfg.corpus_seed,
+                    reply: tx2,
+                })
+                .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+            Some(rx2.await?)
+        } else {
+            None
+        };
+        info!(
+            round = cfg.round,
+            sft_pairs_n = sft_pairs.as_ref().map(|p| p.len()).unwrap_or(0),
+            "phase: train (SFT)"
+        );
         TrainRequest::Sft {
             corpus,
+            sft_pairs,
             save_path: cfg.save_path.clone(),
             init_from: cfg.init_from.clone(),
             train_cfg: cfg.train_cfg.clone(),
@@ -531,6 +568,7 @@ mod tests {
             dpo_max_pairs_per_prompt: 0,
             dpo_sft_anchor_weight: 0.0,
             eval_passk: 1,
+            sft_mask_prompt: true,
         };
         let cfg = MultiRoundConfig::new(5, base);
         assert_eq!(cfg.rounds, 5);

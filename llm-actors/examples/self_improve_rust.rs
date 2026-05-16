@@ -699,6 +699,7 @@ async fn main() -> anyhow::Result<()> {
             dpo_max_pairs_per_prompt: args.dpo_max_pairs_per_prompt,
             dpo_sft_anchor_weight: args.dpo_sft_anchor_weight,
             eval_passk: args.eval_passk.max(1),
+            sft_mask_prompt: true,
         };
 
         let report = run_round(&actors, cfg).await?;

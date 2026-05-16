@@ -703,6 +703,73 @@ pub fn train_qwen_lora_step(
     Ok(loss_value)
 }
 
+/// Phase 22 Stage D fix — **completion-only SFT**, the Phase 17 Python
+/// recipe (`labels[:prompt_ids.shape[0]] = -100`).
+///
+/// `input_ids`, `target_ids`: `(1, P+C−1)` shifted next-token pair for a
+///   single example with prompt length `P` and completion length `C`.
+/// `prompt_len = P`: number of tokens in the prompt before the
+///   completion starts. Loss is computed ONLY on the last `C` positions
+///   of `(input, target)` (positions `P−1..P+C−1`), which correspond to
+///   predicting completion tokens `c_0..c_{C-1}` from the prompt's last
+///   token and the preceding completion tokens.
+///
+/// Without this masking, the `(P+C−1)`-position CE loss is dominated
+/// by the `P−1` prompt-internal predictions (since P >> C typical for
+/// HumanEval / MBPP prompts). The model collapses onto prompt
+/// reproduction → catastrophic over-training, exactly the r=2 < base
+/// regression observed in Phase 22 Stage D's A-batch and G1 batches.
+///
+/// `B > 1` not supported here (per-example prompt boundary varies);
+/// callers pre-batch by tokenizing one (prompt, completion) at a time.
+pub fn train_qwen_lora_step_masked(
+    model: &mut ModelForCausalLM,
+    optimizer: &mut candle_nn::AdamW,
+    input_ids: &Tensor,
+    target_ids: &Tensor,
+    prompt_len: usize,
+) -> Result<f32> {
+    let logits = model.forward_train(input_ids)?;
+    let (b, t, v) = logits.dims3()?;
+    if b != 1 {
+        candle_core::bail!("train_qwen_lora_step_masked: only B=1 supported (got B={b})");
+    }
+    if prompt_len == 0 {
+        // Nothing to mask → identical to the unmasked path.
+        let logits_flat = logits.reshape((b * t, v))?.to_dtype(DType::F32)?;
+        let targets_flat = target_ids.reshape(b * t)?;
+        let loss = candle_nn::loss::cross_entropy(&logits_flat, &targets_flat)?;
+        let loss_value = loss.to_scalar::<f32>()?;
+        use candle_nn::Optimizer;
+        optimizer.backward_step(&loss)?;
+        return Ok(loss_value);
+    }
+    // After the shift, (input, target) has length P+C−1.
+    //   target[0..P−1] = prompt-internal predictions (mask)
+    //   target[P−1..P+C−1] = completion predictions (keep, C positions)
+    // We slice the logits/targets to the last (t − (P − 1)) = t − P + 1 = C
+    // positions and compute CE over those.
+    if prompt_len.saturating_sub(1) >= t {
+        candle_core::bail!(
+            "train_qwen_lora_step_masked: prompt_len={prompt_len} >= seq_len+1={}; \
+             no completion tokens to score",
+            t + 1
+        );
+    }
+    let start = prompt_len - 1;
+    let len = t - start;
+    // logits is (1, t, v) → narrow on dim 1.
+    let logits_comp = logits.narrow(1, start, len)?;
+    let logits_flat = logits_comp.reshape((len, v))?.to_dtype(DType::F32)?;
+    // target_ids is (1, t) → narrow on dim 1, then squeeze batch.
+    let targets_comp = target_ids.narrow(1, start, len)?.reshape(len)?;
+    let loss = candle_nn::loss::cross_entropy(&logits_flat, &targets_comp)?;
+    let loss_value = loss.to_scalar::<f32>()?;
+    use candle_nn::Optimizer;
+    optimizer.backward_step(&loss)?;
+    Ok(loss_value)
+}
+
 /// Diagnostic — compute and report the gradient L2 norm of all Vars
 /// passed in `vars` after a single backward pass through the loss. Used
 /// by the LoRA smoke to verify gradients are actually flowing into the
