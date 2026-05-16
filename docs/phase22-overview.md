@@ -17,9 +17,11 @@ run-it-all guide.
 ## Stages
 
 ```
-A ─── B ─── D
+A ─── B ─── D ─── D-followup
 │          │
 C          E
+│
+mbpp-D variant
 ```
 
 | stage | scope | commit |
@@ -29,6 +31,21 @@ C          E
 | C | `MbppDomain` mirrors Stage A but for MBPP-100 (task_id 11–110). Phase 17 S3's prompt-synthesis recipe ported to Rust: parse first top-level `def name(args):`, detect imports, emit HumanEval-style prompt + suffix. **Structural diff**: test_list items are top-level asserts, no `check(<entry>)` call. n=16 × k=10 = 160 attempts: aggregate pass@1=0.1875 (subset bias), but Δ pass@1→pass@10 = +0.375 reproduces Phase 17 S9's +0.30 mechanism. | `284000c` |
 | D | Multi-round SFT through Pekko. `phase22_he_mr_sft` = Stage 21 H template with `HumanEvalDomain` swap. All Phase 14–20 hyperparams as CLI flags. r=2 smoke: round 0 gen=0/16 (sparse, supervisor honestly `skip training: empty corpus`); round 1 gen=2/16 → trained → pass@3 0.219→0.344 (**Δ=+0.125 lift** — Phase 17 mechanism reproduces even at smoke scale). | `5896d01` |
 | E | REINFORCE on HumanEval via Stage G mechanism. `phase22_he_reinforce` = Stage G template with `HumanEvalDomain` + `nth_prompt` indexing. Verifier-as-reward (1.0 if `verify` passes, 0.0 otherwise), RLOO baseline. r=3 smoke (max_new=16) returns clean loss=0.0 in degenerate no-pass case — wiring proven. | `eb6da62` |
+
+### Stage D follow-ups (post-E)
+
+| follow-up | scope | commit |
+|---|---|---|
+| Anomaly resolution | Round-0 `eval-after=0.000` was a display bug (`unwrap_or(0.0)` conflating `None` with `0.0`). Supervisor early-returns on empty corpus → eval-after never measured. Fixed display to show `N/A`. | `76d0f0e` |
+| Sparse-corpus mitigation | `--gen-n` default 16 → 32 (P(skip) 0.185 → 0.034). New `--gen-oversample` CLI flag (Phase 6 Shape C best-of-K filter via `ScoreLogProb`). Doc table for skip probabilities at gen-n ∈ {16, 32, 64, 164}. | `835393f` |
+| `--scratch-dir` + `--prompt-skip-list` | Enable parallel `phase22_he_mr_sft` runs (cross-process Mutex isolation). Forward-compat hook for prompt filtering. | `d2d0aa4` |
+| `--seed` CLI flag | Make multi-seed runs actually produce distinct results. Internal seeds (gen, eval, corpus) derive deterministically from a single `--seed N` knob. | `1736393` |
+| `QwenModelActor::ScoreLogProb` | Was a stub returning `Err`. Implements via the same KV-cache + last-position forward as `generate_autoregressive`. Unlocks `--gen-oversample > 1` on Qwen (Phase 6 Shape C best-of-K filter). | `e787f79` |
+| `FilteredDomain` wrapper | Operationalizes `--prompt-skip-list` at the `Domain` trait level (no supervisor/actor changes). Phase 9 S5 cold-start mitigation. 4 new unit tests. | `b9be505` |
+| MBPP Stage D variant | `phase22_mbpp_mr_sft` — cross-substrate companion to `phase22_he_mr_sft`. Same actor pipeline, `HumanEvalDomain → MbppDomain` swap. Identical CLI surface. | `2753241` |
+| 5-seed gen-n=32 batch | First multi-seed measurement (seeds 100/200/300/400/500). Mean r=2 pass@3 = 0.275 ± 0.116; Δ(r=2−base) = +0.100 ± 0.078 (1.3σ above zero). 5/5 seeds positive. Seed 400 = 0.406 within 0.002 of Phase 17 r=2 = 0.404. σ is 9× Phase 17's due to eval-n=32 + passk=3 subset noise. | `d1dd6d8` |
+| 5-seed gen-n=164 A batch | Phase-17-scale gen-n. Mean r=1 = 0.331 (up from gen-n=32's 0.244 — bigger corpus helps single-round SFT). **5/5 seeds r=2 < r=1**: mean Δ(r=2−r=1) = −0.081 — first observation of round-2 regression at this scale (catastrophic forgetting or over-training signal). seed 400 r=1 = 0.562, seed 500 r=1 = 0.438 individually exceed Phase 17's r=2 = 0.404. | TBD |
+| `--checkpoint` flag for baseline | Allow `phase22_humaneval_baseline` to evaluate trained checkpoints (overrides `model.safetensors` while reusing snapshot config + tokenizer). Required for benchmark-aligned aggregate eval of Stage D outputs. | TBD |
 
 ## Examples (run-it-all guide)
 
@@ -101,15 +118,17 @@ New library modules in `llm-actors/src/`:
 | C | MBPP-100 n=16×k=10 | base Qwen, temp=0.8, BF16 | per-prompt pass@10 = 0.5625, aggregate pass@1 = 0.1875, **Δ=+0.375** | mechanism (sampling lift) matches Phase 17 S9's +0.30; absolute level subset-biased (task_id 11–26) |
 | D | HumanEval r=2 smoke | gen-n=16, eval-n=32, passk=3, train-steps=30 | round 1 pass@3 0.219→0.344, **Δ=+0.125** | direction matches Phase 17 S1 (mean Δ=+0.174 at full 164 + passk=10); round 0 empty-corpus skip path now displays N/A correctly (the original "0.000" was a display bug, not model state) |
 | E | HumanEval r=3 smoke | n_prompts=6, k=2, max_new=16 | 0/12 passes (degenerate), loss=0.0 cleanly | wiring proven; signal-bearing run needs max_new ≥64 + multi-seed |
+| D 5-seed gen-n=32 | HumanEval r=2 | 5 seeds, gen-n=32, eval-n=32, passk=3, train-steps=30 | mean r=2 pass@3 = **0.275 ± 0.116**, Δ(r=2−base) = **+0.100 ± 0.078** (1.3σ above zero) | 5/5 seeds positive; seed 400 = 0.406 within 0.002 of Phase 17 r=2 = 0.404; σ 9× Phase 17's due to eval-n + passk noise |
+| D 5-seed gen-n=164 (A batch) | HumanEval r=2 | 5 seeds, gen-n=164, eval-n=32, passk=3, train-steps=100 | mean **r=1 pass@3 = 0.331**, mean r=2 = 0.250; **r=2 < r=1 in 5/5 seeds** | NEW finding: at Phase-17-scale gen-n + 100 train-steps, r=2 regresses from r=1 (mean Δ=−0.081). Catastrophic forgetting / over-training signal — not seen at gen-n=32 where r=1 was lower. Phase 17 likely used different train-steps; needs ablation |
 
 ## Build / test surface
 
-After Stage E:
+After Stage E + Stage D follow-ups:
 - `cargo build --workspace --release` clean
 - `cargo build --workspace --examples --release` clean
-- `cargo test --workspace --release` — **156 unit tests** pass
-  (was 145 pre-Phase-22; net +11: +4 HumanEval Stage A, +7 MBPP
-  Stage C)
+- `cargo test --workspace --release` — **160 unit tests** pass
+  (was 145 pre-Phase-22; net +15: +4 HumanEval Stage A, +7 MBPP
+  Stage C, +4 FilteredDomain)
 - `cargo fmt --all --check` clean
 - `cargo clippy --workspace --all-targets -- -D warnings` clean
 

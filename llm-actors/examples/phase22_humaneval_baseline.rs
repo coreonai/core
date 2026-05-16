@@ -72,6 +72,14 @@ struct Args {
     /// number (0.216 at temp=0.8, k=10).
     #[arg(long, default_value_t = false)]
     aggregate: bool,
+    /// Override the model.safetensors path. Useful for evaluating
+    /// trained checkpoints produced by `phase22_he_mr_sft`'s
+    /// `SaveMergedCheckpoint`. When set, `tokenizer.json` and
+    /// `config.json` are still loaded from the snapshot dir, only
+    /// the weights come from this path. Output is drop-in compatible
+    /// with the upstream `candle_transformers::models::qwen2` loader.
+    #[arg(long)]
+    checkpoint: Option<PathBuf>,
 }
 
 fn pick_device() -> Device {
@@ -116,7 +124,18 @@ async fn main() -> Result<()> {
 
     let snapshot = resolve_default_snapshot()?;
     println!("[Phase22A] snapshot = {}", snapshot.display());
-    let qwen = QwenModelActor::from_snapshot_dir(&snapshot, device, dtype)?;
+    let qwen = if let Some(ckpt) = args.checkpoint.as_ref() {
+        println!("[Phase22A] checkpoint override = {}", ckpt.display());
+        // Use the snapshot's config + tokenizer but the override's weights.
+        // QwenModelActor::new takes (model_path, tokenizer, config, device, dtype).
+        let cfg_text = std::fs::read_to_string(snapshot.join("config.json"))?;
+        let config: candle_transformers::models::qwen2::Config = serde_json::from_str(&cfg_text)?;
+        let tokenizer = tokenizers::Tokenizer::from_file(snapshot.join("tokenizer.json"))
+            .map_err(|e| anyhow!("tokenizer: {e}"))?;
+        QwenModelActor::new(ckpt.clone(), Arc::new(tokenizer), config, device, dtype)?
+    } else {
+        QwenModelActor::from_snapshot_dir(&snapshot, device, dtype)?
+    };
     let tk = Arc::new(NgptTokenizer::from_hf_file(
         snapshot.join("tokenizer.json"),
     )?);
