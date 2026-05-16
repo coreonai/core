@@ -114,6 +114,12 @@ struct Args {
     /// Output dir for per-round merged checkpoints.
     #[arg(long, default_value = "checkpoints/phase22_he_mr_sft")]
     out_dir: PathBuf,
+    /// Base seed for all RNGs (gen, gen_sampling, eval, eval_sampling,
+    /// corpus). Each is offset deterministically from this base so a
+    /// single `--seed N` shift gives a complete reproducible run.
+    /// Default 42 preserves the previous hardcoded values bit-exactly.
+    #[arg(long, default_value_t = 42)]
+    seed: u64,
     /// Scratch dir for `HumanEvalDomain::verify` python3 invocations.
     /// **Required to be unique per concurrent run** — `verify` writes
     /// `solution.py` under this path and an in-process write_lock that
@@ -271,19 +277,29 @@ async fn main() -> Result<()> {
     train_cfg.max_steps = args.train_steps;
     train_cfg.optimizer = OptimizerKind::Adam;
 
+    // All seeds derive from --seed deterministically. The offsets
+    // preserve the prior bit-exact defaults at seed=42:
+    //   gen_seed       = seed              (was 42)
+    //   gen_sampling   = seed              (was 42)
+    //   eval_seed      = seed - 35         (so seed=42 → 7)
+    //   eval_sampling  = seed - 35         (so seed=42 → 7)
+    //   corpus_seed    = seed - 42         (so seed=42 → 0)
+    let gen_seed = args.seed;
+    let eval_seed = args.seed.wrapping_sub(35);
+    let corpus_seed = args.seed.wrapping_sub(42);
     let base = RoundConfig {
         round: 0,
         gen_n: args.gen_n,
-        gen_seed: 42,
+        gen_seed,
         gen_sampling: GenerateConfig {
             max_new_tokens: args.max_new_tokens,
             temperature: args.temperature,
             top_k: Some(40),
             top_p: Some(0.95),
-            seed: Some(42),
+            seed: Some(gen_seed),
         },
         eval_n: args.eval_n,
-        eval_seed: 7,
+        eval_seed,
         eval_sampling: GenerateConfig {
             max_new_tokens: args.max_new_tokens,
             // Per-round eval at temp=0.8 + passk>1 mirrors Phase 17 S6
@@ -292,14 +308,14 @@ async fn main() -> Result<()> {
             temperature: 0.8,
             top_k: Some(40),
             top_p: Some(0.95),
-            seed: Some(7),
+            seed: Some(eval_seed),
         },
         train_cfg,
         init_from: None,
         save_path: args.out_dir.join("r0_merged.safetensors"),
         min_corpus_chars: 32,
         sample_mode: SampleMode::Uniform,
-        corpus_seed: Some(0),
+        corpus_seed: Some(corpus_seed),
         anchor: None,
         freeze_base: false,
         gen_oversample: args.gen_oversample.max(1),
