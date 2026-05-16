@@ -80,6 +80,27 @@ struct Args {
     /// Base seed for prompt-pick + per-sample seed derivation.
     #[arg(long, default_value_t = 7)]
     seed: u64,
+    /// Phase 22 follow-up C2 — adapter-sync cadence. Every `N` RL
+    /// steps, the trainer's accumulated LoRA delta is baked into base
+    /// (`SaveMergedCheckpoint`) and the sampling model reloads
+    /// (`ModelMessage::ReloadCheckpoint`). This closes the off-policy
+    /// gap: without sync, `QwenModelActor` keeps sampling from the
+    /// frozen base while `QwenTrainerActor`'s LoRA drifts, so the
+    /// policy gradient updates a distribution that's never used for
+    /// sampling. `0` disables sync (the historical Stage G behavior);
+    /// `1` syncs every step (most on-policy); `N>1` trades sync
+    /// frequency against the ~30s save+reload cost per sync.
+    #[arg(long, default_value_t = 0)]
+    sync_every: usize,
+    /// Directory for the intermediate merged-checkpoint file used by
+    /// adapter sync. Default writes to `/dev/shm/...` (tmpfs) to cut
+    /// the 988-MB-per-sync disk I/O.
+    #[arg(long, default_value = "/dev/shm/phase22_he_reinforce_sync.safetensors")]
+    sync_path: PathBuf,
+    /// Base safetensors path for the merged-checkpoint save. Defaults
+    /// to the HF snapshot's `model.safetensors`.
+    #[arg(long)]
+    base_safetensors: Option<PathBuf>,
 }
 
 fn pick_device() -> Device {
@@ -245,12 +266,44 @@ async fn main() -> Result<()> {
         step_passes.push(total_pass);
         step_totals.push(total_samples);
 
+        // C2 — adapter sync. Every `sync_every` RL steps, push the
+        // accumulated LoRA delta from the trainer into the inference
+        // model so subsequent samples are drawn from the updated
+        // policy (closer to on-policy).
+        let synced = if args.sync_every > 0 && (rl_step + 1) % args.sync_every == 0 {
+            let base = args
+                .base_safetensors
+                .clone()
+                .unwrap_or_else(|| snapshot.join("model.safetensors"));
+            let (sx, sr) = oneshot::channel();
+            trainer_ref
+                .tell(QwenTrainerMessage::SaveMergedCheckpoint {
+                    base_path: base,
+                    out_path: args.sync_path.clone(),
+                    reply: sx,
+                })
+                .map_err(|e| anyhow!("{e:?}"))?;
+            sr.await??;
+            let (rx2, rr2) = oneshot::channel();
+            model_ref
+                .tell(ModelMessage::ReloadCheckpoint {
+                    path: args.sync_path.clone(),
+                    reply: rx2,
+                })
+                .map_err(|e| anyhow!("{e:?}"))?;
+            rr2.await??;
+            true
+        } else {
+            false
+        };
+
         println!(
             "[Phase22E] rl_step {rl_step}  loss = {loss:+.4}  pass = {}/{}  \
-             elapsed_step = {:.1}s",
+             elapsed_step = {:.1}s  synced = {}",
             total_pass,
             total_samples,
-            t_step.elapsed().as_secs_f64()
+            t_step.elapsed().as_secs_f64(),
+            synced
         );
     }
 
