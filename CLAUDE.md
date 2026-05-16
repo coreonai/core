@@ -193,6 +193,18 @@ in-domain compression, HF wins on coverage).
    training run — a stale background job pinning A100 will OOM the new
    one without an obvious error.
 
+8. **Always** verify the example binary at `target/release/examples/<name>`
+   was built with `--features cuda` before launching a GPU run.
+   `cargo build -p llm-actors --release` (without the flag) silently
+   overwrites the example binary with a CPU-only version, and
+   subsequent runs show `device = Cpu, on_cuda = false` in the log
+   and then time out on the first `generate_tokens` call after ~60s.
+   Workflow: after ANY change to library code, re-run
+   `CUDA_HOME=/usr/local/cuda-12.5 PATH=/usr/local/cuda-12.5/bin:$PATH
+   cargo build -p llm-actors --example <name> --features cuda --release`
+   before relaunching. Phase 22 Stage D G1 and G3 batches both hit this
+   trap (Δ ~ 60 min wallclock × 5 GPUs each time).
+
 ## Testing strategy
 
 - 74 unit tests are exhaustive on what's deterministic (parsing,

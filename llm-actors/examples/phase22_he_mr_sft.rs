@@ -187,6 +187,16 @@ async fn main() -> Result<()> {
         "[Phase22D] device = {device:?}, on_cuda = {on_cuda}, rounds = {}",
         args.rounds
     );
+    if !on_cuda && std::env::var("PHASE22_ALLOW_CPU").is_err() {
+        anyhow::bail!(
+            "Refusing to run on CPU. Rebuild the binary with `--features cuda` \
+             (CUDA_HOME=/usr/local/cuda-12.5 PATH=/usr/local/cuda-12.5/bin:$PATH \
+             cargo build -p llm-actors --example phase22_he_mr_sft \
+             --features cuda --release). Set PHASE22_ALLOW_CPU=1 to override \
+             (CPU runs take ~60× longer per token and are not viable for \
+             gen-n=164 ablations)."
+        );
+    }
     std::fs::create_dir_all(&args.out_dir)?;
 
     let snapshot = resolve_default_snapshot()?;

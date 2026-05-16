@@ -186,6 +186,12 @@ async fn main() -> Result<()> {
         "[Phase22D-MBPP] device = {device:?}, on_cuda = {on_cuda}, rounds = {}",
         args.rounds
     );
+    if !on_cuda && std::env::var("PHASE22_ALLOW_CPU").is_err() {
+        anyhow::bail!(
+            "Refusing to run on CPU. Rebuild with `--features cuda`. \
+             Set PHASE22_ALLOW_CPU=1 to override."
+        );
+    }
     std::fs::create_dir_all(&args.out_dir)?;
 
     let snapshot = resolve_default_snapshot()?;

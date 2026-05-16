@@ -141,6 +141,12 @@ async fn main() -> Result<()> {
         "[Phase22E] device = {device:?}, on_cuda = {on_cuda}, rl_steps = {}",
         args.rl_steps
     );
+    if !on_cuda && std::env::var("PHASE22_ALLOW_CPU").is_err() {
+        anyhow::bail!(
+            "Refusing to run on CPU. Rebuild with `--features cuda`. \
+             Set PHASE22_ALLOW_CPU=1 to override."
+        );
+    }
 
     let snapshot = resolve_default_snapshot()?;
     println!("[Phase22E] snapshot = {}", snapshot.display());
