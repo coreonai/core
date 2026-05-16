@@ -44,8 +44,11 @@ mbpp-D variant
 | `FilteredDomain` wrapper | Operationalizes `--prompt-skip-list` at the `Domain` trait level (no supervisor/actor changes). Phase 9 S5 cold-start mitigation. 4 new unit tests. | `b9be505` |
 | MBPP Stage D variant | `phase22_mbpp_mr_sft` — cross-substrate companion to `phase22_he_mr_sft`. Same actor pipeline, `HumanEvalDomain → MbppDomain` swap. Identical CLI surface. | `2753241` |
 | 5-seed gen-n=32 batch | First multi-seed measurement (seeds 100/200/300/400/500). Mean r=2 pass@3 = 0.275 ± 0.116; Δ(r=2−base) = +0.100 ± 0.078 (1.3σ above zero). 5/5 seeds positive. Seed 400 = 0.406 within 0.002 of Phase 17 r=2 = 0.404. σ is 9× Phase 17's due to eval-n=32 + passk=3 subset noise. | `d1dd6d8` |
-| 5-seed gen-n=164 A batch | Phase-17-scale gen-n. Mean r=1 = 0.331 (up from gen-n=32's 0.244 — bigger corpus helps single-round SFT). **5/5 seeds r=2 < r=1**: mean Δ(r=2−r=1) = −0.081 — first observation of round-2 regression at this scale (catastrophic forgetting or over-training signal). seed 400 r=1 = 0.562, seed 500 r=1 = 0.438 individually exceed Phase 17's r=2 = 0.404. | TBD |
-| `--checkpoint` flag for baseline | Allow `phase22_humaneval_baseline` to evaluate trained checkpoints (overrides `model.safetensors` while reusing snapshot config + tokenizer). Required for benchmark-aligned aggregate eval of Stage D outputs. | TBD |
+| 5-seed gen-n=164 A batch | Phase-17-scale gen-n. Mean r=1 = 0.331 (up from gen-n=32's 0.244 — bigger corpus helps single-round SFT). **5/5 seeds r=2 < r=1**: mean Δ(r=2−r=1) = −0.081 — first observation of round-2 regression at this scale (catastrophic forgetting or over-training signal). seed 400 r=1 = 0.562, seed 500 r=1 = 0.438 individually exceed Phase 17's r=2 = 0.404. | (no commit, measurement only) |
+| `--checkpoint` flag for baseline | Allow `phase22_humaneval_baseline` to evaluate trained checkpoints (overrides `model.safetensors` while reusing snapshot config + tokenizer). Required for benchmark-aligned aggregate eval of Stage D outputs. | `d861a36` |
+| A-batch aggregate eval (Phase 17 metric) | 5 × `phase22_humaneval_baseline --sequential --aggregate` on r=2 checkpoints. Mean aggregate pass@1 = **0.116 ± 0.037** — HALF of base Qwen's 0.222. Per-round eval-n=32 was measuring memorization (training-eval overlap), not generalization. Confirms over-training hypothesis by magnitude. | `6300a75` |
+| Thread-safe verify + VerifierActor parallel pool | `HumanEvalDomain.verify` + `MbppDomain.verify` use per-call unique scratch files (AtomicU64 counter; no Mutex). `VerifierActor` dispatches via `tokio::spawn_blocking` with `Semaphore`-bounded concurrency (default 8). Training-loop verify: ~82s → ~11s/round. Cargo-build domain verify proportional savings. New parallel-verify regression test. | `38025bd` |
+| `run_multi_round` eval-before dedup | Round N+1's eval-before = round N's eval-after (same model, same seed) → deterministic redundancy. Cache `prev_eval_after` across rounds. Saves ~5 min/round at gen-n=164 + eval-n=32 + passk=3. r=6 sweep: ~25 min/seed saved. | `cb6a9b7` |
 
 ## Examples (run-it-all guide)
 
@@ -123,12 +126,12 @@ New library modules in `llm-actors/src/`:
 
 ## Build / test surface
 
-After Stage E + Stage D follow-ups:
+After Stage E + Stage D follow-ups (including verify pool + pipeline):
 - `cargo build --workspace --release` clean
 - `cargo build --workspace --examples --release` clean
-- `cargo test --workspace --release` — **160 unit tests** pass
-  (was 145 pre-Phase-22; net +15: +4 HumanEval Stage A, +7 MBPP
-  Stage C, +4 FilteredDomain)
+- `cargo test --workspace --release` — **161 unit tests** pass
+  (was 145 pre-Phase-22; net +16: +4 HumanEval Stage A, +7 MBPP
+  Stage C, +4 FilteredDomain, +1 parallel-verify regression)
 - `cargo fmt --all --check` clean
 - `cargo clippy --workspace --all-targets -- -D warnings` clean
 
