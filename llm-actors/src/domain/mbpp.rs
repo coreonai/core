@@ -22,7 +22,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use rand::rngs::StdRng;
@@ -55,10 +55,11 @@ pub struct MbppDomain {
     prompt_to_idx: HashMap<String, usize>,
     pub scratch_dir: PathBuf,
     pub timeout: Duration,
-    /// Serializes file writes inside `scratch_dir` so verify calls
-    /// from concurrent tasks don't clobber each other's `solution.py`.
-    /// Mirrors `HumanEvalDomain`'s write-lock.
-    write_lock: Mutex<()>,
+    /// Atomic counter for unique `solution_{id}.py` filenames per
+    /// concurrent verify call (mirrors `HumanEvalDomain`'s
+    /// thread-safe pattern). No Mutex — calls are independent
+    /// `python3` subprocesses writing to distinct files.
+    next_call_id: AtomicU64,
 }
 
 /// Parse the first top-level `def name(arg1, arg2, ...):` signature
@@ -199,7 +200,7 @@ impl MbppDomain {
             prompt_to_idx,
             scratch_dir,
             timeout: Duration::from_secs(8),
-            write_lock: Mutex::new(()),
+            next_call_id: AtomicU64::new(0),
         })
     }
 
@@ -246,11 +247,10 @@ impl Domain for MbppDomain {
         let ch = &self.challenges[idx];
         let program = self.build_program(ch, completion);
 
-        let solution_path = self.scratch_dir.join("solution.py");
-        let _guard = self
-            .write_lock
-            .lock()
-            .expect("MbppDomain write lock poisoned");
+        // Unique scratch filename per call → concurrent verifies safe
+        // without a Mutex. Cleaned up at the end.
+        let call_id = self.next_call_id.fetch_add(1, Ordering::Relaxed);
+        let solution_path = self.scratch_dir.join(format!("solution_{call_id}.py"));
         if let Err(e) = std::fs::write(&solution_path, &program) {
             return Verdict::Inconclusive {
                 reason: format!("write {}: {e}", solution_path.display()),
@@ -266,6 +266,7 @@ impl Domain for MbppDomain {
         let mut child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) => {
+                let _ = std::fs::remove_file(&solution_path);
                 return Verdict::Inconclusive {
                     reason: format!("spawn python3: {e}"),
                 };
@@ -273,10 +274,10 @@ impl Domain for MbppDomain {
         };
 
         let start = std::time::Instant::now();
-        loop {
+        let verdict = loop {
             match child.try_wait() {
                 Ok(Some(status)) => {
-                    return if status.success() {
+                    break if status.success() {
                         Verdict::Correct
                     } else {
                         Verdict::Incorrect {
@@ -287,19 +288,21 @@ impl Domain for MbppDomain {
                 Ok(None) => {
                     if start.elapsed() > self.timeout {
                         let _ = child.kill();
-                        return Verdict::Incorrect {
+                        break Verdict::Incorrect {
                             reason: format!("python3 timed out after {:?}", self.timeout),
                         };
                     }
                     std::thread::sleep(Duration::from_millis(20));
                 }
                 Err(e) => {
-                    return Verdict::Inconclusive {
+                    break Verdict::Inconclusive {
                         reason: format!("try_wait: {e}"),
                     };
                 }
             }
-        }
+        };
+        let _ = std::fs::remove_file(&solution_path);
+        verdict
     }
 
     fn charset(&self) -> &str {

@@ -15,7 +15,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use rand::rngs::StdRng;
@@ -41,10 +41,13 @@ pub struct HumanEvalDomain {
     prompt_to_idx: HashMap<String, usize>,
     pub scratch_dir: PathBuf,
     pub timeout: Duration,
-    /// Serializes file writes inside `scratch_dir` so verify calls
-    /// from concurrent tasks don't clobber each other's `solution.py`.
-    /// Mirrors `RustCodeDomain`'s write-lock pattern.
-    write_lock: Mutex<()>,
+    /// Atomic counter giving each verify call a unique scratch
+    /// filename (`solution_{id}.py`). Concurrent verifies are safe
+    /// because each call writes to a distinct path and runs an
+    /// independent `python3` subprocess. The previous `Mutex<()>`
+    /// was a worst-case serializer; removing it unlocks
+    /// `VerifierActor`'s parallel batch path.
+    next_call_id: AtomicU64,
 }
 
 impl HumanEvalDomain {
@@ -78,7 +81,7 @@ impl HumanEvalDomain {
             prompt_to_idx,
             scratch_dir,
             timeout: Duration::from_secs(8),
-            write_lock: Mutex::new(()),
+            next_call_id: AtomicU64::new(0),
         })
     }
 
@@ -133,13 +136,14 @@ impl Domain for HumanEvalDomain {
         let problem = &self.problems[idx];
         let program = self.build_program(problem, completion);
 
-        // Write program to scratch_dir/solution.py under the write lock
-        // so concurrent verifies don't race.
-        let solution_path = self.scratch_dir.join("solution.py");
-        let _guard = self
-            .write_lock
-            .lock()
-            .expect("HumanEvalDomain write lock poisoned");
+        // Each verify call writes to its own scratch filename. No
+        // Mutex needed; concurrent calls don't race because the
+        // filenames are unique. `python3 solution_{id}.py` produces
+        // an independent subprocess per call. The file is cleaned
+        // up at the end (best-effort — failures to remove are not
+        // fatal but log nothing to avoid spamming concurrent runs).
+        let call_id = self.next_call_id.fetch_add(1, Ordering::Relaxed);
+        let solution_path = self.scratch_dir.join(format!("solution_{call_id}.py"));
         if let Err(e) = std::fs::write(&solution_path, &program) {
             return Verdict::Inconclusive {
                 reason: format!("write {}: {e}", solution_path.display()),
@@ -155,6 +159,7 @@ impl Domain for HumanEvalDomain {
         let mut child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) => {
+                let _ = std::fs::remove_file(&solution_path);
                 return Verdict::Inconclusive {
                     reason: format!("spawn python3: {e}"),
                 };
@@ -165,10 +170,10 @@ impl Domain for HumanEvalDomain {
         // without an extra crate; this matches Phase 15/17's
         // subprocess.run(..., timeout=...) semantics closely enough.
         let start = std::time::Instant::now();
-        loop {
+        let verdict = loop {
             match child.try_wait() {
                 Ok(Some(status)) => {
-                    return if status.success() {
+                    break if status.success() {
                         Verdict::Correct
                     } else {
                         Verdict::Incorrect {
@@ -179,19 +184,21 @@ impl Domain for HumanEvalDomain {
                 Ok(None) => {
                     if start.elapsed() > self.timeout {
                         let _ = child.kill();
-                        return Verdict::Incorrect {
+                        break Verdict::Incorrect {
                             reason: format!("python3 timed out after {:?}", self.timeout),
                         };
                     }
                     std::thread::sleep(Duration::from_millis(20));
                 }
                 Err(e) => {
-                    return Verdict::Inconclusive {
+                    break Verdict::Inconclusive {
                         reason: format!("try_wait: {e}"),
                     };
                 }
             }
-        }
+        };
+        let _ = std::fs::remove_file(&solution_path);
+        verdict
     }
 
     fn charset(&self) -> &str {
@@ -281,6 +288,38 @@ mod tests {
             !verdict.is_correct(),
             "`pass` body should fail check(): {verdict:?}"
         );
+    }
+
+    #[test]
+    fn verify_parallel_canonical_solutions_all_pass() {
+        // Phase 22 Stage D follow-up #3: verify call thread-safety.
+        // 8 concurrent threads, each calls verify() on a canonical
+        // solution from the first 8 HumanEval problems against the
+        // same `HumanEvalDomain` instance. All must verify Correct.
+        // Pre-fix this would race on `scratch_dir/solution.py`; now
+        // each call writes a unique `solution_{call_id}.py`.
+        let Some(d) = skip_if_no_jsonl(function_name!()) else {
+            eprintln!("skipping: HumanEval.jsonl not on disk");
+            return;
+        };
+        let d = std::sync::Arc::new(d);
+        let n = 8usize.min(d.problems.len());
+        let handles: Vec<_> = (0..n)
+            .map(|i| {
+                let d = std::sync::Arc::clone(&d);
+                std::thread::spawn(move || {
+                    let p = &d.problems[i];
+                    d.verify(&p.prompt, &p.canonical_solution)
+                })
+            })
+            .collect();
+        let verdicts: Vec<Verdict> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+        for (i, v) in verdicts.iter().enumerate() {
+            assert!(
+                v.is_correct(),
+                "parallel canonical solution at index {i} did not verify: {v:?}"
+            );
+        }
     }
 
     #[test]
