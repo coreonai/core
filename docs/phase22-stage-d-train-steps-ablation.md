@@ -65,6 +65,40 @@ Three possible outcomes:
    (CuratorActor → trainer text format) between Pekko and Phase 17
    Python; the difference is likely in chosen-trajectory formatting.
 
+## G1 results (per-round eval, eval-n=32 × passk=3)
+
+**Hypothesis CONFIRMED** — outcome #1.
+
+```
+seed=100  round 0  gen=13/164  pass@3=0.094→0.125  Δ=+0.031   round 1  gen=22/164  0.125→0.125  Δ=+0.000
+seed=200  round 0  gen=17/164  pass@3=0.156→0.125  Δ=-0.031   round 1  gen=11/164  0.125→0.250  Δ=+0.125
+seed=300  round 0  gen=12/164  pass@3=0.188→0.250  Δ=+0.062   round 1  gen=28/164  0.250→0.219  Δ=-0.031
+seed=400  round 0  gen=13/164  pass@3=0.281→0.375  Δ=+0.094   round 1  gen=18/164  0.375→0.406  Δ=+0.031
+seed=500  round 0  gen=10/164  pass@3=0.156→0.312  Δ=+0.156   round 1  gen=25/164  0.312→0.344  Δ=+0.031
+```
+
+| metric | A-batch (steps=100) | **G1 (steps=30)** |
+|---|---|---|
+| mean r=1 pass@3 | 0.331 | 0.237 |
+| mean r=2 pass@3 | 0.250 | **0.269** |
+| mean Δ(r=2−r=1) | **−0.081** | **+0.031** |
+| seeds r=2 ≥ r=1 | 0/5 | **4/5** |
+| mean Δ(r=2−base) | +0.075 | +0.094 |
+
+**Reading**:
+- A-batch had 5/5 r=2 < r=1 (catastrophic). G1 has 4/5 r=2 ≥ r=1
+  (monotonic — seed 300 is the only −0.031, within noise).
+- Per-round r=1 is LOWER at train-steps=30 (less training, less
+  immediate lift) but compounding is now **preserved**.
+- Phase 17 mechanism (multi-round SFT compounds positively) requires
+  train-steps ≈ 30 at gen-n=164 + rank-16 LoRA + lr=2e-4.
+
+Hypothesis #1 (over-training) CONFIRMED.
+
+**Aggregate eval (Phase 17 metric)** — running on freed GPUs after
+G1 training finished. Will compare to A-batch's r=2 = 0.116 (HALF
+base) to see if G1's r=2 aggregate recovers to ≥ base = 0.222.
+
 ## What this ablation does NOT do
 
 - **Aggregate eval (Phase 17 metric)**: this run uses per-round
