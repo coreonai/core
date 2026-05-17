@@ -32,8 +32,8 @@ use tokio::sync::oneshot;
 use tracing::{error, info, warn};
 
 use crate::qwen2_lora::{
-    save_merged_lora, train_qwen_lora_pg_step, train_qwen_lora_step, train_qwen_lora_step_masked,
-    LoraConfig, ModelForCausalLM,
+    cosine_warmup_lr, save_merged_lora, train_qwen_lora_pg_step, train_qwen_lora_step,
+    train_qwen_lora_step_masked, LoraConfig, ModelForCausalLM,
 };
 
 pub enum QwenTrainerMessage {
@@ -129,6 +129,12 @@ pub struct QwenTrainerActor {
     /// `α / r` scale needed to bake the delta back into the base.
     pub lora_cfg: LoraConfig,
     pub optimizer: AdamW,
+    /// Phase 22 Stage D follow-up — peak learning rate. The optimizer's
+    /// current lr is mutated by the cosine warmup schedule in
+    /// `handle_train_sft_pairs`; this field stores the value the
+    /// AdamW was constructed with so the schedule can ramp back up
+    /// to it.
+    pub base_lr: f64,
 }
 
 impl QwenTrainerActor {
@@ -175,6 +181,7 @@ impl QwenTrainerActor {
             lora_map,
             lora_cfg,
             optimizer,
+            base_lr: lr,
         })
     }
 
@@ -357,12 +364,19 @@ impl QwenTrainerActor {
             anyhow::bail!("QwenTrainerActor::TrainSftPairs: all pairs rejected");
         }
 
+        // Phase 22 Stage D follow-up — cosine LR schedule with linear
+        // warmup (Phase 17 recipe: `num_warmup_steps = max(1, steps/10)`).
+        let warmup_steps = (train_steps / 10).max(1);
         let mut losses = Vec::with_capacity(train_steps);
         for step in 0..train_steps {
             let (ids, prompt_len) = &encoded[step % encoded.len()];
             let n = ids.len();
             let input = Tensor::from_slice(&ids[..n - 1], (1, n - 1), &self.device)?;
             let target = Tensor::from_slice(&ids[1..], (1, n - 1), &self.device)?;
+            // Apply the schedule BEFORE the optimizer step so the step
+            // uses the right lr.
+            let lr = cosine_warmup_lr(step, warmup_steps, train_steps, self.base_lr);
+            self.optimizer.set_learning_rate(lr);
             let loss = train_qwen_lora_step_masked(
                 &mut self.model,
                 &mut self.optimizer,
@@ -372,6 +386,10 @@ impl QwenTrainerActor {
             )?;
             losses.push(loss);
         }
+        // Restore peak lr after the schedule completes (so subsequent
+        // rounds start fresh from base_lr, not whatever the decay
+        // ended at). The optimizer is shared across rounds.
+        self.optimizer.set_learning_rate(self.base_lr);
         let initial_loss = losses.first().copied().unwrap_or(f32::NAN);
         let final_loss = losses.last().copied().unwrap_or(f32::NAN);
         info!(

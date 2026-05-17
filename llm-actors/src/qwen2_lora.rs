@@ -737,6 +737,29 @@ pub fn train_qwen_lora_step_masked(
     Ok(loss_value)
 }
 
+/// Phase 22 Stage D follow-up — cosine LR schedule with linear warmup,
+/// matching Phase 17's Python recipe (`get_cosine_schedule_with_warmup`
+/// from HuggingFace Transformers).
+///
+/// For `step < warmup_steps`: linear ramp from 0 → base_lr.
+/// For `step >= warmup_steps`: cosine decay from base_lr → 0 over the
+/// remaining `total_steps − warmup_steps` steps.
+///
+/// Phase 17 used `warmup_steps = max(1, total_steps / 10)` (10%
+/// warmup). The training step is in [0, total_steps).
+pub fn cosine_warmup_lr(step: usize, warmup_steps: usize, total_steps: usize, base_lr: f64) -> f64 {
+    if total_steps == 0 {
+        return base_lr;
+    }
+    if step < warmup_steps {
+        // Linear warmup: step=0 → 0, step=warmup_steps-1 → ~base_lr.
+        return base_lr * (step + 1) as f64 / warmup_steps.max(1) as f64;
+    }
+    // Cosine decay from base_lr at step=warmup_steps to 0 at step=total_steps.
+    let progress = (step - warmup_steps) as f64 / (total_steps - warmup_steps).max(1) as f64;
+    base_lr * 0.5 * (1.0 + (std::f64::consts::PI * progress).cos())
+}
+
 /// Phase 22 Stage D fix — pure helper that computes Phase 17 Python's
 /// completion-only cross-entropy from `(1, T, V)` logits and `(1, T)`
 /// target token IDs.
@@ -938,6 +961,38 @@ mod tests {
         let result = cross_entropy_with_prompt_mask(&logits, &target_ids, 2);
         assert!(result.is_err(), "B=2 should error");
         Ok(())
+    }
+
+    /// Phase 22 Stage D follow-up — cosine warmup schedule sanity:
+    /// linear ramp during warmup, cosine decay after, base_lr peak
+    /// at the warmup→decay boundary, 0 at the end.
+    #[test]
+    fn cosine_warmup_schedule_basic_shape() {
+        let total = 100usize;
+        let warmup = 10usize;
+        let base = 2e-4_f64;
+        // Step 0 in warmup → small lr (1/warmup × base)
+        let lr_0 = cosine_warmup_lr(0, warmup, total, base);
+        assert!(lr_0 > 0.0 && lr_0 < base);
+        // Step = warmup-1 → near base_lr (final warmup step)
+        let lr_warm_end = cosine_warmup_lr(warmup - 1, warmup, total, base);
+        assert!((lr_warm_end - base).abs() < 1e-9);
+        // Step = warmup (first cosine step, progress = 0) → cos(0) = 1 → base_lr
+        let lr_cos_start = cosine_warmup_lr(warmup, warmup, total, base);
+        assert!((lr_cos_start - base).abs() < 1e-9);
+        // Step = total-1 → near 0 (final cosine step, progress ≈ 1)
+        let lr_end = cosine_warmup_lr(total - 1, warmup, total, base);
+        assert!(lr_end < base * 0.01);
+        // Monotonic decay during cosine phase
+        let lr_mid = cosine_warmup_lr((warmup + total) / 2, warmup, total, base);
+        assert!(lr_end < lr_mid && lr_mid < lr_cos_start);
+    }
+
+    #[test]
+    fn cosine_warmup_total_steps_zero_returns_base_lr() {
+        // Edge case: total=0 → just return base_lr (no-op).
+        let lr = cosine_warmup_lr(0, 0, 0, 1e-3);
+        assert!((lr - 1e-3).abs() < 1e-12);
     }
 
     #[test]
