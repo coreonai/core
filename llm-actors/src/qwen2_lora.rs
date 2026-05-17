@@ -730,44 +730,57 @@ pub fn train_qwen_lora_step_masked(
     prompt_len: usize,
 ) -> Result<f32> {
     let logits = model.forward_train(input_ids)?;
+    let loss = cross_entropy_with_prompt_mask(&logits, target_ids, prompt_len)?;
+    let loss_value = loss.to_scalar::<f32>()?;
+    use candle_nn::Optimizer;
+    optimizer.backward_step(&loss)?;
+    Ok(loss_value)
+}
+
+/// Phase 22 Stage D fix — pure helper that computes Phase 17 Python's
+/// completion-only cross-entropy from `(1, T, V)` logits and `(1, T)`
+/// target token IDs.
+///
+/// - `prompt_len == 0`: identical to standard `cross_entropy` over all
+///   `T` positions.
+/// - `prompt_len > 0`: skip the first `prompt_len − 1` shifted-target
+///   positions (which are prompt-internal predictions) and CE-loss
+///   only the last `T − (prompt_len − 1)` positions (completion-token
+///   predictions).
+///
+/// Extracted from `train_qwen_lora_step_masked` so the masking logic
+/// can be unit-tested without instantiating a full Qwen model. Returns
+/// the loss `Tensor` (caller decides to `.backward()` or just inspect).
+pub fn cross_entropy_with_prompt_mask(
+    logits: &Tensor,
+    target_ids: &Tensor,
+    prompt_len: usize,
+) -> Result<Tensor> {
     let (b, t, v) = logits.dims3()?;
     if b != 1 {
-        candle_core::bail!("train_qwen_lora_step_masked: only B=1 supported (got B={b})");
+        candle_core::bail!("cross_entropy_with_prompt_mask: only B=1 supported (got B={b})");
     }
     if prompt_len == 0 {
-        // Nothing to mask → identical to the unmasked path.
         let logits_flat = logits.reshape((b * t, v))?.to_dtype(DType::F32)?;
         let targets_flat = target_ids.reshape(b * t)?;
-        let loss = candle_nn::loss::cross_entropy(&logits_flat, &targets_flat)?;
-        let loss_value = loss.to_scalar::<f32>()?;
-        use candle_nn::Optimizer;
-        optimizer.backward_step(&loss)?;
-        return Ok(loss_value);
+        return candle_nn::loss::cross_entropy(&logits_flat, &targets_flat);
     }
     // After the shift, (input, target) has length P+C−1.
     //   target[0..P−1] = prompt-internal predictions (mask)
     //   target[P−1..P+C−1] = completion predictions (keep, C positions)
-    // We slice the logits/targets to the last (t − (P − 1)) = t − P + 1 = C
-    // positions and compute CE over those.
     if prompt_len.saturating_sub(1) >= t {
         candle_core::bail!(
-            "train_qwen_lora_step_masked: prompt_len={prompt_len} >= seq_len+1={}; \
+            "cross_entropy_with_prompt_mask: prompt_len={prompt_len} >= seq_len+1={}; \
              no completion tokens to score",
             t + 1
         );
     }
     let start = prompt_len - 1;
     let len = t - start;
-    // logits is (1, t, v) → narrow on dim 1.
     let logits_comp = logits.narrow(1, start, len)?;
     let logits_flat = logits_comp.reshape((len, v))?.to_dtype(DType::F32)?;
-    // target_ids is (1, t) → narrow on dim 1, then squeeze batch.
     let targets_comp = target_ids.narrow(1, start, len)?.reshape(len)?;
-    let loss = candle_nn::loss::cross_entropy(&logits_flat, &targets_comp)?;
-    let loss_value = loss.to_scalar::<f32>()?;
-    use candle_nn::Optimizer;
-    optimizer.backward_step(&loss)?;
-    Ok(loss_value)
+    candle_nn::loss::cross_entropy(&logits_flat, &targets_comp)
 }
 
 /// Diagnostic — compute and report the gradient L2 norm of all Vars
@@ -813,6 +826,118 @@ mod tests {
         let cfg = LoraConfig::default();
         assert_eq!(cfg.rank, 16);
         assert!((cfg.alpha - 32.0).abs() < 1e-6);
+    }
+
+    /// Phase 22 Stage D fix — masking helper tests. Verify that
+    /// `cross_entropy_with_prompt_mask` slices to the correct
+    /// position range and produces the same CE value as a
+    /// hand-computed reference on those positions.
+    #[test]
+    fn prompt_mask_zero_matches_full_cross_entropy() -> Result<()> {
+        let dev = Device::Cpu;
+        let t = 6usize;
+        let v = 5usize;
+        // Deterministic logits + targets.
+        let logits_data: Vec<f32> = (0..(t * v)).map(|i| (i as f32) * 0.1 - 0.5).collect();
+        let logits = Tensor::from_vec(logits_data, (1, t, v), &dev)?;
+        let targets: Vec<u32> = (0..t).map(|i| (i as u32) % v as u32).collect();
+        let target_ids = Tensor::from_vec(targets, (1, t), &dev)?;
+        // prompt_len = 0 → no masking, all positions count.
+        let loss_zero =
+            cross_entropy_with_prompt_mask(&logits, &target_ids, 0)?.to_scalar::<f32>()?;
+        let logits_flat = logits.reshape((t, v))?.to_dtype(DType::F32)?;
+        let targets_flat = target_ids.reshape(t)?;
+        let loss_ref =
+            candle_nn::loss::cross_entropy(&logits_flat, &targets_flat)?.to_scalar::<f32>()?;
+        assert!(
+            (loss_zero - loss_ref).abs() < 1e-5,
+            "prompt_len=0 should match plain CE: {loss_zero} vs {loss_ref}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn prompt_mask_skips_prompt_positions() -> Result<()> {
+        let dev = Device::Cpu;
+        let t = 6usize;
+        let v = 5usize;
+        // Make positions [0..P-1] have LOW probability (high loss)
+        // and positions [P-1..T] have HIGH probability (low loss),
+        // so the masked CE (which keeps only P-1..T) should be
+        // much LESS than the unmasked CE.
+        // Position pos targets token y[pos]. For y[pos] to have low
+        // loss the logit at column y[pos] should dominate.
+        let prompt_len = 3usize;
+        // shift indices [0..t]: positions 0..prompt_len-1 = prompt-internal (target = wrong)
+        // positions prompt_len-1..t = completion (target = "correct")
+        let mut logits_data = vec![0.0f32; t * v];
+        let mut targets: Vec<u32> = Vec::with_capacity(t);
+        for pos in 0..t {
+            if pos < prompt_len - 1 {
+                // prompt-internal: target token is 0 but logits favor 4
+                logits_data[pos * v + 4] = 10.0;
+                targets.push(0);
+            } else {
+                // completion: target token is 4 and logits favor 4
+                logits_data[pos * v + 4] = 10.0;
+                targets.push(4);
+            }
+        }
+        let logits = Tensor::from_vec(logits_data, (1, t, v), &dev)?;
+        let target_ids = Tensor::from_vec(targets, (1, t), &dev)?;
+        let loss_full =
+            cross_entropy_with_prompt_mask(&logits, &target_ids, 0)?.to_scalar::<f32>()?;
+        let loss_masked =
+            cross_entropy_with_prompt_mask(&logits, &target_ids, prompt_len)?.to_scalar::<f32>()?;
+        // Masked loss should be much lower (only completion positions,
+        // all "correct" → log P ≈ 0). Unmasked loss is high because
+        // prompt-internal positions have very wrong targets.
+        assert!(
+            loss_masked < loss_full,
+            "masked CE should be < unmasked when prompt positions have wrong targets: \
+             masked={loss_masked}, full={loss_full}"
+        );
+        // Masked should be ~0 because all completion positions favor
+        // the correct token by ~10 logits margin.
+        assert!(
+            loss_masked < 0.01,
+            "masked CE should be near zero when completion targets are easy: {loss_masked}"
+        );
+        // Unmasked should be substantially positive because prompt
+        // positions cost log(softmax_diff) ≈ 10 each (out of t-prompt+1
+        // good positions vs prompt-1 bad ones).
+        assert!(
+            loss_full > 1.0,
+            "unmasked CE should be substantial when prompt positions are wrong: {loss_full}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn prompt_mask_rejects_prompt_len_too_large() -> Result<()> {
+        let dev = Device::Cpu;
+        let t = 4usize;
+        let v = 3usize;
+        let logits = Tensor::zeros((1, t, v), DType::F32, &dev)?;
+        let target_ids = Tensor::zeros((1, t), DType::U32, &dev)?;
+        // prompt_len = T + 1 → start = T, len = 0 → bail
+        let result = cross_entropy_with_prompt_mask(&logits, &target_ids, t + 1);
+        assert!(
+            result.is_err(),
+            "prompt_len > T should error, got Ok({:?})",
+            result.ok().map(|t| t.to_scalar::<f32>().unwrap_or(0.0))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn prompt_mask_rejects_batch_greater_than_one() -> Result<()> {
+        let dev = Device::Cpu;
+        let logits = Tensor::zeros((2, 4, 3), DType::F32, &dev)?;
+        let target_ids = Tensor::zeros((2, 4), DType::U32, &dev)?;
+        let result = cross_entropy_with_prompt_mask(&logits, &target_ids, 2);
+        assert!(result.is_err(), "B=2 should error");
+        Ok(())
     }
 
     #[test]
