@@ -55,6 +55,8 @@ mbpp-D variant
 | C1 QwenModelActor::LossOn | Was stub. Slow per-position cross-entropy via KV-cache (T forwards for (B,T) input). ~13s at T=256. Unlocks OPD / distillation against QwenModelActor. | `7d2c7c0` |
 | C3 tmpfs hint | Doc-only addition to `--out-dir`: point at `/dev/shm/...` (tmpfs) to cut ~10-15s/round of disk I/O on the 988 MB merged-safetensors roundtrip. | `7d2c7c0` |
 | C2 REINFORCE adapter sync | New `--sync-every N` flag on `phase22_he_reinforce`. Every N RL steps, bake LoRA delta into base + reload sampling model → closes off-policy drift. `--sync-path` default `/dev/shm/...`. Trade sync frequency against ~30s cost per sync (~5s on tmpfs). | `905adfd` |
+| **ROOT-CAUSE FIX**: completion-only SFT (Phase 17 recipe) | Byte-compared Phase 17 Python (`self_improve.py:122`): `labels[:prompt_ids.shape[0]] = -100`. Our Pekko was computing CE on EVERY position (prompts dominate 80% of loss → catastrophic over-training, explains all A/G1/G2 regressions). Adds `train_qwen_lora_step_masked` + `cross_entropy_with_prompt_mask` helper + `QwenTrainerMessage::TrainSftPairs` + `CuratorMessage::RenderPairs` + `TrainRequest::Sft.sft_pairs` + `RoundConfig.sft_mask_prompt=true` default + supervisor wiring + 7 example updates. 4 unit tests. | `bc90db5`, helper extract + tests `3405173` |
+| D6 cosine LR schedule + warmup | Phase 17 Python's second recipe diff: `get_cosine_schedule_with_warmup(opt, max(1, steps/10), steps)`. Pekko had constant lr=2e-4. Added `cosine_warmup_lr(step, warmup_steps, total_steps, base_lr)` + `QwenTrainerActor.base_lr` field + `Optimizer::set_learning_rate(lr)` per step in `handle_train_sft_pairs`. Only the masked SFT path; legacy `Train` unchanged for back-compat. 2 unit tests. | `c7a7aed` |
 
 ## Examples (run-it-all guide)
 
@@ -132,12 +134,13 @@ New library modules in `llm-actors/src/`:
 
 ## Build / test surface
 
-After Stage E + Stage D follow-ups (including verify pool + pipeline):
+After Stage E + Stage D follow-ups (verify pool + pipeline + recipe fix):
 - `cargo build --workspace --release` clean
 - `cargo build --workspace --examples --release` clean
-- `cargo test --workspace --release` — **161 unit tests** pass
-  (was 145 pre-Phase-22; net +16: +4 HumanEval Stage A, +7 MBPP
-  Stage C, +4 FilteredDomain, +1 parallel-verify regression)
+- `cargo test --workspace --release` — **167 unit tests** pass
+  (was 145 pre-Phase-22; net +22: +4 HumanEval Stage A, +7 MBPP
+  Stage C, +4 FilteredDomain, +1 parallel-verify regression, +4
+  prompt-mask helper, +2 cosine LR schedule)
 - `cargo fmt --all --check` clean
 - `cargo clippy --workspace --all-targets -- -D warnings` clean
 

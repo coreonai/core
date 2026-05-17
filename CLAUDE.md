@@ -203,7 +203,27 @@ in-domain compression, HF wins on coverage).
    `CUDA_HOME=/usr/local/cuda-12.5 PATH=/usr/local/cuda-12.5/bin:$PATH
    cargo build -p llm-actors --example <name> --features cuda --release`
    before relaunching. Phase 22 Stage D G1 and G3 batches both hit this
-   trap (Δ ~ 60 min wallclock × 5 GPUs each time).
+   trap (Δ ~ 60 min wallclock × 5 GPUs each time). All three Phase 22
+   GPU binaries now have a `PHASE22_ALLOW_CPU` env-var-gated fail-fast
+   guard that bails immediately on Cpu rather than running for 60s.
+
+9. **When a Pekko-driven mechanism diverges from its Python reference
+   recipe, byte-compare the training step before suspecting actor
+   wiring.** Phase 22 Stage D spent 4+ batches chasing over-training
+   hypotheses (train-steps=100→30, gen-n=16→32→164, gen-oversample,
+   etc.) before discovering the actual cause: Phase 17's
+   `scripts/phase15_s1/self_improve.py:122` sets
+   `labels[:prompt_ids.shape[0]] = -100` (completion-only CE loss).
+   Our `train_qwen_lora_step` was computing CE on EVERY position.
+   Prompts dominate (50-200 tokens vs 5-50 completion) so 80% of loss
+   was prompt reproduction → catastrophic over-training, explained ALL
+   regressions at once. Fix: `train_qwen_lora_step_masked` +
+   `cross_entropy_with_prompt_mask` helper + `TrainSftPairs` actor
+   message + `RoundConfig.sft_mask_prompt=true` default (commit
+   `bc90db5`). Phase 17's second recipe diff (cosine LR schedule with
+   10% warmup) shipped as commit `c7a7aed`. When porting a Python
+   recipe to Pekko, START by byte-comparing the inner training loop,
+   not the orchestration layer.
 
 ## Testing strategy
 
