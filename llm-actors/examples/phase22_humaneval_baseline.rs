@@ -117,6 +117,12 @@ async fn main() -> Result<()> {
     let device = pick_device();
     let on_cuda = device.is_cuda();
     println!("[Phase22A] device = {device:?}, on_cuda = {on_cuda}");
+    if !on_cuda && std::env::var("PHASE22_ALLOW_CPU").is_err() {
+        anyhow::bail!(
+            "Refusing to run on CPU. Rebuild with `--features cuda`. \
+             Set PHASE22_ALLOW_CPU=1 to override."
+        );
+    }
     // Use BF16 on CUDA to match Qwen2.5-Coder's native HF format and
     // Phase 17 S6's measurement. F16 has same exponent range but less
     // mantissa precision; some completions silently drift.
