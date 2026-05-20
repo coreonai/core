@@ -211,6 +211,7 @@ async fn main() -> anyhow::Result<()> {
         // through the helper so we get end-to-end coverage in one shot.
         eval_passk: 3,
         sft_mask_prompt: true,
+        samples_per_prompt: None,
     };
 
     let reports = run_multi_round(&actors, MultiRoundConfig::new(3, base), |r, rep| {

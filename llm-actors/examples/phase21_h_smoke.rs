@@ -211,6 +211,7 @@ async fn main() -> Result<()> {
         dpo_sft_anchor_weight: 0.0,
         eval_passk: 1,
         sft_mask_prompt: true,
+        samples_per_prompt: None,
     };
 
     let reports = run_multi_round(&actors, MultiRoundConfig::new(2, base), |r, rep| {

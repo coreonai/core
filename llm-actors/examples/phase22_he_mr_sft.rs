@@ -80,6 +80,18 @@ struct Args {
     /// sum-AUC ~0.55-0.65 for Qwen). Default 1 = off.
     #[arg(long, default_value_t = 1)]
     gen_oversample: usize,
+    /// Phase 22 Stage D G6 — systematic harvest matching Phase 17's
+    /// `self_improve.py --samples K`. When set, the generate phase
+    /// ignores `--gen-n` and instead generates K completions for EVERY
+    /// one of the domain's prompts (164 for HumanEval), keeping all
+    /// `164 × K` trajectories. This is the quantity multiplier that
+    /// closes the training-pair gap: Phase 17 trained on ~210
+    /// verifier-passed pairs/round from 164×6=984 attempts, vs ~10
+    /// from `--gen-n 164` with-replacement draws. Pair with
+    /// `--train-steps 200` to match the Phase 17 S1 recipe. Unset
+    /// (default) preserves the with-replacement `--gen-n` behavior.
+    #[arg(long)]
+    samples_per_prompt: Option<usize>,
     /// Eval count per round. Phase 17 evaluated all 164 at temp=0.8/k=10;
     /// supervisor's per-round eval is random-with-replacement (Stage B
     /// aggregate is a separate benchmark step). Smoke uses 32 with k=3.
@@ -345,6 +357,7 @@ async fn main() -> Result<()> {
         dpo_sft_anchor_weight: 0.0,
         eval_passk: args.eval_passk,
         sft_mask_prompt: true,
+        samples_per_prompt: args.samples_per_prompt,
     };
 
     // `run_multi_round` auto-chains init_from and bumps seeds per round.

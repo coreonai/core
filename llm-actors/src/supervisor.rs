@@ -122,6 +122,16 @@ pub struct RoundConfig {
     /// all confirmed that prompt-unmasked SFT catastrophically
     /// over-trains at HumanEval/MBPP prompt scales.
     pub sft_mask_prompt: bool,
+    /// Phase 22 Stage D G6 — when `Some(k)`, the generate phase uses
+    /// `GeneratorMessage::GenerateSystematic` (every prompt × k
+    /// completions) instead of `GenerateBatch` (`gen_n` random
+    /// with-replacement draws). `gen_n` is ignored in this mode.
+    /// Matches Phase 17 `self_improve.py --samples k`: 164 prompts ×
+    /// 6 = 984 attempts/round → ~210 verifier-passed training pairs,
+    /// vs ~10 from with-replacement sampling. Requires the domain to
+    /// implement `n_prompts`/`nth_prompt`. `None` (default) preserves
+    /// the with-replacement behavior.
+    pub samples_per_prompt: Option<usize>,
 }
 
 pub async fn run_round<M>(actors: &RoundActors<M>, cfg: RoundConfig) -> anyhow::Result<RoundReport>
@@ -188,18 +198,29 @@ where
     };
     report.eval_correct_before = Some(before.correct);
 
-    // 2. Generate
+    // 2. Generate — systematic (every prompt × k) when
+    // `samples_per_prompt` is set (Phase 17 G6 recipe), else the
+    // historical `gen_n` with-replacement batch.
     info!(round = cfg.round, "phase: generate");
     let (tx, rx) = oneshot::channel();
-    actors
-        .generator
-        .tell(GeneratorMessage::GenerateBatch {
+    let gen_msg = match cfg.samples_per_prompt {
+        Some(k) => GeneratorMessage::GenerateSystematic {
+            samples_per_prompt: k,
+            seed: cfg.gen_seed,
+            sampling: cfg.gen_sampling,
+            reply: tx,
+        },
+        None => GeneratorMessage::GenerateBatch {
             n: cfg.gen_n,
             seed: cfg.gen_seed,
             sampling: cfg.gen_sampling,
             oversample: cfg.gen_oversample.max(1),
             reply: tx,
-        })
+        },
+    };
+    actors
+        .generator
+        .tell(gen_msg)
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;
     let trajectories = rx.await??;
     report.generated = trajectories.len();
@@ -569,6 +590,7 @@ mod tests {
             dpo_sft_anchor_weight: 0.0,
             eval_passk: 1,
             sft_mask_prompt: true,
+            samples_per_prompt: None,
         };
         let cfg = MultiRoundConfig::new(5, base);
         assert_eq!(cfg.rounds, 5);

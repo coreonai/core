@@ -247,6 +247,7 @@ async fn main() -> anyhow::Result<()> {
             dpo_sft_anchor_weight: 0.0,
             eval_passk: 1,
             sft_mask_prompt: true,
+            samples_per_prompt: None,
         };
 
         let report = run_round(&actors, cfg).await?;

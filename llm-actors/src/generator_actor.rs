@@ -36,6 +36,24 @@ pub enum GeneratorMessage {
         oversample: usize,
         reply: oneshot::Sender<anyhow::Result<Vec<Trajectory>>>,
     },
+    /// Phase 22 Stage D G6 — systematic harvest matching Phase 17's
+    /// `self_improve.py::harvest_round`. Instead of sampling `n` prompts
+    /// with replacement, iterate EVERY prompt in `domain` (via
+    /// `n_prompts`/`nth_prompt`) and generate `samples_per_prompt`
+    /// completions for each, varying the sampling seed per
+    /// `(prompt, sample)` so the K draws are independent. Keeps ALL
+    /// `n_prompts × samples_per_prompt` trajectories (no per-prompt
+    /// filtering — the verifier + curator decide what survives). This
+    /// is the quantity multiplier that `GenerateBatch`'s `oversample`
+    /// (a best-of-k quality filter) deliberately is NOT: Phase 17
+    /// trained on ~210 verifier-passed pairs/round from 164×6=984
+    /// attempts, vs ~10 from our 164 with-replacement draws.
+    GenerateSystematic {
+        samples_per_prompt: usize,
+        seed: u64,
+        sampling: GenerateConfig,
+        reply: oneshot::Sender<anyhow::Result<Vec<Trajectory>>>,
+    },
 }
 
 /// Phase 21 Stage E — generic over the backing model actor type, so
@@ -199,6 +217,61 @@ where
                         errors = errs,
                         oversample = f,
                         "GeneratorActor batch done"
+                    );
+                    let _ = reply.send(Ok(out));
+                }
+                GeneratorMessage::GenerateSystematic {
+                    samples_per_prompt,
+                    seed,
+                    sampling,
+                    reply,
+                } => {
+                    let k = samples_per_prompt.max(1);
+                    let n_prompts = match self.domain.n_prompts() {
+                        Some(n) => n,
+                        None => {
+                            let _ = reply.send(Err(anyhow::anyhow!(
+                                "GenerateSystematic requires Domain::n_prompts (got None)"
+                            )));
+                            return;
+                        }
+                    };
+                    let mut out = Vec::with_capacity(n_prompts * k);
+                    let mut errs = 0usize;
+                    for i in 0..n_prompts {
+                        let Some(prompt) = self.domain.nth_prompt(i) else {
+                            warn!(index = i, "nth_prompt returned None; skipping");
+                            continue;
+                        };
+                        for j in 0..k {
+                            // Distinct per-(prompt, sample) seed so the K
+                            // draws differ. Mirrors Phase 17's
+                            // `seed_base + ci*10000 + j`. The base RNG
+                            // seed is layered onto the sampling seed
+                            // because that's what actually drives the
+                            // model's stochastic decode.
+                            let mut s = sampling.clone();
+                            let base = sampling.seed.unwrap_or(seed);
+                            s.seed = Some(
+                                base.wrapping_add((i as u64).wrapping_mul(10_000))
+                                    .wrapping_add(j as u64),
+                            );
+                            match self.generate_one(prompt.clone(), s).await {
+                                Ok(t) => out.push(t),
+                                Err(e) => {
+                                    warn!(error = %e, prompt_index = i, sample = j,
+                                          "generate_one (systematic) failed");
+                                    errs += 1;
+                                }
+                            }
+                        }
+                    }
+                    info!(
+                        generated = out.len(),
+                        errors = errs,
+                        n_prompts,
+                        samples_per_prompt = k,
+                        "GeneratorActor systematic done"
                     );
                     let _ = reply.send(Ok(out));
                 }
