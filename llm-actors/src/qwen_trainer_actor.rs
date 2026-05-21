@@ -144,6 +144,14 @@ pub struct QwenTrainerActor {
     /// max len in batch, completion-masked loss, shuffled per epoch),
     /// matching Phase 17's `batch_size = 4`.
     pub sft_batch_size: usize,
+    /// Phase 22 Stage D G8 — when `true`, rebuild the AdamW optimizer at
+    /// the start of every `TrainSftPairs` call (= every MR round), so
+    /// Adam's moment estimates reset between rounds. Matches Phase 17,
+    /// which constructs a fresh `torch.optim.AdamW` inside each
+    /// `lora_finetune` call. `false` (default) reuses the optimizer
+    /// across rounds (stale moments) — the historical behavior. The
+    /// LoRA weights persist either way; only the optimizer state resets.
+    pub fresh_optimizer_per_round: bool,
 }
 
 impl QwenTrainerActor {
@@ -192,6 +200,7 @@ impl QwenTrainerActor {
             optimizer,
             base_lr: lr,
             sft_batch_size: 1,
+            fresh_optimizer_per_round: false,
         })
     }
 
@@ -202,6 +211,31 @@ impl QwenTrainerActor {
     pub fn with_sft_batch_size(mut self, batch_size: usize) -> Self {
         self.sft_batch_size = batch_size.max(1);
         self
+    }
+
+    /// Phase 22 Stage D G8 — enable fresh-AdamW-per-round (resets Adam
+    /// moments at the start of each `TrainSftPairs` call). Builder-style.
+    pub fn with_fresh_optimizer(mut self, enabled: bool) -> Self {
+        self.fresh_optimizer_per_round = enabled;
+        self
+    }
+
+    /// Rebuild the AdamW optimizer over the LoRA Vars at the current
+    /// `base_lr`, discarding accumulated moment estimates. The LoRA
+    /// weights themselves are untouched (the optimizer only holds
+    /// references + moment buffers).
+    fn rebuild_optimizer(&mut self) -> anyhow::Result<()> {
+        self.optimizer = AdamW::new(
+            self.lora_map.all_vars(),
+            ParamsAdamW {
+                lr: self.base_lr,
+                beta1: 0.9,
+                beta2: 0.999,
+                eps: 1e-8,
+                weight_decay: 0.0,
+            },
+        )?;
+        Ok(())
     }
 
     /// Number of trainable LoRA parameters across all registered Vars.
@@ -349,6 +383,10 @@ impl QwenTrainerActor {
     ) -> anyhow::Result<TrainOutcome> {
         if pairs.is_empty() {
             anyhow::bail!("QwenTrainerActor::TrainSftPairs: pairs is empty");
+        }
+        // Phase 22 Stage D G8 — fresh AdamW per round (reset moments).
+        if self.fresh_optimizer_per_round {
+            self.rebuild_optimizer()?;
         }
         // Pre-tokenize each (prompt, completion) pair, remembering the
         // prompt boundary so the training step can mask prompt

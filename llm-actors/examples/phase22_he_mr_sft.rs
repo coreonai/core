@@ -103,6 +103,19 @@ struct Args {
     /// enabler that lets 200 steps help instead of hurt.
     #[arg(long, default_value_t = 1)]
     batch_size: usize,
+    /// Phase 22 Stage D G8 — rebuild the AdamW optimizer (reset Adam
+    /// moments) at the start of each round, matching Phase 17's fresh
+    /// `torch.optim.AdamW` per `lora_finetune` call. LoRA weights
+    /// persist; only optimizer state resets. Default off (reuse across
+    /// rounds = historical behavior).
+    #[arg(long, default_value_t = false)]
+    fresh_optimizer: bool,
+    /// Phase 22 Stage D G8 — clear the curator buffer each round so
+    /// training uses ONLY that round's verifier-passed harvest, not a
+    /// cumulative pile. Matches Phase 17 (re-harvest fresh per round).
+    /// Default off (accumulating buffer = historical behavior).
+    #[arg(long, default_value_t = false)]
+    reset_curator_each_round: bool,
     /// Eval count per round. Phase 17 evaluated all 164 at temp=0.8/k=10;
     /// supervisor's per-round eval is random-with-replacement (Stage B
     /// aggregate is a separate benchmark step). Smoke uses 32 with k=3.
@@ -276,7 +289,8 @@ async fn main() -> Result<()> {
         lora_cfg,
         args.lr,
     )?
-    .with_sft_batch_size(args.batch_size);
+    .with_sft_batch_size(args.batch_size)
+    .with_fresh_optimizer(args.fresh_optimizer);
 
     let system = ActorSystem::new("phase22-d");
     let model_ref = system.spawn(qwen_model, "qwen-model").await?;
@@ -293,7 +307,12 @@ async fn main() -> Result<()> {
     let verifier_ref = system
         .spawn(VerifierActor::new(domain.clone()), "verifier")
         .await?;
-    let curator_ref = system.spawn(CuratorActor::new(1024), "curator").await?;
+    let curator_ref = system
+        .spawn(
+            CuratorActor::new(1024).with_replace_on_add(args.reset_curator_each_round),
+            "curator",
+        )
+        .await?;
     let evaluator =
         EvaluatorActor::<QwenModelActor>::new(model_ref.clone(), tk.clone(), domain.clone(), None);
     let evaluator_ref = system.spawn(evaluator, "evaluator").await?;

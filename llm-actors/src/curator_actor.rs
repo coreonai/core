@@ -123,6 +123,14 @@ pub struct CuratorActor {
     /// of the main `buf`, which still only stores correct items.
     failures: HashMap<String, Vec<VerifiedTrajectory>>,
     failure_cap_per_prompt: usize,
+    /// Phase 22 Stage D G8 — when `true`, each `Add` clears the buffer
+    /// (and `seen`/`failures`) before inserting the new items, so the
+    /// curator holds ONLY the most-recent round's harvest. Matches
+    /// Phase 17, which re-harvests fresh each round and trains on that
+    /// round's verifier-passed pairs (not a cumulative pile). `false`
+    /// (default) is the historical accumulating buffer + cross-round
+    /// dedup + priority replay.
+    replace_on_add: bool,
 }
 
 impl CuratorActor {
@@ -136,7 +144,24 @@ impl CuratorActor {
             insert_idx: Vec::with_capacity(cap_hint),
             failures: HashMap::new(),
             failure_cap_per_prompt: 16,
+            replace_on_add: false,
         }
+    }
+
+    /// Phase 22 Stage D G8 — enable non-cumulative buffering (clear on
+    /// each `Add`). Builder-style.
+    pub fn with_replace_on_add(mut self, enabled: bool) -> Self {
+        self.replace_on_add = enabled;
+        self
+    }
+
+    /// Empty the buffer, dedup set, recency indices, and failure pile.
+    fn clear_all(&mut self) {
+        self.buf.clear();
+        self.seen.clear();
+        self.insert_idx.clear();
+        self.insert_counter = 0;
+        self.failures.clear();
     }
 
     fn insert(&mut self, item: VerifiedTrajectory, report: &mut CuratorAddReport) {
@@ -291,6 +316,12 @@ impl Actor for CuratorActor {
         Box::pin(async move {
             match msg {
                 CuratorMessage::Add { items, reply } => {
+                    // Phase 22 Stage D G8 — non-cumulative buffer: drop
+                    // prior rounds' harvest so RenderPairs/RenderCorpus
+                    // see only this round's items (Phase 17 semantics).
+                    if self.replace_on_add {
+                        self.clear_all();
+                    }
                     let mut report = CuratorAddReport::default();
                     for it in items {
                         self.insert(it, &mut report);
@@ -607,6 +638,33 @@ mod preference_pair_tests {
         assert_eq!(pairs[0].0, "Q");
         assert_eq!(pairs[0].1, "ok2");
         assert_eq!(pairs[0].2, "bad1");
+    }
+
+    #[test]
+    fn replace_on_add_builder_sets_flag_and_clear_all_empties_buffer() {
+        // Phase 22 G8 — non-cumulative buffer mechanism. The Add-handler
+        // clearing is exercised end-to-end by the G8 run; here we unit
+        // test the builder + clear_all primitive it relies on.
+        let mut c = CuratorActor::new(64).with_replace_on_add(true);
+        assert!(c.replace_on_add);
+        let mut report = CuratorAddReport::default();
+        c.insert(correct("P", "round0_a"), &mut report);
+        c.insert(correct("P", "round0_b"), &mut report);
+        c.insert(wrong("P", "round0_bad"), &mut report);
+        assert_eq!(c.buf.len(), 2);
+        assert_eq!(c.seen.len(), 2);
+        assert!(!c.failures.is_empty());
+        // Simulate the next round's Add clearing prior harvest.
+        c.clear_all();
+        assert!(c.buf.is_empty());
+        assert!(c.seen.is_empty());
+        assert!(c.insert_idx.is_empty());
+        assert_eq!(c.insert_counter, 0);
+        assert!(c.failures.is_empty());
+        // After clear, a fresh insert + dedup works (same text no longer
+        // rejected as a cross-round duplicate).
+        c.insert(correct("P", "round0_a"), &mut report);
+        assert_eq!(c.buf.len(), 1);
     }
 
     #[test]
