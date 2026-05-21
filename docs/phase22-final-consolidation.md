@@ -75,38 +75,58 @@ The benchmark target: reproduce Phase 17 S1's r=2 HumanEval pass@1 =
 - +4 prompt-mask helper
 - +2 cosine LR schedule
 
-## Final measurement table (G4 → G8)
+## Final measurement table (G4 → G9)
 
-| Configuration | Mean r=2 pass@1 | σ | n | Note |
-|---|---|---|---|---|
-| Base Qwen2.5-Coder-0.5B (Stage B) | 0.222 | — | — | anchor |
-| A-batch (pre-fix) | 0.116 | 0.037 | 5 | catastrophic regression |
-| G1 (train-steps=30 only) | 0.154 | 0.032 | 5 | partial |
-| G4 (mask-only) | 0.117 | 0.048 | 5 | mask alone insufficient |
-| G5 (mask + cosine) | 0.152 | 0.063 | 5 | net-zero vs G1 |
-| G6 (samples=6, batch=1, ts=200) | 0.108 | — | 1 | data volume falsified |
-| **G7 (+ batch=4)** | **0.173** | **0.009** | 4 | collapse fixed, σ 7× tighter, still < base |
-| **G8 (+ fresh-opt + non-cumul)** | **0.204** | — | 1 | ≈ G7 high seed; round-level flags ~no effect |
-| Phase 17 reference (S1) | 0.404 | 0.013 | 5 | (target) |
+The G5-G8 aggregates were measured **without** eval-truncation (the
+pre-G9 baseline binary). G9 added completion truncation at both train
+and eval; the G9 rows + base-trunc are measured **with** eval-truncation
+(matching Phase 17). So the honest comparison is the paired
+**base-trunc vs G9** at the bottom — both use the same metric Phase 17
+used.
 
-**Conclusion (Phase 22 Stage D):** the full Phase-17 training recipe —
-`{completion-mask, cosine LR, batch=4, fresh AdamW/round,
-non-cumulative harvest}` — has been ported into the Rust/Pekko MR-SFT
-loop. Each fix was individually correct (G6 isolated the batch=1
-overfitting collapse; G7 fixed it, crashing variance 7×; G8 matched
-round-level state semantics). But the loop lands at **≈ base
-(0.17-0.21)** and never reaches Phase 17's **0.404** — a −0.20 gap
-unexplained by anything measured.
+| Configuration | Mean r=2 pass@1 | σ | n | eval-trunc | Note |
+|---|---|---|---|---|---|
+| Base Qwen (Stage B) | 0.222 | — | — | no | original anchor |
+| A-batch (pre-fix) | 0.116 | 0.037 | 5 | no | catastrophic regression |
+| G4 (mask-only) | 0.117 | 0.048 | 5 | no | mask alone insufficient |
+| G5 (mask + cosine) | 0.152 | 0.063 | 5 | no | net-zero vs G1 |
+| G6 (samples=6, batch=1, ts=200) | 0.108 | — | 1 | no | data volume falsified |
+| G7 (+ batch=4) | 0.170 | 0.011 | 5 | no | collapse fixed, σ 7× tighter, still < base |
+| G8 (+ fresh-opt + non-cumul) | 0.204 | — | 1 | no | round-level flags ~no effect |
+| **base (truncated)** | **0.218** | — | — | yes | matches Phase 17 base 0.216 |
+| **G9 (+ truncation) 1-seed** | **0.438** | — | 1 | yes | matches/exceeds Phase 17 |
+| **G9 (+ truncation) 5-seed** | **0.4356** | **0.016** | 5 | yes | **reproduces Phase 17** |
+| Phase 17 reference (S1) | 0.404 | 0.013 | 5 | yes | (target) |
 
-**Strongest open hypothesis:** LoRA merge/scaling consistency. Train
-loss converges to ~0.03 (the adapter fits the harvested pairs) while
-eval stays ≈ base — the signature of a train/eval model mismatch. If
-`save_merged_lora`'s delta (α/r scale, B·A) diverges from the
-trainer's forward-time LoRA application, the merged checkpoint the
-evaluator reloads is not the function the trainer learned. **Next
-step:** byte-compare `save_merged_lora` vs the `LoraAdapter` forward,
-and assert QwenModelActor-on-merged-checkpoint logits == trainer
-in-memory logits on a fixed prompt.
+**Conclusion (Phase 22 Stage D — RESOLVED):** the full Phase-17 recipe
+is `{completion-mask, cosine LR, batch=4, fresh AdamW/round,
+non-cumulative harvest, **completion truncation**}`. The −0.20 gap that
+survived G4-G8 was the missing truncation: `build_program` fed the RAW
+model completion, and neither generator nor evaluator truncated it
+(`stop_char = None` for multi-line HumanEval). Raw completions carried
+trailing test scaffolding (`def test_`, `print(`, `if __name__`), leaked
+`<|fim_middle|>` tokens, and cut-off-mid-statement tails — which (a)
+failed the verifier (harvest yield ~80 instead of ~200 pairs/round) and
+(b) failed at eval. Porting Phase 17's `truncate_completion`
+(`Domain::truncate_completion` + `truncate_python_completion`, commit
+`aaf0594`) fixed both:
+
+- **base (truncated) = 0.218** ≈ Phase 17 base **0.216**
+- **G9 r=2 (5-seed) = 0.4356 ± 0.016** ≈ Phase 17 r=2 **0.404 ± 0.013**
+
+The +0.218 lift (0.218 → 0.436, a clean doubling) tracks Phase 17's
++0.188. **The Rust/Pekko self-evolving MR-SFT loop now reproduces
+(slightly exceeds) the Phase 17 Python reference — the full
+self-evolving loop is end-to-end native in Rust + Pekko.** (The LoRA
+merge math was byte-compared and proven consistent — it was NOT the
+bug; the divergence was data preprocessing on both sides of the
+training loop.)
+
+### Recipe resolution order (the −0.20 gap was a stack)
+
+mask (`bc90db5`) → cosine LR (`c7a7aed`) → batch=4 (`59aab8d`) →
+fresh-opt + non-cumul (`e69de7e`, ~neutral on their own) →
+**truncation (`aaf0594`, decisive)**.
 
 ## Recipe recommendation (final)
 
