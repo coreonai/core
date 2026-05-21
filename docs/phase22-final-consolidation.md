@@ -29,8 +29,11 @@ The benchmark target: reproduce Phase 17 S1's r=2 HumanEval pass@1 =
 | A-batch | train-steps=100, gen-n=164 | 0.116 ± 0.037 | HALF base 0.222 (catastrophic) |
 | G1 | train-steps=30 | 0.154 ± 0.032 | partial recovery, still below base |
 | G2 MBPP | train-steps=30 | (per-round) 0.244 < base 0.313 | substrate-divergent damage |
-| G4 (this commit) | train-steps=30 + **mask-prompt** | TBD | predicted 0.30-0.42 |
-| G5 (planned) | train-steps=30 + mask + **cosine LR** | TBD | full Phase 17 recipe match |
+| G4 | train-steps=30 + **mask-prompt** | 0.117 ± 0.048 | mask alone insufficient (≈ A-batch) |
+| G5 | train-steps=30 + mask + **cosine LR** | 0.152 ± 0.063 | recipe-detail ports net-zero vs G1 |
+| G6 | samples=6 systematic + batch=1 + ts=200 | 0.108 (1-seed) | data volume FALSIFIED; isolation: single round craters base 0.222→0.085 = step-level batch=1 overfitting |
+| G7 | + **batch=4** padded SFT | 0.173 ± 0.009 (4-seed) | collapse FIXED (σ 0.063→0.009, loss blowup gone) but still < base |
+| G8 | + **fresh AdamW/round** + **non-cumulative buffer** | 0.2037 (1-seed) | round-level flags ≈ no effect (G8 seed800 0.204 ≈ G7 seed700 0.209); loop lands ≈base, gap to 0.404 unclosed |
 
 ## Infrastructure shipped this session
 
@@ -72,16 +75,38 @@ The benchmark target: reproduce Phase 17 S1's r=2 HumanEval pass@1 =
 - +4 prompt-mask helper
 - +2 cosine LR schedule
 
-## Final measurement table (filled after G4 + G5)
+## Final measurement table (G4 → G8)
 
-| Configuration | Mean r=2 pass@1 | σ | vs Phase 17 (0.404 ± 0.013) |
-|---|---|---|---|
-| Base Qwen2.5-Coder-0.5B (Stage B) | 0.222 | — | n/a |
-| A-batch (pre-fix) | 0.116 | 0.037 | catastrophic regression |
-| G1 (train-steps=30 only) | 0.154 | 0.032 | partial |
-| **G4 (mask-only)** | TBD | TBD | TBD |
-| **G5 (mask + cosine)** | TBD | TBD | TBD |
-| Phase 17 reference (S1) | 0.404 | 0.013 | (anchor) |
+| Configuration | Mean r=2 pass@1 | σ | n | Note |
+|---|---|---|---|---|
+| Base Qwen2.5-Coder-0.5B (Stage B) | 0.222 | — | — | anchor |
+| A-batch (pre-fix) | 0.116 | 0.037 | 5 | catastrophic regression |
+| G1 (train-steps=30 only) | 0.154 | 0.032 | 5 | partial |
+| G4 (mask-only) | 0.117 | 0.048 | 5 | mask alone insufficient |
+| G5 (mask + cosine) | 0.152 | 0.063 | 5 | net-zero vs G1 |
+| G6 (samples=6, batch=1, ts=200) | 0.108 | — | 1 | data volume falsified |
+| **G7 (+ batch=4)** | **0.173** | **0.009** | 4 | collapse fixed, σ 7× tighter, still < base |
+| **G8 (+ fresh-opt + non-cumul)** | **0.204** | — | 1 | ≈ G7 high seed; round-level flags ~no effect |
+| Phase 17 reference (S1) | 0.404 | 0.013 | 5 | (target) |
+
+**Conclusion (Phase 22 Stage D):** the full Phase-17 training recipe —
+`{completion-mask, cosine LR, batch=4, fresh AdamW/round,
+non-cumulative harvest}` — has been ported into the Rust/Pekko MR-SFT
+loop. Each fix was individually correct (G6 isolated the batch=1
+overfitting collapse; G7 fixed it, crashing variance 7×; G8 matched
+round-level state semantics). But the loop lands at **≈ base
+(0.17-0.21)** and never reaches Phase 17's **0.404** — a −0.20 gap
+unexplained by anything measured.
+
+**Strongest open hypothesis:** LoRA merge/scaling consistency. Train
+loss converges to ~0.03 (the adapter fits the harvested pairs) while
+eval stays ≈ base — the signature of a train/eval model mismatch. If
+`save_merged_lora`'s delta (α/r scale, B·A) diverges from the
+trainer's forward-time LoRA application, the merged checkpoint the
+evaluator reloads is not the function the trainer learned. **Next
+step:** byte-compare `save_merged_lora` vs the `LoraAdapter` forward,
+and assert QwenModelActor-on-merged-checkpoint logits == trainer
+in-memory logits on a fixed prompt.
 
 ## Recipe recommendation (final)
 
