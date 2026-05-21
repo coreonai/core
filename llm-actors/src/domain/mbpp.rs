@@ -316,6 +316,10 @@ impl Domain for MbppDomain {
     fn nth_prompt(&self, i: usize) -> Option<String> {
         self.challenges.get(i).map(|c| c.prompt.clone())
     }
+
+    fn truncate_completion(&self, completion: &str) -> String {
+        crate::domain::truncate_python_completion(completion)
+    }
 }
 
 #[cfg(test)]

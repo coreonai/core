@@ -216,6 +216,10 @@ impl Domain for HumanEvalDomain {
     fn nth_prompt(&self, i: usize) -> Option<String> {
         self.problems.get(i).map(|p| p.prompt.clone())
     }
+
+    fn truncate_completion(&self, completion: &str) -> String {
+        crate::domain::truncate_python_completion(completion)
+    }
 }
 
 #[cfg(test)]

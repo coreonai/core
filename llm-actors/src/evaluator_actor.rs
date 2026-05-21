@@ -211,6 +211,7 @@ where
                         completion.truncate(idx + stop.len_utf8());
                     }
                 }
+                let completion = self.domain.truncate_completion(&completion);
                 let v = self.domain.verify(&prompt, &completion);
                 if v.is_correct() {
                     any_pass = true;
@@ -320,6 +321,7 @@ where
                             completion.truncate(idx + stop.len_utf8());
                         }
                     }
+                    let completion = self.domain.truncate_completion(&completion);
                     if first_completion.is_none() {
                         first_completion = Some(completion.clone());
                     }
@@ -373,6 +375,7 @@ where
                             completion.truncate(idx + stop.len_utf8());
                         }
                     }
+                    let completion = self.domain.truncate_completion(&completion);
                     let v = self.domain.verify(&prompt, &completion);
                     total_attempts += 1;
                     if v.is_correct() {

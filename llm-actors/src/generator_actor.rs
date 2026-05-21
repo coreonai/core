@@ -122,6 +122,10 @@ where
                 completion.truncate(idx + stop.len_utf8());
             }
         }
+        // Phase 22 G9 — domain-specific cleanup (code domains cut
+        // trailing scaffolding; default identity) so harvest + training
+        // see Phase-17-style clean completions.
+        let completion = self.domain.truncate_completion(&completion);
         Ok(Trajectory {
             prompt,
             completion,

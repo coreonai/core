@@ -57,4 +57,101 @@ pub trait Domain: Send + Sync {
     fn nth_prompt(&self, _i: usize) -> Option<String> {
         None
     }
+
+    /// Phase 22 Stage D G9 — clean a freshly generated completion before
+    /// it is verified, harvested into a training pair, or scored at eval.
+    /// Default is identity. Code domains override this with
+    /// [`truncate_python_completion`] to match Phase 17's
+    /// `truncate_completion`, cutting trailing test/scaffolding code that
+    /// otherwise (a) pollutes the SFT target distribution and (b) gets
+    /// cut off mid-statement at `max_new_tokens`, yielding syntax errors
+    /// at eval. Applied at the GeneratorActor and EvaluatorActor decode
+    /// sites so harvest, training, and eval all see the same cleaned text
+    /// (exactly like Phase 17, which truncates inside `generate_completion`).
+    fn truncate_completion(&self, completion: &str) -> String {
+        completion.to_string()
+    }
+}
+
+/// Phase 22 Stage D G9 — port of Phase 17's `truncate_completion`
+/// (`scripts/phase15_s1/self_improve.py`). Keeps the function body and
+/// cuts at the first **top-level** (column-0) `def `/`class `/`import `/
+/// `from `/`if __name__`/`print(` statement that appears AFTER some body
+/// content — i.e., the first sibling statement the model starts emitting
+/// once it has finished the requested function. Also cuts at the first
+/// `<|` special-token marker (e.g. a leaked `<|fim_middle|>`), then trims
+/// trailing blank lines.
+pub fn truncate_python_completion(text: &str) -> String {
+    let mut out: Vec<&str> = Vec::new();
+    for line in text.split('\n') {
+        if let Some(idx) = line.find("<|") {
+            let head = &line[..idx];
+            if !head.is_empty() {
+                out.push(head);
+            }
+            break;
+        }
+        let top_level = line.starts_with("def ")
+            || line.starts_with("class ")
+            || line.starts_with("import ")
+            || line.starts_with("from ")
+            || line.starts_with("if __name__")
+            || line.starts_with("print(");
+        if !out.is_empty() && top_level {
+            break;
+        }
+        out.push(line);
+    }
+    while let Some(last) = out.last() {
+        if last.trim().is_empty() {
+            out.pop();
+        } else {
+            break;
+        }
+    }
+    out.join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate_python_completion;
+
+    #[test]
+    fn keeps_clean_body_unchanged() {
+        let body = "    words = s.split()\n    return ' '.join(words)";
+        assert_eq!(truncate_python_completion(body), body);
+    }
+
+    #[test]
+    fn cuts_trailing_test_def() {
+        let raw = "    return n + 1\n\n\ndef test_inc():\n    assert inc(1) == 2";
+        assert_eq!(truncate_python_completion(raw), "    return n + 1");
+    }
+
+    #[test]
+    fn cuts_trailing_print_and_if_main() {
+        let raw = "    return lst\n\n# Test\nprint(f(1))\nif __name__ == '__main__':\n    f()";
+        // `print(` is the first top-level marker; comment line precedes it
+        // and is kept (comments aren't statements), trailing blank trimmed.
+        assert_eq!(truncate_python_completion(raw), "    return lst\n\n# Test");
+    }
+
+    #[test]
+    fn cuts_at_special_token_marker() {
+        let raw = "    return x\n    done()<|fim_middle|>\n    return result";
+        assert_eq!(truncate_python_completion(raw), "    return x\n    done()");
+    }
+
+    #[test]
+    fn does_not_cut_indented_def_inside_body() {
+        // A nested (indented) def is part of the body — must be kept.
+        let raw = "    def helper():\n        return 1\n    return helper()";
+        assert_eq!(truncate_python_completion(raw), raw);
+    }
+
+    #[test]
+    fn trims_trailing_blank_lines() {
+        let raw = "    return 1\n\n   \n";
+        assert_eq!(truncate_python_completion(raw), "    return 1");
+    }
 }
