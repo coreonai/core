@@ -806,6 +806,71 @@ pub fn cross_entropy_with_prompt_mask(
     candle_nn::loss::cross_entropy(&logits_flat, &targets_comp)
 }
 
+/// Phase 22 Stage D G7 — batched completion-only cross-entropy.
+///
+/// Generalizes [`cross_entropy_with_prompt_mask`] to `B > 1` so the
+/// trainer can pad several `(prompt, completion)` pairs into one
+/// forward/backward (Phase 17 used `batch_size = 4`). Because each
+/// example has its own prompt boundary AND its own real length (after
+/// right-padding a batch to a common width), a single `narrow` can't
+/// express the per-example completion span — so this takes an explicit
+/// per-position `loss_mask`.
+///
+/// Shapes (all in the SHIFTED frame, i.e. position `j` scores the
+/// prediction of `targets[.., j]`):
+/// - `logits`: `(B, T, V)`
+/// - `targets`: `(B, T)` — `u32` token ids
+/// - `loss_mask`: `(B, T)` — `1.0` on completion positions, `0.0` on
+///   prompt-internal AND right-padding positions.
+///
+/// Returns the mean negative-log-likelihood over all masked-in
+/// positions across the whole batch (token-level mean, matching
+/// HuggingFace's default `CrossEntropyLoss(reduction="mean")` over the
+/// un-ignored labels — Phase 17's recipe).
+///
+/// Right-padding is safe without an explicit attention mask: the causal
+/// mask means a real token at position `t` only attends to `[0, t]`, so
+/// padding (always appended AFTER the real tokens) never leaks into a
+/// real token's representation, and padded outputs are dropped here via
+/// `loss_mask = 0`.
+pub fn cross_entropy_with_completion_mask_batched(
+    logits: &Tensor,
+    targets: &Tensor,
+    loss_mask: &Tensor,
+) -> Result<Tensor> {
+    let (b, t, v) = logits.dims3()?;
+    let logits_flat = logits.reshape((b * t, v))?.to_dtype(DType::F32)?;
+    let log_probs = candle_nn::ops::log_softmax(&logits_flat, 1)?; // (B*T, V)
+    let targets_flat = targets.reshape((b * t, 1))?;
+    // gather log P(target) at each position → (B*T, 1) → (B*T,)
+    let tgt_lp = log_probs.gather(&targets_flat, 1)?.squeeze(1)?;
+    let nll = tgt_lp.neg()?; // (B*T,)
+    let mask_flat = loss_mask.reshape((b * t,))?.to_dtype(DType::F32)?;
+    let masked = nll.mul(&mask_flat)?;
+    let total = masked.sum_all()?;
+    let count = mask_flat.sum_all()?;
+    total.broadcast_div(&count)
+}
+
+/// Phase 22 Stage D G7 — one batched, padded, completion-masked AdamW
+/// step. `input_ids`/`target_ids`/`loss_mask` are all `(B, T)` in the
+/// shifted frame (caller right-pads + builds the mask). Returns the
+/// pre-step loss value.
+pub fn train_qwen_lora_step_masked_batched(
+    model: &mut ModelForCausalLM,
+    optimizer: &mut candle_nn::AdamW,
+    input_ids: &Tensor,
+    target_ids: &Tensor,
+    loss_mask: &Tensor,
+) -> Result<f32> {
+    let logits = model.forward_train(input_ids)?;
+    let loss = cross_entropy_with_completion_mask_batched(&logits, target_ids, loss_mask)?;
+    let loss_value = loss.to_scalar::<f32>()?;
+    use candle_nn::Optimizer;
+    optimizer.backward_step(&loss)?;
+    Ok(loss_value)
+}
+
 /// Diagnostic — compute and report the gradient L2 norm of all Vars
 /// passed in `vars` after a single backward pass through the loss. Used
 /// by the LoRA smoke to verify gradients are actually flowing into the
@@ -960,6 +1025,59 @@ mod tests {
         let target_ids = Tensor::zeros((2, 4), DType::U32, &dev)?;
         let result = cross_entropy_with_prompt_mask(&logits, &target_ids, 2);
         assert!(result.is_err(), "B=2 should error");
+        Ok(())
+    }
+
+    /// Phase 22 G7 — the batched completion-mask loss must agree with
+    /// the (tested) narrow-based B=1 loss when fed a single example with
+    /// a mask that is 1.0 exactly on the completion span `[P-1, T)`.
+    #[test]
+    fn batched_mask_loss_matches_narrow_b1() -> Result<()> {
+        let dev = Device::Cpu;
+        let (t, v) = (6usize, 5usize);
+        let prompt_len = 3usize;
+        let logits = Tensor::randn(0f32, 1.0, (1, t, v), &dev)?;
+        let targets = Tensor::from_slice(&[1u32, 4, 2, 0, 3, 1], (1, t), &dev)?;
+        let narrow =
+            cross_entropy_with_prompt_mask(&logits, &targets, prompt_len)?.to_scalar::<f32>()?;
+        // mask: 1.0 on [prompt_len-1, T), 0.0 before.
+        let mask_vals: Vec<f32> = (0..t)
+            .map(|j| if j >= prompt_len - 1 { 1.0 } else { 0.0 })
+            .collect();
+        let loss_mask = Tensor::from_slice(&mask_vals, (1, t), &dev)?;
+        let batched = cross_entropy_with_completion_mask_batched(&logits, &targets, &loss_mask)?
+            .to_scalar::<f32>()?;
+        assert!(
+            (narrow - batched).abs() < 1e-5,
+            "narrow={narrow} batched={batched}"
+        );
+        Ok(())
+    }
+
+    /// Phase 22 G7 — a B=2 batch with different per-example completion
+    /// spans (one right-padded) must equal the token-level mean NLL
+    /// computed by hand over only the masked-in positions.
+    #[test]
+    fn batched_mask_loss_b2_token_mean() -> Result<()> {
+        let dev = Device::Cpu;
+        let (b, t, v) = (2usize, 4usize, 3usize);
+        // Deterministic logits so we can hand-check.
+        let logits = Tensor::randn(0f32, 1.0, (b, t, v), &dev)?;
+        let targets = Tensor::from_slice(&[0u32, 1, 2, 0, 2, 1, 0, 0], (b, t), &dev)?;
+        // Example 0: completion at positions {1,2,3}; example 1
+        // (shorter, right-padded): completion at {1} only.
+        let mask_vals: Vec<f32> = vec![0., 1., 1., 1., 0., 1., 0., 0.];
+        let loss_mask = Tensor::from_slice(&mask_vals, (b, t), &dev)?;
+        let got = cross_entropy_with_completion_mask_batched(&logits, &targets, &loss_mask)?
+            .to_scalar::<f32>()?;
+        // Hand-compute: mean NLL over the 4 masked positions.
+        let logits_flat = logits.reshape((b * t, v))?;
+        let lp = candle_nn::ops::log_softmax(&logits_flat, 1)?;
+        let tgt = targets.reshape((b * t, 1))?;
+        let nll: Vec<f32> = lp.gather(&tgt, 1)?.squeeze(1)?.neg()?.to_vec1()?;
+        let idx = [1usize, 2, 3, 5];
+        let want: f32 = idx.iter().map(|&i| nll[i]).sum::<f32>() / idx.len() as f32;
+        assert!((got - want).abs() < 1e-5, "got={got} want={want}");
         Ok(())
     }
 

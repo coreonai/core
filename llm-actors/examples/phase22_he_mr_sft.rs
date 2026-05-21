@@ -92,6 +92,17 @@ struct Args {
     /// (default) preserves the with-replacement `--gen-n` behavior.
     #[arg(long)]
     samples_per_prompt: Option<usize>,
+    /// Phase 22 Stage D G7 — SFT mini-batch size. `1` (default) is the
+    /// historical single-example-per-step path (bit-identical).
+    /// `4` matches Phase 17's `batch_size`: pairs are right-padded to
+    /// the per-batch max length, the completion-only CE loss is
+    /// averaged over the un-masked tokens, and example order is
+    /// shuffled each epoch. The G6 isolation eval showed a single
+    /// round of batch=1 training craters base 0.222 → 0.085
+    /// (overfitting); batch=4 gradient averaging is the Phase 17
+    /// enabler that lets 200 steps help instead of hurt.
+    #[arg(long, default_value_t = 1)]
+    batch_size: usize,
     /// Eval count per round. Phase 17 evaluated all 164 at temp=0.8/k=10;
     /// supervisor's per-round eval is random-with-replacement (Stage B
     /// aggregate is a separate benchmark step). Smoke uses 32 with k=3.
@@ -264,7 +275,8 @@ async fn main() -> Result<()> {
         train_dtype,
         lora_cfg,
         args.lr,
-    )?;
+    )?
+    .with_sft_batch_size(args.batch_size);
 
     let system = ActorSystem::new("phase22-d");
     let model_ref = system.spawn(qwen_model, "qwen-model").await?;

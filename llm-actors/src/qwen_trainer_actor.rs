@@ -33,8 +33,11 @@ use tracing::{error, info, warn};
 
 use crate::qwen2_lora::{
     cosine_warmup_lr, save_merged_lora, train_qwen_lora_pg_step, train_qwen_lora_step,
-    train_qwen_lora_step_masked, LoraConfig, ModelForCausalLM,
+    train_qwen_lora_step_masked, train_qwen_lora_step_masked_batched, LoraConfig, ModelForCausalLM,
 };
+use rand::rngs::StdRng;
+use rand::seq::SliceRandom;
+use rand::SeedableRng;
 
 pub enum QwenTrainerMessage {
     /// Train on a batch of free-form text examples for `train_steps`
@@ -135,6 +138,12 @@ pub struct QwenTrainerActor {
     /// AdamW was constructed with so the schedule can ramp back up
     /// to it.
     pub base_lr: f64,
+    /// Phase 22 Stage D G7 — SFT mini-batch size for `TrainSftPairs`.
+    /// `1` (default) keeps the historical single-example-per-step path
+    /// bit-identical. `> 1` enables padded mini-batching (right-pad to
+    /// max len in batch, completion-masked loss, shuffled per epoch),
+    /// matching Phase 17's `batch_size = 4`.
+    pub sft_batch_size: usize,
 }
 
 impl QwenTrainerActor {
@@ -182,7 +191,17 @@ impl QwenTrainerActor {
             lora_cfg,
             optimizer,
             base_lr: lr,
+            sft_batch_size: 1,
         })
+    }
+
+    /// Phase 22 Stage D G7 — set the SFT mini-batch size used by
+    /// `TrainSftPairs`. Builder-style so callers can write
+    /// `QwenTrainerActor::from_snapshot_dir(..)?.with_sft_batch_size(4)`.
+    /// `0` is clamped to `1`.
+    pub fn with_sft_batch_size(mut self, batch_size: usize) -> Self {
+        self.sft_batch_size = batch_size.max(1);
+        self
     }
 
     /// Number of trainable LoRA parameters across all registered Vars.
@@ -368,23 +387,80 @@ impl QwenTrainerActor {
         // warmup (Phase 17 recipe: `num_warmup_steps = max(1, steps/10)`).
         let warmup_steps = (train_steps / 10).max(1);
         let mut losses = Vec::with_capacity(train_steps);
-        for step in 0..train_steps {
-            let (ids, prompt_len) = &encoded[step % encoded.len()];
-            let n = ids.len();
-            let input = Tensor::from_slice(&ids[..n - 1], (1, n - 1), &self.device)?;
-            let target = Tensor::from_slice(&ids[1..], (1, n - 1), &self.device)?;
-            // Apply the schedule BEFORE the optimizer step so the step
-            // uses the right lr.
-            let lr = cosine_warmup_lr(step, warmup_steps, train_steps, self.base_lr);
-            self.optimizer.set_learning_rate(lr);
-            let loss = train_qwen_lora_step_masked(
-                &mut self.model,
-                &mut self.optimizer,
-                &input,
-                &target,
-                *prompt_len,
-            )?;
-            losses.push(loss);
+        if self.sft_batch_size <= 1 {
+            // Historical single-example-per-step path (bit-identical).
+            for step in 0..train_steps {
+                let (ids, prompt_len) = &encoded[step % encoded.len()];
+                let n = ids.len();
+                let input = Tensor::from_slice(&ids[..n - 1], (1, n - 1), &self.device)?;
+                let target = Tensor::from_slice(&ids[1..], (1, n - 1), &self.device)?;
+                // Apply the schedule BEFORE the optimizer step so the step
+                // uses the right lr.
+                let lr = cosine_warmup_lr(step, warmup_steps, train_steps, self.base_lr);
+                self.optimizer.set_learning_rate(lr);
+                let loss = train_qwen_lora_step_masked(
+                    &mut self.model,
+                    &mut self.optimizer,
+                    &input,
+                    &target,
+                    *prompt_len,
+                )?;
+                losses.push(loss);
+            }
+        } else {
+            // Phase 22 G7 — padded mini-batch path (Phase 17 batch=4).
+            // Right-pad each batch to its max full length (pad id 0;
+            // value is irrelevant since padded positions are masked out
+            // of the loss and, under causal attention, never leak into a
+            // real token's representation). Shuffle the example order
+            // each epoch (DataLoader(shuffle=True) parity).
+            let batch_size = self.sft_batch_size;
+            let n = encoded.len();
+            let n_batches = n.div_ceil(batch_size);
+            let mut order: Vec<usize> = (0..n).collect();
+            let mut rng = StdRng::seed_from_u64(0x5f7_u64.wrapping_add(train_steps as u64));
+            order.shuffle(&mut rng);
+            for step in 0..train_steps {
+                let batch_idx = step % n_batches;
+                if batch_idx == 0 && step > 0 {
+                    order.shuffle(&mut rng);
+                }
+                let start = batch_idx * batch_size;
+                let end = (start + batch_size).min(n);
+                let batch: Vec<&(Vec<u32>, usize)> =
+                    order[start..end].iter().map(|&i| &encoded[i]).collect();
+                let b = batch.len();
+                let max_len = batch.iter().map(|(ids, _)| ids.len()).max().unwrap_or(2);
+                let width = max_len - 1; // shifted length
+                let mut input_buf = vec![0u32; b * width];
+                let mut target_buf = vec![0u32; b * width];
+                let mut mask_buf = vec![0f32; b * width];
+                for (bi, (ids, prompt_len)) in batch.iter().enumerate() {
+                    let l = ids.len();
+                    for j in 0..(l - 1) {
+                        input_buf[bi * width + j] = ids[j];
+                        target_buf[bi * width + j] = ids[j + 1];
+                        // target[j] = ids[j+1] is a completion token iff
+                        // its full-sequence index j+1 >= prompt_len.
+                        if j + 1 >= *prompt_len {
+                            mask_buf[bi * width + j] = 1.0;
+                        }
+                    }
+                }
+                let input = Tensor::from_slice(&input_buf, (b, width), &self.device)?;
+                let target = Tensor::from_slice(&target_buf, (b, width), &self.device)?;
+                let loss_mask = Tensor::from_slice(&mask_buf, (b, width), &self.device)?;
+                let lr = cosine_warmup_lr(step, warmup_steps, train_steps, self.base_lr);
+                self.optimizer.set_learning_rate(lr);
+                let loss = train_qwen_lora_step_masked_batched(
+                    &mut self.model,
+                    &mut self.optimizer,
+                    &input,
+                    &target,
+                    &loss_mask,
+                )?;
+                losses.push(loss);
+            }
         }
         // Restore peak lr after the schedule completes (so subsequent
         // rounds start fresh from base_lr, not whatever the decay
