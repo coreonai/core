@@ -128,6 +128,22 @@ mask (`bc90db5`) → cosine LR (`c7a7aed`) → batch=4 (`59aab8d`) →
 fresh-opt + non-cumul (`e69de7e`, ~neutral on their own) →
 **truncation (`aaf0594`, decisive)**.
 
+### Saturation curve (G9 recipe, `--rounds 3`, truncated aggregate)
+
+| round | pass@1 | Δ vs prev | n | Phase 17 ref |
+|---|---|---|---|---|
+| base | 0.218 | — | — | 0.216 |
+| r=2 | 0.436 ± 0.016 | +0.218 | 5 | 0.404 |
+| r=3 | 0.465 ± 0.031 | +0.029 | 4* | 0.475 |
+
+*seed 400 OOM'd at round-2 training on contended shared GPUs (infra,
+not recipe); 5th-seed backfill on a clean GPU pending.
+
+The r1→r2 jump (+0.218) decelerates to +0.029 at r2→r3 — **diminishing
+returns / plateau onset**, the same shape as Phase 17 (r2→r3 +0.071).
+r=3 0.465 ≈ Phase 17 r=3 0.475 within noise: the Rust/Pekko loop
+reproduces not just the r=2 point but the **saturation curve shape**.
+
 ## Recipe recommendation (final)
 
 After G4 + G5 land. Skeleton:
