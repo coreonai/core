@@ -134,10 +134,11 @@ fresh-opt + non-cumul (`e69de7e`, ~neutral on their own) →
 |---|---|---|---|---|
 | base | 0.218 | — | — | 0.216 |
 | r=2 | 0.436 ± 0.016 | +0.218 | 5 | 0.404 |
-| r=3 | 0.465 ± 0.031 | +0.029 | 4* | 0.475 |
+| r=3 | 0.4645 ± 0.026 | +0.029 | 5 | 0.475 |
+| r=4 | (in flight) | — | — | 0.519 |
 
-*seed 400 OOM'd at round-2 training on contended shared GPUs (infra,
-not recipe); 5th-seed backfill on a clean GPU pending.
+(seed 400 OOM'd at round-2 training 3× on contended shared GPUs —
+infra, not recipe — and completed on a clean GPU for the 5th seed.)
 
 The r1→r2 jump (+0.218) decelerates to +0.029 at r2→r3 — **diminishing
 returns / plateau onset**, the same shape as Phase 17 (r2→r3 +0.071).
