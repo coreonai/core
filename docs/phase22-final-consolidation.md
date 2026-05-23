@@ -135,15 +135,19 @@ fresh-opt + non-cumul (`e69de7e`, ~neutral on their own) →
 | base | 0.218 | — | — | 0.216 |
 | r=2 | 0.436 ± 0.016 | +0.218 | 5 | 0.404 |
 | r=3 | 0.4645 ± 0.026 | +0.029 | 5 | 0.475 |
-| r=4 | (in flight) | — | — | 0.519 |
+| r=4 | 0.481 ± 0.028 | +0.017 | 5 | 0.519 |
 
-(seed 400 OOM'd at round-2 training 3× on contended shared GPUs —
-infra, not recipe — and completed on a clean GPU for the 5th seed.)
+The increment shrinks monotonically (+0.218 → +0.029 → +0.017):
+**continued diminishing returns, no hard plateau yet at r=4** — the
+same shape as Phase 17, which keeps climbing slowly to r=6 = 0.581.
+The Rust/Pekko loop reproduces not just the r=2 point but the
+**saturation curve shape**. r=4 0.481 sits a touch below Phase 17's
+0.519 but the trajectory matches.
 
-The r1→r2 jump (+0.218) decelerates to +0.029 at r2→r3 — **diminishing
-returns / plateau onset**, the same shape as Phase 17 (r2→r3 +0.071).
-r=3 0.465 ≈ Phase 17 r=3 0.475 within noise: the Rust/Pekko loop
-reproduces not just the r=2 point but the **saturation curve shape**.
+(Infra: seeds 400/500 OOM'd repeatedly at batch=4 round-2/3 training
+on contended shared GPUs — never on aggregate eval, which is lighter.
+Workaround that held: run batch=4 TRAINING only on fully clean GPUs;
+aggregate eval can use contended GPUs. All 5 seeds completed this way.)
 
 ## Recipe recommendation (final)
 
