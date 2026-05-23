@@ -136,13 +136,17 @@ fresh-opt + non-cumul (`e69de7e`, ~neutral on their own) →
 | r=2 | 0.436 ± 0.016 | +0.218 | 5 | 0.404 |
 | r=3 | 0.4645 ± 0.026 | +0.029 | 5 | 0.475 |
 | r=4 | 0.481 ± 0.028 | +0.017 | 5 | 0.519 |
+| r=5 | 0.477 ± 0.040 | −0.004 | 5 | 0.556 |
 
-The increment shrinks monotonically (+0.218 → +0.029 → +0.017):
-**continued diminishing returns, no hard plateau yet at r=4** — the
-same shape as Phase 17, which keeps climbing slowly to r=6 = 0.581.
-The Rust/Pekko loop reproduces not just the r=2 point but the
-**saturation curve shape**. r=4 0.481 sits a touch below Phase 17's
-0.519 but the trajectory matches.
+The increment shrinks monotonically then flattens (+0.218 → +0.029 →
++0.017 → −0.004): **PLATEAU confirmed at r≈4-5, ~0.48** (r=5 0.477 ≈
+r=4 0.481, within noise). Two findings: (1) the saturation SHAPE
+(diminishing returns → plateau) reproduces Phase 17. (2) BUT the
+absolute plateau is ~0.07-0.10 LOWER than Phase 17 at high rounds —
+r=2 matched closely (0.436 vs 0.404) but the gap widens by r=5 (0.477
+vs 0.556). Our loop saturates earlier/lower; the exact high-round
+harvest dynamics (diversity / non-cumulative buffer / temperature)
+weren't byte-compared and are the candidate cause for future work.
 
 (Infra: seeds 400/500 OOM'd repeatedly at batch=4 round-2/3 training
 on contended shared GPUs — never on aggregate eval, which is lighter.
