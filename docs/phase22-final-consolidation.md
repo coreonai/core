@@ -148,6 +148,16 @@ vs 0.556). Our loop saturates earlier/lower; the exact high-round
 harvest dynamics (diversity / non-cumulative buffer / temperature)
 weren't byte-compared and are the candidate cause for future work.
 
+**Buffer ablation (r=5, 3-seed paired):** cumulative buffer (drop
+`--reset-curator-each-round`) vs non-cumulative — cumulative is WORSE
+(mean 0.454 vs 0.486, Δ=−0.032, 3/3 seeds negative). The buffer choice
+is RULED OUT as the high-round-gap cause; non-cumulative (the G9 /
+Phase 17 default) is correct. Mechanism: cumulative trains a
+1024-capped FIFO mix of stale + fresh pairs at <1 epoch/round, vs
+non-cumulative concentrating fresh high-quality pairs at ~2
+epochs/round. Remaining gap suspects: harvest diversity / sampling
+temperature.
+
 (Infra: seeds 400/500 OOM'd repeatedly at batch=4 round-2/3 training
 on contended shared GPUs — never on aggregate eval, which is lighter.
 Workaround that held: run batch=4 TRAINING only on fully clean GPUs;
