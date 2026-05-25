@@ -158,6 +158,32 @@ non-cumulative concentrating fresh high-quality pairs at ~2
 epochs/round. Remaining gap suspects: harvest diversity / sampling
 temperature.
 
+**Harvest-temperature ablation (r=5, 3-seed paired):** gen temp
+0.8 → 1.0 (eval fixed at 0.8) — no lift, mean 0.469 vs 0.486 (Δ=−0.017,
+mixed signs, within noise; harvest sizes comparable so not confounded).
+Temperature RULED OUT — and note it already matched Phase 17 (both 0.8).
+
+**High-round gap — status (Stage D closeout):** both buffer
+(cumulative −0.032) and harvest temperature (−0.017) are ruled out as
+the cause of our ~0.48 plateau vs Phase 17's ~0.55. The one remaining
+concrete sampling divergence is **top_k**: our harvest uses
+`top_k=Some(40)`; Phase 17 uses none (`do_sample, temperature, top_p`
+only). Removing top_k to match Phase 17 is the untested hypothesis —
+**deferred** (needs a `--top-k` flag + a rounds=5 run). Stage D's goals
+(r=2 reproduction + saturation-curve shape) are met; the −0.07
+high-round gap is a documented follow-up.
+
+## Stage D — closed
+
+The Rust/Pekko self-evolving MR-SFT loop reproduces Phase 17 end-to-end:
+base 0.218 → r=2 0.436 (≈ Phase 17 0.404), saturation curve climbs with
+diminishing returns to a plateau at r≈4-5 ~0.48, matching Phase 17's
+shape (which plateaus ~0.55-0.58). Recipe: completion-mask + cosine LR
++ batch=4 padded SFT + fresh-AdamW/round + non-cumulative harvest +
+**completion truncation** (the decisive fix). Two ablations (buffer,
+harvest temperature) confirm the design; the residual high-round gap
+(top_k) is documented for a future session.
+
 (Infra: seeds 400/500 OOM'd repeatedly at batch=4 round-2/3 training
 on contended shared GPUs — never on aggregate eval, which is lighter.
 Workaround that held: run batch=4 TRAINING only on fully clean GPUs;
