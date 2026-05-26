@@ -138,6 +138,14 @@ struct Args {
     /// Generation sampling temperature. Phase 17 used 0.8 throughout.
     #[arg(long, default_value_t = 0.8)]
     temperature: f64,
+    /// Phase 22 Stage D — HARVEST top_k (generation only; the per-round
+    /// and aggregate eval keep top_k=40 so the metric stays comparable).
+    /// `40` (default) is the historical value. `0` disables top_k to
+    /// match Phase 17's `generate_completion`, which samples with
+    /// `top_p=0.95` only (no top_k). Tests whether the harvest top_k
+    /// restriction limits the high-round plateau.
+    #[arg(long, default_value_t = 40)]
+    top_k: usize,
     /// LoRA rank (Phase 14-20 recipe = 16).
     #[arg(long, default_value_t = 16)]
     lora_rank: usize,
@@ -357,7 +365,11 @@ async fn main() -> Result<()> {
         gen_sampling: GenerateConfig {
             max_new_tokens: args.max_new_tokens,
             temperature: args.temperature,
-            top_k: Some(40),
+            top_k: if args.top_k == 0 {
+                None
+            } else {
+                Some(args.top_k)
+            },
             top_p: Some(0.95),
             seed: Some(gen_seed),
         },

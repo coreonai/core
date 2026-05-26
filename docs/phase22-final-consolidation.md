@@ -168,10 +168,27 @@ Temperature RULED OUT — and note it already matched Phase 17 (both 0.8).
 the cause of our ~0.48 plateau vs Phase 17's ~0.55. The one remaining
 concrete sampling divergence is **top_k**: our harvest uses
 `top_k=Some(40)`; Phase 17 uses none (`do_sample, temperature, top_p`
-only). Removing top_k to match Phase 17 is the untested hypothesis —
-**deferred** (needs a `--top-k` flag + a rounds=5 run). Stage D's goals
-(r=2 reproduction + saturation-curve shape) are met; the −0.07
-high-round gap is a documented follow-up.
+only).
+
+**top_k harvest ablation (r=5, 3-seed paired):** added a `--top-k` flag
+(harvest only; eval kept at 40 so the metric is comparable). `--top-k 0`
+(match Phase 17) vs 40 — INCONCLUSIVE: mean 0.500 vs 0.486 (Δ=+0.014)
+but mixed signs and σ blows up to 0.064 (one seed hit 0.546 ≈ Phase 17's
+0.556, two dropped). A weak positive hint, not significant at n=3.
+
+All three ablations on the high-round gap:
+
+| knob | r=5 Δ vs baseline | verdict |
+|---|---|---|
+| cumulative buffer | −0.032 (3/3 neg) | ruled out (worse) |
+| harvest temp 1.0 | −0.017 (mixed) | ruled out (no lift) |
+| harvest top_k=0 | +0.014 (mixed, σ↑) | inconclusive (weak hint) |
+
+None cleanly explains the ~0.05-0.07 gap (our plateau ~0.48 vs Phase 17
+~0.55). top_k removal is the only positive signal but within noise at
+n=3. Likely a combination of small factors / plateau seed variance.
+**Investigation closed.** Future: 5-seed top_k=0 to resolve the hint,
+or byte-compare HF `generate` vs Candle sampling internals.
 
 ## Stage D — closed
 
