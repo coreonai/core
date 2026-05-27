@@ -140,11 +140,13 @@ struct Args {
     temperature: f64,
     /// Phase 22 Stage D — HARVEST top_k (generation only; the per-round
     /// and aggregate eval keep top_k=40 so the metric stays comparable).
-    /// `40` (default) is the historical value. `0` disables top_k to
-    /// match Phase 17's `generate_completion`, which samples with
-    /// `top_p=0.95` only (no top_k). Tests whether the harvest top_k
-    /// restriction limits the high-round plateau.
-    #[arg(long, default_value_t = 40)]
+    /// `0` (default) disables top_k to match Phase 17's
+    /// `generate_completion`, which samples with `top_p=0.95` only.
+    /// The 5-seed top_k ablation found this the best high-round-gap
+    /// lever (r=5 0.502 vs 0.476 at top_k=40, +0.026, 3/5 seeds), so
+    /// it is now the default G9 recipe. Set `--top-k 40` for the
+    /// historical (pre-refinement) behavior.
+    #[arg(long, default_value_t = 0)]
     top_k: usize,
     /// LoRA rank (Phase 14-20 recipe = 16).
     #[arg(long, default_value_t = 16)]
