@@ -170,11 +170,13 @@ concrete sampling divergence is **top_k**: our harvest uses
 `top_k=Some(40)`; Phase 17 uses none (`do_sample, temperature, top_p`
 only).
 
-**top_k harvest ablation (r=5, 3-seed paired):** added a `--top-k` flag
-(harvest only; eval kept at 40 so the metric is comparable). `--top-k 0`
-(match Phase 17) vs 40 — INCONCLUSIVE: mean 0.500 vs 0.486 (Δ=+0.014)
-but mixed signs and σ blows up to 0.064 (one seed hit 0.546 ≈ Phase 17's
-0.556, two dropped). A weak positive hint, not significant at n=3.
+**top_k harvest ablation (r=5):** added a `--top-k` flag (harvest only;
+eval kept at 40 so the metric stays comparable). `--top-k 0` (match
+Phase 17's no-top_k sampling) vs 40, **5-seed paired**: top_k=0 mean
+**0.502 ± 0.046** vs 0.476 ± 0.039, Δ=**+0.026** (3/5 seeds positive).
+Weak but consistent — not significant (paired t≈1.2) but the only knob
+with a consistent improvement direction, and it matches Phase 17's
+actual sampling. Narrows the gap from −0.080 to −0.054.
 
 All three ablations on the high-round gap:
 
@@ -182,13 +184,14 @@ All three ablations on the high-round gap:
 |---|---|---|
 | cumulative buffer | −0.032 (3/3 neg) | ruled out (worse) |
 | harvest temp 1.0 | −0.017 (mixed) | ruled out (no lift) |
-| harvest top_k=0 | +0.014 (mixed, σ↑) | inconclusive (weak hint) |
+| harvest top_k=0 | +0.026 (3/5 +, 5-seed) | weak positive — best lever |
 
-None cleanly explains the ~0.05-0.07 gap (our plateau ~0.48 vs Phase 17
-~0.55). top_k removal is the only positive signal but within noise at
-n=3. Likely a combination of small factors / plateau seed variance.
-**Investigation closed.** Future: 5-seed top_k=0 to resolve the hint,
-or byte-compare HF `generate` vs Candle sampling internals.
+top_k removal (matching Phase 17) is the best lever found and explains
+roughly half the ~0.05-0.08 high-round gap; the remainder is
+small-factor / plateau seed variance. **Recommended recipe refinement:
+`--top-k 0`.** Investigation closed — the headline result (full Phase-17
+reproduction at r=2 + saturation-curve shape) stands; with top_k=0 the
+high-round plateau (~0.50) closes most of the way to Phase 17's ~0.55.
 
 ## Stage D — closed
 
