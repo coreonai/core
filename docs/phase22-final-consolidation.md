@@ -222,9 +222,24 @@ the full top_k=0 recipe:
 
 **MBPP r=2 0.447 ≈ Phase 17 SB 0.453** (Δ=−0.006, within noise; lift
 base 0.201 → 0.447, +0.246). The full top_k=0 recipe validated on
-HumanEval **reproduces Phase 17 on MBPP too** — substrate-agnostic. The
-Rust/Pekko self-evolving loop now reproduces Phase 17 on BOTH HumanEval
-(r=2 0.436) and MBPP (r=2 0.447).
+HumanEval **reproduces Phase 17 on MBPP too** — substrate-agnostic.
+
+**MBPP saturation curve (top_k=0, 5-seed):**
+
+| round | MBPP | Δ | Phase 17/20 |
+|---|---|---|---|
+| base | 0.201 | — | — |
+| r=2 | 0.447 ± 0.027 | +0.246 | 0.453 |
+| r=3 | 0.487 ± 0.012 | +0.040 | 0.457 |
+| r=4 | 0.488 ± 0.013 | +0.001 | — |
+| r=5 | 0.499 ± 0.014 | +0.011 | 0.541 |
+
+MBPP r=2 ≈ Phase 17 and r=3 EXCEEDS it (0.487 vs 0.457). MBPP plateaus
+EARLIER than HE (r≈3 ~0.49 vs HE r≈4-5 ~0.51) and is much TIGHTER
+(σ ~0.013 vs HE 0.026-0.046). r=5 0.499 sits −0.042 below Phase 20's
+0.541 — the SAME shape as HE (low/mid rounds match-or-exceed, high-round
+plateau ~0.05 lower). The Rust/Pekko loop reproduces Phase 17 on BOTH
+HumanEval and MBPP, curve shape included.
 
 ## Stage D — closed
 
