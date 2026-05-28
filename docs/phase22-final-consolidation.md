@@ -208,6 +208,24 @@ r=3 0.490 slightly exceeds Phase 17's 0.475. Residual gap concentrated
 at r=5 (−0.054; Phase 17 keeps climbing to r=6 0.581, our plateau sits
 ~0.51). top_k=0 reproduces Phase 17's curve through r=4.
 
+### MBPP cross-substrate (top_k=0 recipe) — Phase 17 SB reproduced
+
+Ported the full recipe flags to `phase22_mbpp_mr_sft` (`53af878`) +
+`--checkpoint` to `phase22_mbpp_baseline`. MBPP-100 rounds=2 5-seed with
+the full top_k=0 recipe:
+
+| | r=2 pass@1 (truncated, n=100×k=10) |
+|---|---|
+| base (truncated) | 0.201 |
+| MBPP r=2 (5-seed) | **0.447 ± 0.027** |
+| Phase 17 SB r=2 (ref) | 0.453 ± 0.016 |
+
+**MBPP r=2 0.447 ≈ Phase 17 SB 0.453** (Δ=−0.006, within noise; lift
+base 0.201 → 0.447, +0.246). The full top_k=0 recipe validated on
+HumanEval **reproduces Phase 17 on MBPP too** — substrate-agnostic. The
+Rust/Pekko self-evolving loop now reproduces Phase 17 on BOTH HumanEval
+(r=2 0.436) and MBPP (r=2 0.447).
+
 ## Stage D — closed
 
 The Rust/Pekko self-evolving MR-SFT loop reproduces Phase 17 end-to-end:
