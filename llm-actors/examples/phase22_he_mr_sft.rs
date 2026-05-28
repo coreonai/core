@@ -157,6 +157,12 @@ struct Args {
     /// AdamW learning rate. Phase 14-20 recipe = 2e-4.
     #[arg(long, default_value_t = 2e-4)]
     lr: f64,
+    /// Phase 22 Stage D — AdamW weight decay. `0.0` (default) is the
+    /// historical value; `0.01` matches Phase 17's
+    /// `torch.optim.AdamW(trainable, lr=lr)` (PyTorch default). Tested
+    /// as a candidate for the residual high-round plateau gap.
+    #[arg(long, default_value_t = 0.0)]
+    weight_decay: f64,
     /// Output dir for per-round merged checkpoints. For best
     /// wallclock, point at tmpfs (e.g., `--out-dir /dev/shm/...`):
     /// each merged-safetensors save/reload roundtrip writes ~988 MB,
@@ -300,7 +306,8 @@ async fn main() -> Result<()> {
         args.lr,
     )?
     .with_sft_batch_size(args.batch_size)
-    .with_fresh_optimizer(args.fresh_optimizer);
+    .with_fresh_optimizer(args.fresh_optimizer)
+    .with_weight_decay(args.weight_decay);
 
     let system = ActorSystem::new("phase22-d");
     let model_ref = system.spawn(qwen_model, "qwen-model").await?;

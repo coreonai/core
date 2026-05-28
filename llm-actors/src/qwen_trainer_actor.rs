@@ -152,6 +152,13 @@ pub struct QwenTrainerActor {
     /// across rounds (stale moments) — the historical behavior. The
     /// LoRA weights persist either way; only the optimizer state resets.
     pub fresh_optimizer_per_round: bool,
+    /// Phase 22 Stage D — AdamW weight decay. `0.0` (default) is the
+    /// historical value; `0.01` matches Phase 17's
+    /// `torch.optim.AdamW(trainable, lr=lr)` (PyTorch's default
+    /// weight_decay). Applied via `rebuild_optimizer` — with
+    /// `fresh_optimizer_per_round=true` (the G9 recipe) it takes effect
+    /// from round 0; otherwise set it before the first round.
+    pub weight_decay: f64,
 }
 
 impl QwenTrainerActor {
@@ -201,7 +208,16 @@ impl QwenTrainerActor {
             base_lr: lr,
             sft_batch_size: 1,
             fresh_optimizer_per_round: false,
+            weight_decay: 0.0,
         })
+    }
+
+    /// Phase 22 Stage D — set AdamW weight decay (Phase 17 uses 0.01,
+    /// the PyTorch default). Builder-style. Takes effect via
+    /// `rebuild_optimizer` (round 0 when `fresh_optimizer_per_round`).
+    pub fn with_weight_decay(mut self, wd: f64) -> Self {
+        self.weight_decay = wd;
+        self
     }
 
     /// Phase 22 Stage D G7 — set the SFT mini-batch size used by
@@ -232,7 +248,7 @@ impl QwenTrainerActor {
                 beta1: 0.9,
                 beta2: 0.999,
                 eps: 1e-8,
-                weight_decay: 0.0,
+                weight_decay: self.weight_decay,
             },
         )?;
         Ok(())
