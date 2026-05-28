@@ -14,6 +14,18 @@ Each stage links to a detailed doc; the overview here gives the
 dependency graph, commit hashes, measurement results, and the
 run-it-all guide.
 
+> **⚠ Stage D status — RESOLVED.** The Stage-D log below ends at the
+> root-cause fix (mask + cosine, commits `bc90db5`/`c7a7aed`), which
+> were *necessary but insufficient*. The −0.20 regression was a STACK
+> of recipe divergences finished off in G6-G9: systematic harvest (G6),
+> padded `batch_size=4` SFT (G7, `59aab8d`), fresh AdamW +
+> non-cumulative harvest (G8, `e69de7e`), and the decisive
+> **completion truncation** (G9, `aaf0594`), plus `top_k=0` harvest.
+> With the full recipe the Rust/Pekko loop **reproduces Phase 17 on
+> both HumanEval (r=2 0.436) and MBPP (r=2 0.447)**, saturation curves
+> to r=5 included. See **`docs/phase22-final-consolidation.md`** for
+> the resolved arc, curves, and ablations.
+
 ## Stages
 
 ```
