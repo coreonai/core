@@ -1,9 +1,29 @@
-# Phase 22 — Final consolidation (Stage A → ROOT-CAUSE FIX → recipe match)
+# Phase 22 — Final consolidation (Stage A → Phase-17 reproduction on Pekko)
 
-End-of-Phase-22 narrative summary. Captures the full arc from
-substrate setup (Stage A-E) through the catastrophic regression
-diagnosis (A-batch → G1 → G2) to the root-cause discovery (Phase 17
-recipe byte-comparison) and recipe match (G4 mask-only, G5 mask+cosine).
+End-of-Phase-22 narrative summary. Captures the full arc from substrate
+setup (Stage A-E) through the catastrophic regression diagnosis
+(A-batch → G1 → G2), the recipe-divergence stack (G4-G9), the decisive
+fix (G9 completion truncation), and the saturation-curve + cross-substrate
+validation that confirms the Rust/Pekko self-evolving loop reproduces
+Phase 17 on both HumanEval and MBPP.
+
+## TL;DR — RESOLVED
+
+**The Rust/Pekko self-evolving MR-SFT loop reproduces Phase 17 on both
+benchmarks.** Full recipe = `completion-mask + cosine LR + batch=4 padded
+SFT + fresh-AdamW/round + non-cumulative harvest + completion truncation
++ top_k=0 harvest`. With it (truncated aggregate, 5-seed):
+
+| | base | r=2 | r=5 / plateau | Phase 17 ref |
+|---|---|---|---|---|
+| HumanEval | 0.218 | **0.436** | ~0.50 (r≈4-5) | r2 0.404, plateau ~0.55-0.58 |
+| MBPP-100 | 0.201 | **0.447** | ~0.50 (r≈3) | r2 0.453, r5 0.541 |
+
+r=2 matches Phase 17 on both; the saturation-curve SHAPE (diminishing
+returns → plateau) reproduces; the high-round plateau sits ~0.05 below
+Phase 17's. The −0.20 regression that opened Stage D was a STACK of
+recipe divergences resolved in order; completion truncation (G9) was the
+decisive one.
 
 ## Phase 22's purpose
 
@@ -11,6 +31,9 @@ Migrate Phase 17-20's HumanEval/MBPP recipe from Python (HF
 Transformers + PEFT) onto Pekko-Rust (Candle-native Qwen2 + LoRA).
 The benchmark target: reproduce Phase 17 S1's r=2 HumanEval pass@1 =
 0.404 ± 0.013 through `supervisor::run_multi_round` on actor stack.
+**Achieved** (G9, r=2 0.436 truncated 5-seed), plus the MBPP
+cross-substrate (r=2 0.447 ≈ Phase 17 SB 0.453) and saturation curves
+to r=5 on both.
 
 ## Stage matrix
 
@@ -19,7 +42,7 @@ The benchmark target: reproduce Phase 17 S1's r=2 HumanEval pass@1 =
 | A | HumanEvalDomain (164 problems) | `91256a4` | ✅ |
 | B | EvalSequential + aggregate (Phase 17 metric reproduces ≈ within 1σ) | `bb78cc3` | ✅ |
 | C | MbppDomain (cross-substrate) | `284000c` | ✅ |
-| D | Multi-round SFT through Pekko | `5896d01` | ✅ wiring shipped, regression in measurement |
+| D | Multi-round SFT through Pekko | `5896d01` + G4-G9 | ✅ **Phase 17 reproduced** (G9 truncation `aaf0594`; HE r=2 0.436, MBPP r=2 0.447; saturation curves to r=5 on both) |
 | E | REINFORCE on HumanEval | `eb6da62` | ✅ wiring shipped |
 
 ## The Stage D regression saga
