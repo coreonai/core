@@ -83,6 +83,25 @@ struct Args {
     /// sum-AUC ~0.55-0.65 for Qwen). Default 1 = off.
     #[arg(long, default_value_t = 1)]
     gen_oversample: usize,
+    /// Phase 22 G6 — systematic harvest: K completions for every prompt
+    /// (vs gen_n random draws). Unset = with-replacement gen_n.
+    #[arg(long)]
+    samples_per_prompt: Option<usize>,
+    /// Phase 22 G7 — SFT mini-batch size (1 = historical; 4 = Phase 17,
+    /// padded + shuffled per epoch).
+    #[arg(long, default_value_t = 1)]
+    batch_size: usize,
+    /// Phase 22 G8 — rebuild AdamW (reset moments) each round (Phase 17).
+    #[arg(long, default_value_t = false)]
+    fresh_optimizer: bool,
+    /// Phase 22 G8 — clear curator buffer each round (non-cumulative,
+    /// Phase 17 fresh-harvest semantics).
+    #[arg(long, default_value_t = false)]
+    reset_curator_each_round: bool,
+    /// Phase 22 — harvest top_k (gen only; eval stays 40). `0` (default)
+    /// disables top_k to match Phase 17's no-top_k sampling.
+    #[arg(long, default_value_t = 0)]
+    top_k: usize,
     /// Eval count per round. Phase 17 evaluated all 164 at temp=0.8/k=10;
     /// supervisor's per-round eval is random-with-replacement (Stage B
     /// aggregate is a separate benchmark step). Smoke uses 32 with k=3.
@@ -247,7 +266,9 @@ async fn main() -> Result<()> {
         train_dtype,
         lora_cfg,
         args.lr,
-    )?;
+    )?
+    .with_sft_batch_size(args.batch_size)
+    .with_fresh_optimizer(args.fresh_optimizer);
 
     let system = ActorSystem::new("phase22-d");
     let model_ref = system.spawn(qwen_model, "qwen-model").await?;
@@ -264,7 +285,12 @@ async fn main() -> Result<()> {
     let verifier_ref = system
         .spawn(VerifierActor::new(domain.clone()), "verifier")
         .await?;
-    let curator_ref = system.spawn(CuratorActor::new(1024), "curator").await?;
+    let curator_ref = system
+        .spawn(
+            CuratorActor::new(1024).with_replace_on_add(args.reset_curator_each_round),
+            "curator",
+        )
+        .await?;
     let evaluator =
         EvaluatorActor::<QwenModelActor>::new(model_ref.clone(), tk.clone(), domain.clone(), None);
     let evaluator_ref = system.spawn(evaluator, "evaluator").await?;
@@ -309,7 +335,11 @@ async fn main() -> Result<()> {
         gen_sampling: GenerateConfig {
             max_new_tokens: args.max_new_tokens,
             temperature: args.temperature,
-            top_k: Some(40),
+            top_k: if args.top_k == 0 {
+                None
+            } else {
+                Some(args.top_k)
+            },
             top_p: Some(0.95),
             seed: Some(gen_seed),
         },
@@ -340,7 +370,7 @@ async fn main() -> Result<()> {
         dpo_sft_anchor_weight: 0.0,
         eval_passk: args.eval_passk,
         sft_mask_prompt: true,
-        samples_per_prompt: None,
+        samples_per_prompt: args.samples_per_prompt,
     };
 
     // `run_multi_round` auto-chains init_from and bumps seeds per round.
