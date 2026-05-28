@@ -189,9 +189,24 @@ All three ablations on the high-round gap:
 top_k removal (matching Phase 17) is the best lever found and explains
 roughly half the ~0.05-0.08 high-round gap; the remainder is
 small-factor / plateau seed variance. **Recommended recipe refinement:
-`--top-k 0`.** Investigation closed — the headline result (full Phase-17
-reproduction at r=2 + saturation-curve shape) stands; with top_k=0 the
-high-round plateau (~0.50) closes most of the way to Phase 17's ~0.55.
+`--top-k 0`.** It is now the default (commit `e647540`).
+
+**Full top_k=0 saturation curve (5-seed, re-measured):**
+
+| round | top_k=0 | top_k=40 | Δ | Phase 17 |
+|---|---|---|---|---|
+| r=2 | 0.440 ± 0.017 | 0.436 | +0.004 | 0.404 |
+| r=3 | 0.490 ± 0.030 | 0.4645 | +0.026 | 0.475 |
+| r=4 | 0.509 ± 0.026 | 0.481 | +0.028 | 0.519 |
+| r=5 | 0.502 ± 0.046 | 0.476 | +0.026 | 0.556 |
+
+The full curve turns the weak single-round signal into a strong,
+consistent one: r=2 unchanged (+0.004) but r=3/r=4/r=5 ALL lift by
++0.026-0.028 — the "top_k matters only at high rounds" pattern. With
+top_k=0, **r=4 = 0.509 ≈ Phase 17's 0.519** (essentially matched) and
+r=3 0.490 slightly exceeds Phase 17's 0.475. Residual gap concentrated
+at r=5 (−0.054; Phase 17 keeps climbing to r=6 0.581, our plateau sits
+~0.51). top_k=0 reproduces Phase 17's curve through r=4.
 
 ## Stage D — closed
 
