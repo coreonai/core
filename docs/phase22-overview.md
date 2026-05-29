@@ -23,8 +23,13 @@ run-it-all guide.
 > **completion truncation** (G9, `aaf0594`), plus `top_k=0` harvest.
 > With the full recipe the Rust/Pekko loop **reproduces Phase 17 on
 > both HumanEval (r=2 0.436) and MBPP (r=2 0.447)**, saturation curves
-> to r=5 included. See **`docs/phase22-final-consolidation.md`** for
-> the resolved arc, curves, and ablations.
+> to r=5 included. The residual ~0.05 high-round plateau gap was
+> investigated with five paired r=5 ablations (cumulative buffer −0.032,
+> harvest temp −0.017, `top_k=0` +0.026 adopted, `weight_decay=0.01`
+> +0.008, fp16 training → NaN/untestable); only `top_k=0` helped, so the
+> residual is small-factor/plateau variance, not one dominant
+> divergence. See **`docs/phase22-final-consolidation.md`** for the
+> resolved arc, curves, and all ablations.
 
 ## Stages
 
