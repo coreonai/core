@@ -264,6 +264,26 @@ EARLIER than HE (r≈3 ~0.49 vs HE r≈4-5 ~0.51) and is much TIGHTER
 plateau ~0.05 lower). The Rust/Pekko loop reproduces Phase 17 on BOTH
 HumanEval and MBPP, curve shape included.
 
+### High-round plateau gap — four ablations (final)
+
+The residual ~0.05 high-round gap (our plateau ~0.51 vs Phase 17
+~0.55-0.58) was investigated with four paired r=5 ablations:
+
+| knob | r=5 Δ vs baseline | verdict |
+|---|---|---|
+| cumulative buffer | −0.032 | ruled out (worse) |
+| harvest temp 1.0 | −0.017 | ruled out |
+| harvest top_k=0 | +0.026 (5-seed) | weak positive — adopted (best lever) |
+| AdamW weight_decay 0.01 | +0.008 (3-seed) | ruled out |
+
+weight_decay (Phase 17's AdamW default 0.01 vs our 0.0) was the last
+concrete divergence; at wd=0.01 r=5 = 0.519 vs top_k=0 0.512 (+0.008,
+mixed, within noise). After adopting top_k=0, the residual gap is NOT
+explained by any single remaining knob — the only untested divergence
+is training dtype (Phase 17 fp16 vs our F32, but F32 is more precise so
+an unlikely cause). **Conclusion: the residual high-round gap is
+small-factor / inherent plateau variance, not one dominant divergence.**
+
 ## Stage D — closed
 
 The Rust/Pekko self-evolving MR-SFT loop reproduces Phase 17 end-to-end:
