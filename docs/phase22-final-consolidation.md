@@ -269,20 +269,22 @@ HumanEval and MBPP, curve shape included.
 The residual ~0.05 high-round gap (our plateau ~0.51 vs Phase 17
 ~0.55-0.58) was investigated with four paired r=5 ablations:
 
-| knob | r=5 Δ vs baseline | verdict |
+| knob | result | verdict |
 |---|---|---|
 | cumulative buffer | −0.032 | ruled out (worse) |
 | harvest temp 1.0 | −0.017 | ruled out |
-| harvest top_k=0 | +0.026 (5-seed) | weak positive — adopted (best lever) |
+| harvest top_k=0 | +0.026 (5-seed) | adopted (best lever, ~half the gap) |
 | AdamW weight_decay 0.01 | +0.008 (3-seed) | ruled out |
+| fp16 training | NaN | untestable (no loss scaling in Candle) |
 
-weight_decay (Phase 17's AdamW default 0.01 vs our 0.0) was the last
-concrete divergence; at wd=0.01 r=5 = 0.519 vs top_k=0 0.512 (+0.008,
-mixed, within noise). After adopting top_k=0, the residual gap is NOT
-explained by any single remaining knob — the only untested divergence
-is training dtype (Phase 17 fp16 vs our F32, but F32 is more precise so
-an unlikely cause). **Conclusion: the residual high-round gap is
-small-factor / inherent plateau variance, not one dominant divergence.**
+weight_decay (Phase 17's AdamW default 0.01 vs our 0.0) gave +0.008
+(mixed, within noise). fp16 (Phase 17's `torch_dtype=float16`) diverged
+to NaN — Candle raw F16 LoRA training has no autocast/GradScaler loss
+scaling, so it's not a usable lever (F32 is strictly more precise
+anyway). **Every concrete divergence from Phase 17 has now been tested;
+only top_k=0 helped. The residual ~0.05 high-round gap is small-factor /
+inherent plateau variance, not one dominant divergence. Investigation
+closed.**
 
 ## Stage D — closed
 
