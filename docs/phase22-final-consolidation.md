@@ -222,6 +222,7 @@ small-factor / plateau seed variance. **Recommended recipe refinement:
 | r=3 | 0.490 ± 0.030 | 0.4645 | +0.026 | 0.475 |
 | r=4 | 0.509 ± 0.026 | 0.481 | +0.028 | 0.519 |
 | r=5 | 0.502 ± 0.046 | 0.476 | +0.026 | 0.556 |
+| r=6 (3-seed) | 0.499 | — | — | 0.581 |
 
 The full curve turns the weak single-round signal into a strong,
 consistent one: r=2 unchanged (+0.004) but r=3/r=4/r=5 ALL lift by
@@ -285,6 +286,13 @@ anyway). **Every concrete divergence from Phase 17 has now been tested;
 only top_k=0 helped. The residual ~0.05 high-round gap is small-factor /
 inherent plateau variance, not one dominant divergence. Investigation
 closed.**
+
+A separate **rounds=6 follow-up** (3-seed, top_k=0 recipe) confirms the
+plateau is LOCKED: r=4 0.509 / r=5 0.502 / **r=6 0.499**. Phase 17 r=6
+= 0.581 stays out of reach (gap −0.082, same magnitude as at r=5). The
+two curves track closely through r=3-4 then diverge — ours plateaus,
+Phase 17 keeps climbing. The high-round gap is **structural**, not
+closeable by more training rounds OR recipe-knob tuning.
 
 ## Stage D — closed
 
