@@ -163,6 +163,14 @@ struct Args {
     /// as a candidate for the residual high-round plateau gap.
     #[arg(long, default_value_t = 0.0)]
     weight_decay: f64,
+    /// Phase 22 Stage D — train in F16 (matches Phase 17's
+    /// `torch_dtype=torch.float16`) instead of the default F32. The
+    /// loss is still computed in F32 (cast inside the CE helper); only
+    /// the base + LoRA weights and the forward/backward are F16. Tested
+    /// as the last candidate for the residual high-round plateau gap.
+    /// Ignored on CPU (no F16 kernels).
+    #[arg(long, default_value_t = false)]
+    train_fp16: bool,
     /// Output dir for per-round merged checkpoints. For best
     /// wallclock, point at tmpfs (e.g., `--out-dir /dev/shm/...`):
     /// each merged-safetensors save/reload roundtrip writes ~988 MB,
@@ -259,7 +267,15 @@ async fn main() -> Result<()> {
     // LoRA gradient accumulation. SaveMergedCheckpoint casts down to
     // base dtype on disk so ReloadCheckpoint stays F16.
     let inference_dtype = if on_cuda { DType::F16 } else { DType::F32 };
-    let train_dtype = DType::F32;
+    // Phase 22 — train dtype. F32 (default) for stable LoRA gradients;
+    // F16 matches Phase 17's `torch_dtype=torch.float16` (tested as the
+    // last candidate for the residual high-round plateau gap). On CPU
+    // we always use F32 (no F16 kernels).
+    let train_dtype = if args.train_fp16 && on_cuda {
+        DType::F16
+    } else {
+        DType::F32
+    };
     let lora_cfg = LoraConfig {
         rank: args.lora_rank,
         alpha: args.lora_alpha,
