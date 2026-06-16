@@ -569,46 +569,84 @@ impl ModelForCausalLM {
 ///
 /// Returns the pre-step loss value (the conventional REINFORCE logging
 /// choice).
+/// Compute REINFORCE policy-gradient loss for one (prompt, completion, reward) sample.
+/// Returns `None` if the completion is empty (no gradient contribution).
+fn pg_sample_loss(
+    model: &mut ModelForCausalLM,
+    device: &Device,
+    prompt: &[u32],
+    comp: &[u32],
+    reward: f32,
+) -> Result<Option<Tensor>> {
+    if comp.is_empty() {
+        return Ok(None);
+    }
+    let mut full = prompt.to_vec();
+    full.extend_from_slice(comp);
+    let full_len = full.len();
+    let full_t = Tensor::from_slice(&full, (1, full_len), device)?;
+    let logits = model.forward_train(&full_t)?; // (1, P+C, V)
+    let p_len = prompt.len();
+    let c_len = comp.len();
+    let pred = logits.narrow(1, p_len.saturating_sub(1), c_len)?;
+    let (_, c, v) = pred.dims3()?;
+    let pred_flat = pred.reshape((c, v))?.to_dtype(DType::F32)?;
+    let comp_t = Tensor::from_slice(comp, c_len, device)?;
+    let mean_ce = candle_nn::loss::cross_entropy(&pred_flat, &comp_t)?;
+    Ok(Some((&mean_ce * (reward as f64))?))
+}
+
+/// Phase 21 Stage G / Phase 22 Stage E — REINFORCE policy-gradient update.
+///
+/// Processes `samples` in chunks of `micro_batch_size` to bound peak GPU
+/// memory. Each chunk's loss is normalised by the chunk length and a
+/// separate `backward_step` call is issued, giving one AdamW update per
+/// chunk. Pass `micro_batch_size = 0` to process all samples in a single
+/// backward pass (original behaviour; may OOM with large completions).
+///
+/// Returns the mean per-sample loss across all chunks.
 pub fn train_qwen_lora_pg_step(
     model: &mut ModelForCausalLM,
     optimizer: &mut candle_nn::AdamW,
     device: &Device,
     samples: &[(Vec<u32>, Vec<u32>, f32)],
+    micro_batch_size: usize,
 ) -> Result<f32> {
     use candle_nn::Optimizer;
     if samples.is_empty() {
         candle_core::bail!("train_qwen_lora_pg_step: samples is empty");
     }
-    let mut loss: Option<Tensor> = None;
-    for (prompt, comp, reward) in samples {
-        if comp.is_empty() {
-            continue;
+    let mb = if micro_batch_size == 0 {
+        samples.len()
+    } else {
+        micro_batch_size
+    };
+    let mut total_loss = 0.0f32;
+    let mut n_chunks = 0usize;
+
+    for chunk in samples.chunks(mb) {
+        let mut loss: Option<Tensor> = None;
+        let mut n_used = 0usize;
+        for (prompt, comp, reward) in chunk {
+            if let Some(contrib) = pg_sample_loss(model, device, prompt, comp, *reward)? {
+                loss = Some(match loss {
+                    Some(prev) => (prev + contrib)?,
+                    None => contrib,
+                });
+                n_used += 1;
+            }
         }
-        let mut full = prompt.clone();
-        full.extend_from_slice(comp);
-        let full_len = full.len();
-        let full_t = Tensor::from_slice(&full, (1, full_len), device)?;
-        let logits = model.forward_train(&full_t)?; // (1, P+C, V)
-        let p_len = prompt.len();
-        let c_len = comp.len();
-        // logits[0..P-1] predict prompt tokens; logits[P-1..P-1+C] predict completion tokens.
-        let pred = logits.narrow(1, p_len.saturating_sub(1), c_len)?;
-        let (_, c, v) = pred.dims3()?;
-        let pred_flat = pred.reshape((c, v))?.to_dtype(DType::F32)?;
-        let comp_t = Tensor::from_slice(comp, c_len, device)?;
-        let mean_ce = candle_nn::loss::cross_entropy(&pred_flat, &comp_t)?;
-        let contrib = (&mean_ce * (*reward as f64))?;
-        loss = Some(match loss {
-            Some(prev) => (prev + contrib)?,
-            None => contrib,
-        });
+        if let Some(loss) = loss {
+            let loss = (loss / n_used as f64)?;
+            total_loss += loss.to_scalar::<f32>()?;
+            optimizer.backward_step(&loss)?;
+            n_chunks += 1;
+        }
     }
-    let loss = loss.ok_or_else(|| candle_core::Error::Msg("no usable samples".into()))?;
-    let n = samples.len() as f64;
-    let loss = (loss / n)?;
-    let loss_value = loss.to_scalar::<f32>()?;
-    optimizer.backward_step(&loss)?;
-    Ok(loss_value)
+    if n_chunks == 0 {
+        candle_core::bail!("train_qwen_lora_pg_step: no usable samples");
+    }
+    Ok(total_loss / n_chunks as f32)
 }
 
 /// Phase 21 Stage E.next.next — emit a "merged" safetensors file.

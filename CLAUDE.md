@@ -202,10 +202,15 @@ in-domain compression, HF wins on coverage).
    Workflow: after ANY change to library code, re-run
    `CUDA_HOME=/usr/local/cuda-12.5 PATH=/usr/local/cuda-12.5/bin:$PATH
    cargo build -p llm-actors --example <name> --features cuda --release`
-   before relaunching. Phase 22 Stage D G1 and G3 batches both hit this
-   trap (Δ ~ 60 min wallclock × 5 GPUs each time). All three Phase 22
-   GPU binaries now have a `PHASE22_ALLOW_CPU` env-var-gated fail-fast
-   guard that bails immediately on Cpu rather than running for 60s.
+   before relaunching. Phase 22 Stage D G1, G3, G4-agg, and the
+   re-run G4-agg batches all hit this trap (Δ ~ 60 min × 5 GPUs each
+   time; one G4-agg seed silently ran on CPU for ~6.5 hours before
+   we noticed). **All four Phase 22 GPU binaries**
+   (`phase22_he_mr_sft`, `phase22_mbpp_mr_sft`, `phase22_he_reinforce`,
+   `phase22_humaneval_baseline`) now have a `PHASE22_ALLOW_CPU`
+   env-var-gated fail-fast guard that bails immediately on Cpu
+   rather than running for 60s+ — set `PHASE22_ALLOW_CPU=1` to
+   override (for trivial smoke runs).
 
 9. **When a Pekko-driven mechanism diverges from its Python reference
    recipe, byte-compare the training step before suspecting actor

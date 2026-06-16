@@ -159,6 +159,12 @@ pub struct QwenTrainerActor {
     /// `fresh_optimizer_per_round=true` (the G9 recipe) it takes effect
     /// from round 0; otherwise set it before the first round.
     pub weight_decay: f64,
+    /// Phase 22 Stage E — micro-batch size for `TrainPolicyGradient`.
+    /// `0` (default) processes all samples in a single backward pass
+    /// (original behaviour). `> 0` chunks samples into groups of this
+    /// size and calls `backward_step` once per chunk, bounding peak GPU
+    /// memory when completions are long (max_new ≥ 64).
+    pub pg_micro_batch_size: usize,
 }
 
 impl QwenTrainerActor {
@@ -209,6 +215,7 @@ impl QwenTrainerActor {
             sft_batch_size: 1,
             fresh_optimizer_per_round: false,
             weight_decay: 0.0,
+            pg_micro_batch_size: 0,
         })
     }
 
@@ -233,6 +240,15 @@ impl QwenTrainerActor {
     /// moments at the start of each `TrainSftPairs` call). Builder-style.
     pub fn with_fresh_optimizer(mut self, enabled: bool) -> Self {
         self.fresh_optimizer_per_round = enabled;
+        self
+    }
+
+    /// Phase 22 Stage E — set the policy-gradient micro-batch size.
+    /// `0` (default) keeps the original single-backward-pass behaviour.
+    /// `> 0` issues one `backward_step` per chunk of this many samples,
+    /// bounding peak GPU memory for long completions (max_new ≥ 64).
+    pub fn with_pg_micro_batch_size(mut self, size: usize) -> Self {
+        self.pg_micro_batch_size = size;
         self
     }
 
@@ -304,6 +320,7 @@ impl Actor for QwenTrainerActor {
                         &mut self.optimizer,
                         &self.device,
                         &samples,
+                        self.pg_micro_batch_size,
                     )
                     .map_err(anyhow::Error::from);
                     log_send(reply, result, "qwen_train_pg");

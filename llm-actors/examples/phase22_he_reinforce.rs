@@ -29,6 +29,11 @@
 //!   cargo run -p llm-actors --example phase22_he_reinforce \
 //!       --features cuda --release -- --rl-steps 5 --n-prompts 8 \
 //!       --k-per-prompt 2 --max-new-tokens 80
+//!
+//! Signal-bearing run (max_new=64, k=4, micro-batch to avoid OOM):
+//!   cargo run -p llm-actors --example phase22_he_reinforce \
+//!       --features cuda --release -- --rl-steps 20 --n-prompts 16 \
+//!       --k-per-prompt 4 --max-new-tokens 64 --pg-micro-batch-size 4
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -101,6 +106,13 @@ struct Args {
     /// to the HF snapshot's `model.safetensors`.
     #[arg(long)]
     base_safetensors: Option<PathBuf>,
+    /// Policy-gradient micro-batch size. `0` (default) collects all
+    /// k×n_prompts samples into one backward pass — the original Stage G
+    /// behaviour, fits when max_new ≤ 16 + k ≤ 2. `> 0` chunks samples
+    /// and calls `backward_step` once per chunk, bounding peak GPU memory
+    /// so that max_new ≥ 64 or k > 2 become viable.
+    #[arg(long, default_value_t = 0)]
+    pg_micro_batch_size: usize,
 }
 
 fn pick_device() -> Device {
@@ -191,7 +203,8 @@ async fn main() -> Result<()> {
             alpha: args.lora_alpha,
         },
         args.lr,
-    )?;
+    )?
+    .with_pg_micro_batch_size(args.pg_micro_batch_size);
 
     let system = ActorSystem::new("phase22-e");
     let model_ref = system.spawn(qwen_model, "qwen-model").await?;
