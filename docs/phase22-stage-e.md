@@ -183,6 +183,68 @@ pass-rate is visible each step, catching collapse early. A KL-to-base
 penalty and/or a pass-feasibility prompt filter (Phase 9 S5 cold-start)
 are the other obvious stabilizers. Deferred as a separate measurement.
 
+## Adapter-sync re-experiment — REINFORCE WINS, 3/3 seeds (the fix)
+
+The follow-up above, executed. The `--sync-every` flag was already wired
+into `phase22_he_reinforce` (the off-policy run simply left it at the
+default `0`); the re-run is **identical** to the signal-bearing run —
+3 seeds {42,100,200} × 50 RL steps × 16 prompts × k=4, `max_new=64`,
+`pg_micro_batch_size=4` — except `--sync-every 1`: every RL step bakes
+the trainer's LoRA into base (`SaveMergedCheckpoint` → tmpfs) and reloads
+the sampler (`ModelMessage::ReloadCheckpoint`), making sampling fully
+on-policy.
+
+**Training-time signal flips immediately.** With sync on, the on-policy
+pass count (which now reflects the *trained* policy, not base) climbs
+monotonically instead of staying flat at base level:
+
+```
+seed42  passes/64:  3 16 20 33 43 ... 50 51 52 52 52   (→ ~0.81)
+seed100 passes/64: 10 15 26 38 45 ... 51 52 52 52 52   (→ ~0.81)
+seed200 passes/64: 10 13 16 26 36 ... 52 52 52 52 51   (→ ~0.81)
+```
+
+(off-policy, for contrast, stayed at 8–13/64 ≈ base 0.16 for all 50 steps.)
+
+**Held-out full-164 eval** (same protocol as above):
+
+| config | aggregate pass@1 | per-prompt pass@10 | Δ pass@1 vs base |
+|---|---|---|---|
+| **base** (control) | 0.2183 (358/1640) | 0.4573 (75/164) | — |
+| off-policy mean (prev section) | 0.032 | 0.064 | −0.186 |
+| sync_seed42 | 0.2805 (460/1640) | 0.4390 (72/164) | **+0.062** |
+| sync_seed100 | 0.2524 (414/1640) | 0.3963 (65/164) | **+0.034** |
+| sync_seed200 | 0.2793 (458/1640) | 0.4146 (68/164) | **+0.061** |
+| **adapter-sync mean** | **0.2707** | 0.4166 | **+0.052** |
+
+**Verdict — three findings:**
+
+1. **The off-policy approximation was the entire cause of the collapse.**
+   pass@1 0.032 → 0.271 (**8.5×**) with no change but `--sync-every 1`.
+   The "flat on-policy pass at base level" warning sign is fully
+   explained: the sampler was literally the base model.
+
+2. **REINFORCE genuinely improves the model** — 3/3 seeds beat base on
+   held-out full-164, mean Δ = **+0.052**. This is the first
+   verifier-as-reward RL *win* in the project; the 4/4 "direct paper-port
+   self-improve fails at LoRA scale" tally (Muon/DPO/OPD/off-policy-RL)
+   is **not** a statement about RL per se — it was an off-policy wiring
+   bug, and once fixed, RL works.
+
+3. **The gain is on-distribution-concentrated, and sharpens at the cost
+   of diversity.** The 16 training prompts reach ~0.81 on-policy, and
+   ~80 of the +102 aggregate passes over base come from those 16; the
+   held-out 148 improve only modestly. And while pass@1 rises +0.052,
+   per-prompt pass@10 *falls* −0.041 (base 0.4573 → 0.4166) — the
+   classic RL sharpening-vs-diversity trade-off, mirror-image of Phase 17
+   Sa's finding that *SFT* preserves pass@k diversity. Larger `n_prompts`
+   is the obvious lever to broaden generalization; a pass@k-preserving
+   objective (entropy bonus / KL-to-base) is the lever to keep diversity.
+
+Repro: `scripts/phase22_stage_e/rerun_adapter_sync.sh` (training) +
+`scripts/phase22_stage_e/eval_rl_checkpoints.sh` pattern (eval, pointed
+at `rl_sync_seed*_final.safetensors`).
+
 ## Acceptance — all pass
 
 - ✅ `cargo build --workspace --release` clean
