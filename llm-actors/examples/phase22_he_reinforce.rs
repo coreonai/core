@@ -106,6 +106,12 @@ struct Args {
     /// to the HF snapshot's `model.safetensors`.
     #[arg(long)]
     base_safetensors: Option<PathBuf>,
+    /// If set, save a merged (base + LoRA baked in) safetensors file
+    /// here after the final RL step. Enables post-run aggregate eval
+    /// via `phase22_humaneval_baseline --checkpoint <path> --sequential
+    /// --aggregate`. Skipped if not provided.
+    #[arg(long)]
+    final_checkpoint: Option<PathBuf>,
     /// Policy-gradient micro-batch size. `0` (default) collects all
     /// k×n_prompts samples into one backward pass — the original Stage G
     /// behaviour, fits when max_new ≤ 16 + k ≤ 2. `> 0` chunks samples
@@ -351,6 +357,24 @@ async fn main() -> Result<()> {
         "\n[Phase22E] {}/{} RL steps had >0 prompt passes (gradient signal)",
         nonzero_steps, args.rl_steps
     );
+    // Save final merged checkpoint if requested.
+    if let Some(ref out_path) = args.final_checkpoint {
+        let base = args
+            .base_safetensors
+            .clone()
+            .unwrap_or_else(|| snapshot.join("model.safetensors"));
+        let (tx, rx) = oneshot::channel();
+        trainer_ref
+            .tell(QwenTrainerMessage::SaveMergedCheckpoint {
+                base_path: base,
+                out_path: out_path.clone(),
+                reply: tx,
+            })
+            .map_err(|e| anyhow!("{e:?}"))?;
+        rx.await??;
+        println!("[Phase22E] final checkpoint saved → {}", out_path.display());
+    }
+
     println!("\nphase22_he_reinforce: PASS");
     Ok(())
 }
