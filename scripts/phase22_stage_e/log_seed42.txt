@@ -1,0 +1,66 @@
+[Phase22E] device = Cuda(CudaDevice(DeviceId(1))), on_cuda = true, rl_steps = 50
+[Phase22E] snapshot = /home/paulyu/.cache/huggingface/hub/models--Qwen--Qwen2.5-Coder-0.5B/snapshots/8123ea2e9354afb7ffcc6c8641d1b2f5ecf18301
+[Phase22E] HumanEvalDomain loaded 164 problems
+[Phase22E] using 16 HumanEval prompts (task_id 0..16)
+[Phase22E] 2 actors spawned (model + trainer)
+
+[Phase22E] rl_step 0  loss = -0.0021  pass = 3/64  elapsed_step = 65.3s  synced = false
+[Phase22E] rl_step 1  loss = -0.0142  pass = 12/64  elapsed_step = 63.5s  synced = false
+[Phase22E] rl_step 2  loss = -0.0059  pass = 11/64  elapsed_step = 80.8s  synced = false
+[Phase22E] rl_step 3  loss = -0.0077  pass = 8/64  elapsed_step = 66.4s  synced = false
+[Phase22E] rl_step 4  loss = -0.0087  pass = 8/64  elapsed_step = 75.7s  synced = false
+[Phase22E] rl_step 5  loss = -0.0162  pass = 8/64  elapsed_step = 62.9s  synced = false
+[Phase22E] rl_step 6  loss = -0.0275  pass = 6/64  elapsed_step = 66.2s  synced = false
+[Phase22E] rl_step 7  loss = -0.0432  pass = 16/64  elapsed_step = 65.3s  synced = false
+[Phase22E] rl_step 8  loss = -0.0666  pass = 5/64  elapsed_step = 70.8s  synced = false
+[Phase22E] rl_step 9  loss = -0.1232  pass = 10/64  elapsed_step = 64.0s  synced = false
+[Phase22E] rl_step 10  loss = -0.1909  pass = 7/64  elapsed_step = 61.9s  synced = false
+[Phase22E] rl_step 11  loss = -0.4904  pass = 12/64  elapsed_step = 72.9s  synced = false
+[Phase22E] rl_step 12  loss = -0.2429  pass = 8/64  elapsed_step = 63.4s  synced = false
+[Phase22E] rl_step 13  loss = -0.4034  pass = 9/64  elapsed_step = 69.8s  synced = false
+[Phase22E] rl_step 14  loss = -0.5426  pass = 7/64  elapsed_step = 65.0s  synced = false
+[Phase22E] rl_step 15  loss = -1.4084  pass = 15/64  elapsed_step = 59.0s  synced = false
+[Phase22E] rl_step 16  loss = -0.9010  pass = 6/64  elapsed_step = 64.2s  synced = false
+[Phase22E] rl_step 17  loss = -0.2470  pass = 13/64  elapsed_step = 62.6s  synced = false
+[Phase22E] rl_step 18  loss = -0.1699  pass = 7/64  elapsed_step = 69.1s  synced = false
+[Phase22E] rl_step 19  loss = -1.1991  pass = 11/64  elapsed_step = 62.1s  synced = false
+[Phase22E] rl_step 20  loss = -2.2546  pass = 10/64  elapsed_step = 69.3s  synced = false
+[Phase22E] rl_step 21  loss = -1.9420  pass = 14/64  elapsed_step = 65.2s  synced = false
+[Phase22E] rl_step 22  loss = -0.3328  pass = 4/64  elapsed_step = 64.8s  synced = false
+[Phase22E] rl_step 23  loss = -1.8184  pass = 10/64  elapsed_step = 71.2s  synced = false
+[Phase22E] rl_step 24  loss = -1.4593  pass = 7/64  elapsed_step = 81.5s  synced = false
+[Phase22E] rl_step 25  loss = -2.8822  pass = 13/64  elapsed_step = 72.6s  synced = false
+[Phase22E] rl_step 26  loss = -1.0671  pass = 5/64  elapsed_step = 62.3s  synced = false
+[Phase22E] rl_step 27  loss = -1.6921  pass = 10/64  elapsed_step = 65.8s  synced = false
+[Phase22E] rl_step 28  loss = -2.0567  pass = 8/64  elapsed_step = 64.2s  synced = false
+[Phase22E] rl_step 29  loss = -2.9718  pass = 10/64  elapsed_step = 67.8s  synced = false
+[Phase22E] rl_step 30  loss = -2.1538  pass = 12/64  elapsed_step = 63.2s  synced = false
+[Phase22E] rl_step 31  loss = -1.3939  pass = 6/64  elapsed_step = 66.1s  synced = false
+[Phase22E] rl_step 32  loss = -2.8769  pass = 13/64  elapsed_step = 64.8s  synced = false
+[Phase22E] rl_step 33  loss = -1.6271  pass = 7/64  elapsed_step = 65.7s  synced = false
+[Phase22E] rl_step 34  loss = -1.7127  pass = 13/64  elapsed_step = 70.6s  synced = false
+[Phase22E] rl_step 35  loss = -2.6013  pass = 10/64  elapsed_step = 81.4s  synced = false
+[Phase22E] rl_step 36  loss = -2.6770  pass = 9/64  elapsed_step = 62.0s  synced = false
+[Phase22E] rl_step 37  loss = -2.6469  pass = 10/64  elapsed_step = 66.7s  synced = false
+[Phase22E] rl_step 38  loss = -2.1337  pass = 6/64  elapsed_step = 62.9s  synced = false
+[Phase22E] rl_step 39  loss = -2.3223  pass = 6/64  elapsed_step = 65.2s  synced = false
+[Phase22E] rl_step 40  loss = -2.1270  pass = 9/64  elapsed_step = 64.0s  synced = false
+[Phase22E] rl_step 41  loss = -3.8111  pass = 10/64  elapsed_step = 68.9s  synced = false
+[Phase22E] rl_step 42  loss = -3.4225  pass = 6/64  elapsed_step = 63.8s  synced = false
+[Phase22E] rl_step 43  loss = -2.8000  pass = 11/64  elapsed_step = 63.7s  synced = false
+[Phase22E] rl_step 44  loss = -3.5045  pass = 8/64  elapsed_step = 62.4s  synced = false
+[Phase22E] rl_step 45  loss = -3.5820  pass = 11/64  elapsed_step = 80.8s  synced = false
+[Phase22E] rl_step 46  loss = -2.9123  pass = 8/64  elapsed_step = 65.5s  synced = false
+[Phase22E] rl_step 47  loss = -1.8332  pass = 13/64  elapsed_step = 63.7s  synced = false
+[Phase22E] rl_step 48  loss = -5.2403  pass = 13/64  elapsed_step = 74.0s  synced = false
+[Phase22E] rl_step 49  loss = -5.0849  pass = 8/64  elapsed_step = 64.5s  synced = false
+
+[Phase22E] === RL summary ===
+[Phase22E] 50 steps × 16 prompts × k=4 = 3200 samples total, elapsed = 3355.4s
+[Phase22E] losses across RL steps: [-0.002096508, -0.014195093, -0.0058564995, -0.0076997937, -0.0086657535, -0.016170155, -0.02754116, -0.04323177, -0.06659619, -0.12317987, -0.19085345, -0.4903925, -0.24292006, -0.40336594, -0.5425642, -1.4083683, -0.9010463, -0.24700898, -0.1699411, -1.199117, -2.2545857, -1.9420334, -0.33282056, -1.8183556, -1.4592757, -2.882215, -1.0670809, -1.6920984, -2.0566797, -2.971822, -2.1537638, -1.3939393, -2.8768802, -1.6270903, -1.7126567, -2.6013052, -2.6769876, -2.6468644, -2.1337216, -2.3222647, -2.127002, -3.811142, -3.4225478, -2.8000317, -3.5044906, -3.5819798, -2.912257, -1.8331583, -5.240334, -5.0849404]
+[Phase22E] passes/total per step:  [3, 12, 11, 8, 8, 8, 6, 16, 5, 10, 7, 12, 8, 9, 7, 15, 6, 13, 7, 11, 10, 14, 4, 10, 7, 13, 5, 10, 8, 10, 12, 6, 13, 7, 13, 10, 9, 10, 6, 6, 9, 10, 6, 11, 8, 11, 8, 13, 13, 8]/[64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64]
+
+[Phase22E] 50/50 RL steps had >0 prompt passes (gradient signal)
+[Phase22E] final checkpoint saved → scripts/phase22_stage_e/rl_seed42_final.safetensors
+
+phase22_he_reinforce: PASS

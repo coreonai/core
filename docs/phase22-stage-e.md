@@ -123,6 +123,66 @@ k=2 + max_new ≤ 24 at F32; or move to FP16 gradient accumulation for
 longer completions). Measurement-grade RL runs are ~5–10 GPU-h of
 work, separate from the Stage E infrastructure delivery.
 
+## Signal-bearing measurement (follow-up) — REINFORCE REGRESSES, 3/3 seeds
+
+The deferred signal-bearing run, executed with the `pg_micro_batch_size`
+OOM-safe path (commits `10cf696`/`bf51095`): **3 seeds × 50 RL steps ×
+16 prompts (task_id 0..16) × k=4**, `max_new` long enough for real
+HumanEval solutions. All three trained cleanly to completion
+(`50/50 RL steps had >0 prompt passes`, final merged checkpoints saved).
+
+Each final merged checkpoint (`rl_seed{42,100,200}_final.safetensors`)
+was then evaluated against base on the **full 164-problem benchmark**
+under one identical protocol —
+`--n-problems 164 --passk 10 --sequential --aggregate --max-new-tokens 200`.
+RL trained on only task_id 0..16, so full-164 measures generalization
+(148 held-out problems).
+
+| config | aggregate pass@1 | per-prompt pass@10 | Δ pass@1 vs base |
+|---|---|---|---|
+| **base** (control) | **0.2183** (358/1640) | 0.4573 (75/164) | — |
+| rl_seed42 | 0.0293 (48/1640) | 0.0854 (14/164) | **−0.189** |
+| rl_seed100 | 0.0665 (109/1640) | 0.1037 (17/164) | **−0.152** |
+| rl_seed200 | 0.0000 (0/1640) | 0.0000 (0/164) | **−0.218** |
+
+**Verdict: unambiguous negative — 3/3 seeds catastrophically regress**
+(mean RL pass@1 ≈ 0.032, Δ ≈ −0.186). The base control reproduces the
+Stage B / Phase 17 baseline (0.2183 ≈ 0.222 ≈ 0.216) exactly, so the
+measurement is sound; the collapse is in the RL checkpoints.
+
+### Mechanism — the off-policy approximation is the culprit
+
+The training-time on-policy pass counts (~8–13/64 throughout, flat)
+while `loss` drove steeply negative (→ −5) were the warning sign. The
+explanation is the **deferred adapter-sync**:
+
+- `QwenModelActor` (the sampler) is never re-synced to
+  `QwenTrainerActor`'s LoRA-augmented policy during the run. So for all
+  50 steps it samples on **base weights** — the flat ~0.13–0.20
+  on-policy pass-rate was *base-model* pass-rate, not the trained
+  policy's. "50/50 steps had gradient signal" was therefore misleading.
+- The REINFORCE gradient is computed on base-model samples, but the
+  accumulated LoRA delta drifts (loss → −5 is log-prob concentration).
+- The first time the trained LoRA is actually exercised is at eval, when
+  it's merged into the base — and the merged policy has collapsed
+  (seed42 emits degenerate short output, 2.97 s/problem vs base's
+  24.3 s; seed200 emits long garbage at 26.4 s/problem, 0 passes).
+
+So Stage E's three RL seeds confirm that **off-policy REINFORCE without
+adapter-sync (and without a KL anchor to base) collapses a 0.5B+LoRA
+policy** on sparse verifier reward. This is consistent with the broader
+phase result that direct paper-port self-improve mechanisms (Muon, DPO,
+OPD — 3/3) fail at this scale; verifier-as-reward RL joins them when run
+without stabilization.
+
+### Natural follow-up (not run here)
+
+Add per-step adapter-sync (`SaveMergedCheckpoint + ReloadCheckpoint`,
+~30 s/step) so (a) the gradient is on-policy and (b) the *actual* policy
+pass-rate is visible each step, catching collapse early. A KL-to-base
+penalty and/or a pass-feasibility prompt filter (Phase 9 S5 cold-start)
+are the other obvious stabilizers. Deferred as a separate measurement.
+
 ## Acceptance — all pass
 
 - ✅ `cargo build --workspace --release` clean
