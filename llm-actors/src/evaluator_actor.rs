@@ -45,6 +45,15 @@ pub enum EvaluatorMessage {
     /// temperature 0.8" measurement.
     EvalSequential {
         n: usize,
+        /// Phase 22 Stage E follow-up — start index into the domain's
+        /// indexed prompt series. Iterates `nth_prompt(offset..offset+n)`
+        /// instead of `0..n`. Enables held-out-tail eval (e.g. evaluate
+        /// task 64..164 after RL trained on task 0..64) for clean
+        /// generalization measurement. Per-(prompt, k) seeds key off the
+        /// absolute `prompt_idx`, so an offset slice reproduces exactly
+        /// the same samples as the corresponding window of a full
+        /// `0..n_total` run. Default `0` = historical behavior.
+        offset: usize,
         sampling: GenerateConfig,
         passk: usize,
         aggregate: bool,
@@ -145,12 +154,15 @@ where
                 }
                 EvaluatorMessage::EvalSequential {
                     n,
+                    offset,
                     sampling,
                     passk,
                     aggregate,
                     reply,
                 } => {
-                    let result = self.run_sequential(n, sampling, passk, aggregate).await;
+                    let result = self
+                        .run_sequential(n, offset, sampling, passk, aggregate)
+                        .await;
                     let _ = reply.send(result);
                 }
             }
@@ -261,13 +273,17 @@ where
     async fn run_sequential(
         &self,
         n: usize,
+        offset: usize,
         sampling: GenerateConfig,
         passk: usize,
         aggregate: bool,
     ) -> anyhow::Result<EvalReport> {
         let passk = passk.max(1);
+        // Clamp the [offset, offset+n) window to the domain's prompt
+        // count when known, so an over-long request just evaluates the
+        // available tail rather than spinning on empty `nth_prompt`s.
         let n_effective = match self.domain.n_prompts() {
-            Some(np) => n.min(np),
+            Some(np) => n.min(np.saturating_sub(offset)),
             None => n,
         };
         let mut correct = 0usize;
@@ -275,7 +291,7 @@ where
         let mut total_passes = 0usize;
         let mut total_attempts = 0usize;
         let mut samples = Vec::with_capacity(self.keep_samples);
-        for prompt_idx in 0..n_effective {
+        for prompt_idx in offset..(offset + n_effective) {
             let prompt = match self.domain.nth_prompt(prompt_idx) {
                 Some(p) => p,
                 None => continue,

@@ -171,6 +171,7 @@ async fn main() -> Result<()> {
     let msg = if args.sequential {
         EvaluatorMessage::EvalSequential {
             n: args.n_problems,
+            offset: 0,
             sampling,
             passk: args.passk,
             aggregate: args.aggregate,

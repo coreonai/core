@@ -65,6 +65,15 @@ struct Args {
     /// each of 164 problems exactly once).
     #[arg(long, default_value_t = false)]
     sequential: bool,
+    /// Phase 22 Stage E follow-up — start index for `--sequential`.
+    /// Evaluates `nth_prompt(offset..offset+n_problems)` instead of
+    /// `0..n_problems`. Used to score a held-out tail (e.g. `--offset 64
+    /// --n-problems 100` = task 64..164) after RL trained on task 0..64,
+    /// for clean generalization measurement. Per-task seeds key off the
+    /// absolute index, so the slice is bit-identical to that window of a
+    /// full 0..164 run. Default 0.
+    #[arg(long, default_value_t = 0)]
+    offset: usize,
     /// Phase 22 Stage B — aggregate mode for `--sequential`. When
     /// `true`, exhaust all `passk` samples per prompt (no short-circuit)
     /// and report aggregate pass-rate `total_passes / total_attempts`
@@ -180,14 +189,15 @@ async fn main() -> Result<()> {
     };
 
     println!(
-        "[Phase22A] starting eval n={} passk={} temperature={} top_k={:?} top_p={:?} sequential={}",
-        args.n_problems, args.passk, temperature, top_k, top_p, args.sequential
+        "[Phase22A] starting eval n={} offset={} passk={} temperature={} top_k={:?} top_p={:?} sequential={}",
+        args.n_problems, args.offset, args.passk, temperature, top_k, top_p, args.sequential
     );
     let t0 = std::time::Instant::now();
     let (tx, rx) = oneshot::channel();
     let msg = if args.sequential {
         EvaluatorMessage::EvalSequential {
             n: args.n_problems,
+            offset: args.offset,
             sampling,
             passk: args.passk,
             aggregate: args.aggregate,
