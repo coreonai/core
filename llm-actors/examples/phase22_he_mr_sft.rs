@@ -180,6 +180,15 @@ struct Args {
     /// Ignored on CPU (no F16 kernels).
     #[arg(long, default_value_t = false)]
     train_fp16: bool,
+    /// Qwen 7B migration C3 — run BF16 throughout (both inference AND
+    /// training) instead of the 0.5B default (F16 inference / F32 train).
+    /// Required to fit Qwen2.5-Coder-7B on a 40GB A100 (F32 base = 28GB
+    /// weights alone). BF16 has F32's exponent range so — unlike
+    /// `--train-fp16` — it needs no GradScaler and does not NaN. Matches
+    /// Qwen's native on-disk dtype, so no reload cast. Takes precedence
+    /// over `--train-fp16`. Ignored on CPU (no BF16 kernels).
+    #[arg(long, default_value_t = false)]
+    train_bf16: bool,
     /// Output dir for per-round merged checkpoints. For best
     /// wallclock, point at tmpfs (e.g., `--out-dir /dev/shm/...`):
     /// each merged-safetensors save/reload roundtrip writes ~988 MB,
@@ -281,18 +290,24 @@ async fn main() -> Result<()> {
     let base_safetensors = snapshot.clone();
     println!("[Phase22D] snapshot = {}", snapshot.display());
 
-    // Inference in F16 (Phase 21 D pattern); training in F32 for stable
-    // LoRA gradient accumulation. SaveMergedCheckpoint casts down to
-    // base dtype on disk so ReloadCheckpoint stays F16.
-    let inference_dtype = if on_cuda { DType::F16 } else { DType::F32 };
-    // Phase 22 — train dtype. F32 (default) for stable LoRA gradients;
-    // F16 matches Phase 17's `torch_dtype=torch.float16` (tested as the
-    // last candidate for the residual high-round plateau gap). On CPU
-    // we always use F32 (no F16 kernels).
-    let train_dtype = if args.train_fp16 && on_cuda {
-        DType::F16
+    // dtype selection (see the CLI docs on each flag):
+    //   default (0.5B):  F16 inference / F32 train  — stable LoRA grads,
+    //                    exact Phase 17 reproduction.
+    //   --train-fp16:    F16 throughout             — Phase 17
+    //                    `torch_dtype=float16` experiment (NaN-prone).
+    //   --train-bf16:    BF16 throughout            — Qwen 7B migration
+    //                    C3; fits 7B on 40GB, no reload cast, no NaN.
+    // SaveMergedCheckpoint casts the LoRA delta to the base dtype on disk,
+    // and ReloadCheckpoint re-casts to the inference dtype, so the two may
+    // differ. On CPU we always use F32 (no F16/BF16 kernels).
+    let (inference_dtype, train_dtype) = if !on_cuda {
+        (DType::F32, DType::F32)
+    } else if args.train_bf16 {
+        (DType::BF16, DType::BF16)
+    } else if args.train_fp16 {
+        (DType::F16, DType::F16)
     } else {
-        DType::F32
+        (DType::F16, DType::F32)
     };
     let lora_cfg = LoraConfig {
         rank: args.lora_rank,

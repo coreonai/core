@@ -72,6 +72,14 @@ struct Args {
     /// is absent; globs the cache snapshot that has a config.json.
     #[arg(long, default_value = "Qwen2.5-Coder-0.5B")]
     model_id: String,
+    /// Qwen 7B migration C3 — run BF16 throughout (both inference AND
+    /// training) instead of the 0.5B default (F16 inference / F32 train).
+    /// Required to fit Qwen2.5-Coder-7B on a 40GB A100 (F32 base = 28GB
+    /// weights alone). BF16 has F32's exponent range so it needs no
+    /// GradScaler and does not NaN, and matches Qwen's native on-disk
+    /// dtype (no reload cast). Ignored on CPU (no BF16 kernels).
+    #[arg(long, default_value_t = false)]
+    train_bf16: bool,
     /// Number of MR rounds. Phase 17 saturation curve covers 1..6.
     #[arg(long, default_value_t = 2)]
     rounds: usize,
@@ -235,11 +243,21 @@ async fn main() -> Result<()> {
     let base_safetensors = snapshot.clone();
     println!("[Phase22D-MBPP] snapshot = {}", snapshot.display());
 
-    // Inference in F16 (Phase 21 D pattern); training in F32 for stable
-    // LoRA gradient accumulation. SaveMergedCheckpoint casts down to
-    // base dtype on disk so ReloadCheckpoint stays F16.
-    let inference_dtype = if on_cuda { DType::F16 } else { DType::F32 };
-    let train_dtype = DType::F32;
+    // dtype selection:
+    //   default (0.5B): F16 inference / F32 train — stable LoRA grads,
+    //                   exact Phase 17 reproduction.
+    //   --train-bf16:   BF16 throughout — Qwen 7B migration C3; fits 7B
+    //                   on 40GB, no reload cast, no NaN.
+    // SaveMergedCheckpoint casts the LoRA delta to the base dtype on disk;
+    // ReloadCheckpoint re-casts to the inference dtype. On CPU we always
+    // use F32 (no F16/BF16 kernels).
+    let (inference_dtype, train_dtype) = if !on_cuda {
+        (DType::F32, DType::F32)
+    } else if args.train_bf16 {
+        (DType::BF16, DType::BF16)
+    } else {
+        (DType::F16, DType::F32)
+    };
     let lora_cfg = LoraConfig {
         rank: args.lora_rank,
         alpha: args.lora_alpha,

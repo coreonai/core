@@ -27,6 +27,7 @@ use candle_core::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::models::qwen2::{Config as Qwen2Config, ModelForCausalLM};
 use clap::Parser;
+use llm_actors::qwen2_lora::resolve_safetensors;
 use tokenizers::Tokenizer;
 
 #[derive(Parser, Debug)]
@@ -48,6 +49,10 @@ struct Args {
     /// Use the f16 dtype on GPU. Falls back to f32 on CPU.
     #[arg(long, default_value_t = true)]
     f16: bool,
+    /// Use bf16 on GPU (Qwen's native dtype; preferred over --f16 for 7B).
+    /// Takes precedence over --f16. Falls back to f32 on CPU.
+    #[arg(long, default_value_t = false)]
+    bf16: bool,
 }
 
 fn pick_device() -> Device {
@@ -108,13 +113,19 @@ fn main() -> Result<()> {
     );
 
     // --- Model
-    let dtype = if on_cuda && args.f16 {
+    let dtype = if !on_cuda {
+        DType::F32
+    } else if args.bf16 {
+        DType::BF16
+    } else if args.f16 {
         DType::F16
     } else {
         DType::F32
     };
-    let safetensors = dir.join("model.safetensors");
-    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[&safetensors], dtype, &device)? };
+    // Shard-aware: single model.safetensors (0.5B) or the index.json shard
+    // set (7B), via resolve_safetensors.
+    let shards = resolve_safetensors(&dir)?;
+    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&shards, dtype, &device)? };
     let mut model = ModelForCausalLM::new(&cfg, vb)?;
     println!("[Phase21D] model loaded (dtype={:?})", dtype);
 

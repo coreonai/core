@@ -26,7 +26,9 @@ use candle_core::{DType, Device, Tensor};
 use candle_nn::{AdamW, ParamsAdamW, VarBuilder, VarMap};
 use candle_transformers::models::qwen2::Config as Qwen2Config;
 use clap::Parser;
-use llm_actors::qwen2_lora::{lora_grad_norms, train_qwen_lora_step, LoraConfig, ModelForCausalLM};
+use llm_actors::qwen2_lora::{
+    lora_grad_norms, resolve_safetensors, train_qwen_lora_step, LoraConfig, ModelForCausalLM,
+};
 use tokenizers::Tokenizer;
 
 #[derive(Parser, Debug)]
@@ -41,6 +43,11 @@ struct Args {
     lora_rank: usize,
     #[arg(long, default_value_t = 32.0)]
     lora_alpha: f32,
+    /// Qwen 7B migration C3 — train in BF16 instead of F32. Required to
+    /// fit Qwen2.5-Coder-7B on a 40GB A100. BF16 keeps F32's exponent
+    /// range (no NaN) unlike F16. Ignored on CPU (no BF16 kernels).
+    #[arg(long, default_value_t = false)]
+    bf16: bool,
     #[arg(
         long,
         default_value = "def fibonacci(n):\n    if n < 2:\n        return n"
@@ -99,11 +106,19 @@ fn main() -> Result<()> {
 
     // -- Build model: frozen base from safetensors + trainable LoRA VarMap.
     //
-    // Training is done in F32 throughout — gradients through F16 LoRA Vars
-    // are numerically too coarse at rank=16 and lr=2e-4.
-    let dtype = DType::F32;
-    let safetensors = dir.join("model.safetensors");
-    let base_vb = unsafe { VarBuilder::from_mmaped_safetensors(&[&safetensors], dtype, &device)? };
+    // Training defaults to F32 — gradients through F16 LoRA Vars are
+    // numerically too coarse at rank=16 and lr=2e-4. BF16 (`--bf16`) keeps
+    // F32's exponent range, so it trains without NaN while halving base
+    // memory — the config for Qwen2.5-Coder-7B on a 40GB A100.
+    let dtype = if args.bf16 && on_cuda {
+        DType::BF16
+    } else {
+        DType::F32
+    };
+    // Shard-aware: single model.safetensors (0.5B) or the index.json shard
+    // set (7B), via resolve_safetensors.
+    let shards = resolve_safetensors(&dir)?;
+    let base_vb = unsafe { VarBuilder::from_mmaped_safetensors(&shards, dtype, &device)? };
 
     let lora_map = VarMap::new();
     let lora_vb = VarBuilder::from_varmap(&lora_map, dtype, &device);
