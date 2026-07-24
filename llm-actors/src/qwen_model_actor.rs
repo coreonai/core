@@ -40,7 +40,7 @@
 //! `ActorRef<ModelActor>` cannot directly accept a Qwen actor. Plumbing
 //! the eval/gen actors to be generic over the model type is Stage E.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use candle_core::{DType, Device, Tensor};
@@ -55,6 +55,7 @@ use tokio::sync::oneshot;
 use tracing::{error, info, warn};
 
 use crate::model_actor::{GenerateReply, ModelMessage};
+use crate::qwen2_lora::resolve_safetensors;
 
 pub struct QwenModelActor {
     pub model: ModelForCausalLM,
@@ -69,9 +70,13 @@ pub struct QwenModelActor {
 
 impl QwenModelActor {
     /// Build a fresh actor by mmap-loading the safetensors at `model_path`
-    /// into a Qwen2 `ModelForCausalLM`. The tokenizer and config are
-    /// expected to live next to the safetensors but the caller passes
-    /// them in explicitly so this constructor is testable.
+    /// into a Qwen2 `ModelForCausalLM`. `model_path` may be a single
+    /// `.safetensors` file (a merged checkpoint) OR an HF snapshot
+    /// directory whose weights are sharded across
+    /// `model-0000N-of-0000M.safetensors` (resolved via
+    /// `resolve_safetensors`). The tokenizer and config are expected to
+    /// live next to the safetensors but the caller passes them in
+    /// explicitly so this constructor is testable.
     pub fn new(
         model_path: std::path::PathBuf,
         tokenizer: Arc<HfTokenizer>,
@@ -79,7 +84,7 @@ impl QwenModelActor {
         device: Device,
         dtype: DType,
     ) -> anyhow::Result<Self> {
-        let model = load_qwen_model(&model_path, &config, dtype, &device)?;
+        let model = load_qwen_model(&resolve_safetensors(&model_path)?, &config, dtype, &device)?;
         Ok(Self {
             model,
             tokenizer,
@@ -101,18 +106,26 @@ impl QwenModelActor {
         let config: Qwen2Config = serde_json::from_str(&cfg_text)?;
         let tokenizer = HfTokenizer::from_file(snapshot_dir.join("tokenizer.json"))
             .map_err(|e| anyhow::anyhow!("tokenizer: {e}"))?;
-        let model_path = snapshot_dir.join("model.safetensors");
-        Self::new(model_path, Arc::new(tokenizer), config, device, dtype)
+        // Pass the snapshot directory itself; `new` → `resolve_safetensors`
+        // picks the single `model.safetensors` (0.5B/1.5B) or the shard set
+        // listed in `model.safetensors.index.json` (7B).
+        Self::new(
+            snapshot_dir.to_path_buf(),
+            Arc::new(tokenizer),
+            config,
+            device,
+            dtype,
+        )
     }
 }
 
 fn load_qwen_model(
-    model_path: &Path,
+    model_paths: &[PathBuf],
     config: &Qwen2Config,
     dtype: DType,
     device: &Device,
 ) -> anyhow::Result<ModelForCausalLM> {
-    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[model_path], dtype, device)? };
+    let vb = unsafe { VarBuilder::from_mmaped_safetensors(model_paths, dtype, device)? };
     let model = ModelForCausalLM::new(config, vb)?;
     Ok(model)
 }
@@ -204,7 +217,12 @@ impl QwenModelActor {
     }
 
     fn handle_reload(&mut self, path: &Path) -> anyhow::Result<()> {
-        let new_model = load_qwen_model(path, &self.config, self.dtype, &self.device)?;
+        let new_model = load_qwen_model(
+            &resolve_safetensors(path)?,
+            &self.config,
+            self.dtype,
+            &self.device,
+        )?;
         self.model = new_model;
         self.model_path = path.to_path_buf();
         info!(?path, "QwenModelActor checkpoint reloaded");

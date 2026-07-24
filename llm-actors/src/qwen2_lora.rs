@@ -649,6 +649,60 @@ pub fn train_qwen_lora_pg_step(
     Ok(total_loss / n_chunks as f32)
 }
 
+/// Resolve the safetensors shard file(s) that make up a model.
+///
+/// `path` may be either:
+/// - a single `.safetensors` file (e.g. a merged checkpoint) → returned
+///   as-is;
+/// - an HF snapshot **directory** → resolved to its shard set. Large
+///   models (e.g. Qwen2.5-Coder-7B) shard weights into
+///   `model-0000N-of-0000M.safetensors` listed by a
+///   `model.safetensors.index.json` `weight_map`; single-file models
+///   (0.5B / 1.5B) expose one `model.safetensors`.
+///
+/// The shard list is deduplicated and sorted (BTreeSet) so mmap order is
+/// deterministic. This is the single choke point that makes every loader
+/// work for both the single-file and sharded layouts.
+pub fn resolve_safetensors(path: &std::path::Path) -> Result<Vec<std::path::PathBuf>> {
+    if path.is_file() {
+        return Ok(vec![path.to_path_buf()]);
+    }
+    if !path.is_dir() {
+        return Err(candle_core::Error::Msg(format!(
+            "resolve_safetensors: {path:?} is neither a file nor a directory"
+        )));
+    }
+    let index = path.join("model.safetensors.index.json");
+    if index.is_file() {
+        let text = std::fs::read_to_string(&index)
+            .map_err(|e| candle_core::Error::Msg(format!("read {index:?}: {e}")))?;
+        let json: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| candle_core::Error::Msg(format!("parse {index:?}: {e}")))?;
+        let weight_map = json
+            .get("weight_map")
+            .and_then(|v| v.as_object())
+            .ok_or_else(|| candle_core::Error::Msg(format!("no weight_map object in {index:?}")))?;
+        let shards: std::collections::BTreeSet<String> = weight_map
+            .values()
+            .filter_map(|v| v.as_str().map(str::to_string))
+            .collect();
+        if shards.is_empty() {
+            return Err(candle_core::Error::Msg(format!(
+                "empty weight_map in {index:?}"
+            )));
+        }
+        Ok(shards.into_iter().map(|s| path.join(s)).collect())
+    } else {
+        let single = path.join("model.safetensors");
+        if !single.is_file() {
+            return Err(candle_core::Error::Msg(format!(
+                "no model.safetensors or model.safetensors.index.json in {path:?}"
+            )));
+        }
+        Ok(vec![single])
+    }
+}
+
 /// Phase 21 Stage E.next.next — emit a "merged" safetensors file.
 ///
 /// Reads the original frozen-base safetensors and, for every layer's
@@ -673,7 +727,13 @@ pub fn save_merged_lora(
     device: &Device,
     out_path: &std::path::Path,
 ) -> Result<()> {
-    let mut tensors = candle_core::safetensors::load(base_safetensors_path, device)?;
+    // Sharded-aware: `base_safetensors_path` may be a single merged file
+    // (0.5B, or a previously merged checkpoint) or an HF snapshot dir whose
+    // weights span multiple shards (7B). Load every shard into one map.
+    let mut tensors = std::collections::HashMap::new();
+    for shard in resolve_safetensors(base_safetensors_path)? {
+        tensors.extend(candle_core::safetensors::load(&shard, device)?);
+    }
     let scale = (lora_cfg.alpha / lora_cfg.rank as f32) as f64;
 
     let lora_vars_guard = lora_map.data().lock().unwrap();
@@ -1173,5 +1233,67 @@ mod tests {
             "no LoRA Var has a gradient — autograd broken at LoraAdapter scale"
         );
         Ok(())
+    }
+
+    /// Unique scratch dir under the system temp, keyed by test name +
+    /// process id so parallel `cargo test` runs never collide.
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("workllm-resolve-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn resolve_safetensors_single_file_returns_itself() {
+        let dir = scratch("single-file");
+        let f = dir.join("model.safetensors");
+        std::fs::write(&f, b"stub").unwrap();
+        // A direct file path resolves to exactly that file.
+        let got = resolve_safetensors(&f).unwrap();
+        assert_eq!(got, vec![f.clone()]);
+        // A directory containing one model.safetensors resolves to it.
+        let got_dir = resolve_safetensors(&dir).unwrap();
+        assert_eq!(got_dir, vec![f]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resolve_safetensors_sharded_dir_reads_index_dedup_sorted() {
+        let dir = scratch("sharded");
+        for shard in [
+            "model-00001-of-00002.safetensors",
+            "model-00002-of-00002.safetensors",
+        ] {
+            std::fs::write(dir.join(shard), b"stub").unwrap();
+        }
+        // weight_map lists many tensors across 2 shards (out of order, with
+        // duplicate shard references) — resolve must dedup + sort.
+        let index = r#"{
+            "metadata": {"total_size": 42},
+            "weight_map": {
+                "b.weight": "model-00002-of-00002.safetensors",
+                "a.weight": "model-00001-of-00002.safetensors",
+                "c.weight": "model-00002-of-00002.safetensors"
+            }
+        }"#;
+        std::fs::write(dir.join("model.safetensors.index.json"), index).unwrap();
+        let got = resolve_safetensors(&dir).unwrap();
+        assert_eq!(
+            got,
+            vec![
+                dir.join("model-00001-of-00002.safetensors"),
+                dir.join("model-00002-of-00002.safetensors"),
+            ]
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resolve_safetensors_empty_dir_errors() {
+        let dir = scratch("empty");
+        assert!(resolve_safetensors(&dir).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -32,8 +32,9 @@ use tokio::sync::oneshot;
 use tracing::{error, info, warn};
 
 use crate::qwen2_lora::{
-    cosine_warmup_lr, save_merged_lora, train_qwen_lora_pg_step, train_qwen_lora_step,
-    train_qwen_lora_step_masked, train_qwen_lora_step_masked_batched, LoraConfig, ModelForCausalLM,
+    cosine_warmup_lr, resolve_safetensors, save_merged_lora, train_qwen_lora_pg_step,
+    train_qwen_lora_step, train_qwen_lora_step_masked, train_qwen_lora_step_masked_batched,
+    LoraConfig, ModelForCausalLM,
 };
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
@@ -183,10 +184,11 @@ impl QwenTrainerActor {
         let config: Qwen2Config = serde_json::from_str(&cfg_text)?;
         let tokenizer = HfTokenizer::from_file(snapshot_dir.join("tokenizer.json"))
             .map_err(|e| anyhow::anyhow!("tokenizer: {e}"))?;
-        let safetensors = snapshot_dir.join("model.safetensors");
+        // Sharded-aware: single `model.safetensors` (0.5B/1.5B) or the
+        // `model.safetensors.index.json` shard set (7B).
+        let shards = resolve_safetensors(snapshot_dir)?;
 
-        let base_vb =
-            unsafe { VarBuilder::from_mmaped_safetensors(&[&safetensors], dtype, &device)? };
+        let base_vb = unsafe { VarBuilder::from_mmaped_safetensors(&shards, dtype, &device)? };
         let lora_map = VarMap::new();
         let lora_vb = VarBuilder::from_varmap(&lora_map, dtype, &device);
         let model = ModelForCausalLM::new(&config, base_vb, Some(lora_vb), lora_cfg)?;
