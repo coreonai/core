@@ -63,6 +63,15 @@ use pekko_actor::ActorSystem;
 
 #[derive(Parser, Debug)]
 struct Args {
+    /// Qwen model snapshot directory (must contain config.json,
+    /// tokenizer.json, and model.safetensors or its shard index).
+    /// Overrides --model-id. Point this at a 7B snapshot to run 7B.
+    #[arg(long)]
+    model_dir: Option<PathBuf>,
+    /// HF repo suffix under `models--Qwen--<id>` used when --model-dir
+    /// is absent; globs the cache snapshot that has a config.json.
+    #[arg(long, default_value = "Qwen2.5-Coder-0.5B")]
+    model_id: String,
     /// Number of MR rounds. Phase 17 saturation curve covers 1..6.
     #[arg(long, default_value_t = 2)]
     rounds: usize,
@@ -177,10 +186,16 @@ fn pick_device() -> Device {
     Device::Cpu
 }
 
-fn resolve_default_snapshot() -> Result<PathBuf> {
+fn resolve_snapshot(model_dir: Option<&std::path::Path>, model_id: &str) -> Result<PathBuf> {
+    if let Some(d) = model_dir {
+        if !d.join("config.json").exists() {
+            anyhow::bail!("--model-dir {d:?} has no config.json");
+        }
+        return Ok(d.to_path_buf());
+    }
     let home = std::env::var("HOME").context("HOME unset")?;
     let snapshots_dir = PathBuf::from(format!(
-        "{home}/.cache/huggingface/hub/models--Qwen--Qwen2.5-Coder-0.5B/snapshots"
+        "{home}/.cache/huggingface/hub/models--Qwen--{model_id}/snapshots"
     ));
     let entries = std::fs::read_dir(&snapshots_dir)
         .with_context(|| format!("read_dir {snapshots_dir:?}"))?
@@ -213,8 +228,11 @@ async fn main() -> Result<()> {
     }
     std::fs::create_dir_all(&args.out_dir)?;
 
-    let snapshot = resolve_default_snapshot()?;
-    let base_safetensors = snapshot.join("model.safetensors");
+    let snapshot = resolve_snapshot(args.model_dir.as_deref(), &args.model_id)?;
+    // Merge base = the snapshot DIR (not a joined file): save_merged_lora
+    // resolves it to the single model.safetensors (0.5B) or the shard set
+    // (7B) via resolve_safetensors.
+    let base_safetensors = snapshot.clone();
     println!("[Phase22D-MBPP] snapshot = {}", snapshot.display());
 
     // Inference in F16 (Phase 21 D pattern); training in F32 for stable

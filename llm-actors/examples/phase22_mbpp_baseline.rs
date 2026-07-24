@@ -40,6 +40,15 @@ use tokio::sync::oneshot;
 
 #[derive(Parser, Debug)]
 struct Args {
+    /// Qwen model snapshot directory (must contain config.json,
+    /// tokenizer.json, and model.safetensors or its shard index).
+    /// Overrides --model-id. Point this at a 7B snapshot to run 7B.
+    #[arg(long)]
+    model_dir: Option<PathBuf>,
+    /// HF repo suffix under `models--Qwen--<id>` used when --model-dir
+    /// is absent; globs the cache snapshot that has a config.json.
+    #[arg(long, default_value = "Qwen2.5-Coder-0.5B")]
+    model_id: String,
     /// Number of MBPP problems to evaluate. Use 100 for the full
     /// MBPP-100 subset; smaller values for quick smokes.
     #[arg(long, default_value_t = 8)]
@@ -85,10 +94,16 @@ fn pick_device() -> Device {
     Device::Cpu
 }
 
-fn resolve_default_snapshot() -> Result<PathBuf> {
+fn resolve_snapshot(model_dir: Option<&std::path::Path>, model_id: &str) -> Result<PathBuf> {
+    if let Some(d) = model_dir {
+        if !d.join("config.json").exists() {
+            anyhow::bail!("--model-dir {d:?} has no config.json");
+        }
+        return Ok(d.to_path_buf());
+    }
     let home = std::env::var("HOME").context("HOME unset")?;
     let snapshots_dir = PathBuf::from(format!(
-        "{home}/.cache/huggingface/hub/models--Qwen--Qwen2.5-Coder-0.5B/snapshots"
+        "{home}/.cache/huggingface/hub/models--Qwen--{model_id}/snapshots"
     ));
     let entries = std::fs::read_dir(&snapshots_dir)
         .with_context(|| format!("read_dir {snapshots_dir:?}"))?
@@ -113,7 +128,7 @@ async fn main() -> Result<()> {
     // Match Stage A: BF16 on CUDA for Qwen2.5-Coder's native HF format.
     let dtype = if on_cuda { DType::BF16 } else { DType::F32 };
 
-    let snapshot = resolve_default_snapshot()?;
+    let snapshot = resolve_snapshot(args.model_dir.as_deref(), &args.model_id)?;
     println!("[Phase22C] snapshot = {}", snapshot.display());
     let qwen = if let Some(ckpt) = args.checkpoint.as_ref() {
         println!("[Phase22C] checkpoint override = {}", ckpt.display());
