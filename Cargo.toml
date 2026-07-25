@@ -39,3 +39,12 @@ opt-level = 3
 
 [profile.dev]
 opt-level = 1
+
+# Vendored, patched candle-core 0.10.2: matmul backward skips the gradient
+# for a frozen (non-variable) operand. Cuts LoRA training peak memory from
+# ~4x the base to ~1.2x, so Qwen2.5-Coder-7B LoRA SFT fits a 40GB A100
+# (~15GB vs OOM). Single-hunk diff vs upstream in
+# vendor/candle-core-0.10.2/PATCH.md; upstream PR pending. Drop this
+# [patch] once the fix is released upstream.
+[patch.crates-io]
+candle-core = { path = "vendor/candle-core-0.10.2" }
