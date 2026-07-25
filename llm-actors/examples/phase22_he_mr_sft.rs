@@ -69,6 +69,14 @@ struct Args {
     /// is absent; globs the cache snapshot that has a config.json.
     #[arg(long, default_value = "Qwen2.5-Coder-0.5B")]
     model_id: String,
+    /// Qwen 7B migration — put the QwenTrainerActor on a SEPARATE CUDA
+    /// device (index among the visible GPUs) from the inference model.
+    /// Both are ~15GB for 7B; co-resident (~30GB) leaves too little for
+    /// batch-4 training activations and OOMs a 40GB card. Run e.g.
+    /// `CUDA_VISIBLE_DEVICES=0,1 ... --trainer-gpu 1`. Default: same device
+    /// as the model (0.5B fits both on one card).
+    #[arg(long)]
+    trainer_gpu: Option<usize>,
     /// Number of MR rounds. Phase 17 saturation curve covers 1..6.
     #[arg(long, default_value_t = 2)]
     rounds: usize,
@@ -346,10 +354,22 @@ async fn main() -> Result<()> {
     };
 
     // ===== Actors =====
+    // Optionally place the trainer on its own GPU (see --trainer-gpu). For
+    // 7B the inference model + trainer are ~15GB each; separating them frees
+    // a full card's headroom for batch-4 training activations.
+    let trainer_device = match args.trainer_gpu {
+        Some(idx) if on_cuda => {
+            let d = Device::new_cuda(idx)
+                .with_context(|| format!("--trainer-gpu {idx}: CUDA device unavailable"))?;
+            println!("[Phase22D] trainer on separate device cuda:{idx} (model on cuda:0)");
+            d
+        }
+        _ => device.clone(),
+    };
     let qwen_model = QwenModelActor::from_snapshot_dir(&snapshot, device.clone(), inference_dtype)?;
     let qwen_trainer = QwenTrainerActor::from_snapshot_dir(
         &snapshot,
-        device.clone(),
+        trainer_device,
         train_dtype,
         lora_cfg,
         args.lr,
