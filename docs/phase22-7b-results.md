@@ -15,9 +15,16 @@ base on HumanEval:
   *worse*, not better. Contrast 0.5B: +0.25 over the same rounds.
 - **pass@k (inference-time scaling): +0.347.** full-164 aggregate
   **pass@1 = 0.366 → per-prompt pass@10 = 0.713** (≈1.95×).
-- **Verdict:** on a strong 7B base, the value comes from **inference-time
-  scaling, not self-SFT**. The MR-SFT recipe's worth is a function of
-  *headroom*, not the technique.
+- **Self-SFT DOES work where there's headroom + harvest — the hard tail.**
+  On HumanEval idx 100–163 (base pass@5 ~0.25, real headroom): samples=6
+  gives a noisy +0.094 ± 0.106 (3/4 seeds); **samples=16 gives +0.254 ±
+  0.068 (pass@5 0.246 → 0.500, 4/4 seeds, ~3.7σ)** — the first robust 7B
+  self-improve win.
+- **Verdict:** the MR-SFT recipe's worth is a function of **headroom ×
+  harvest**, not the technique. No headroom (full set @ pass@5) → flat;
+  headroom but thin harvest (hard tail, samples=6) → noisy; headroom +
+  rich harvest (hard tail, samples=16) → strong, tight lift. Orthogonally,
+  inference-time **pass@k** is always a training-free win (+0.347).
 
 # Migration (code, all on origin/master)
 
@@ -109,10 +116,47 @@ training gains would have to come from.
 3. Practical 7B recipe on 40GB: bf16, two-GPU (`--trainer-gpu`), batch=2,
    patched candle-core (or wait for #3773).
 
+# Experiment: hard tail (headroom) + cold-start rescue
+
+HumanEval idx 100–163 (64 hard problems, base pass@5 ~0.25 — real headroom),
+via `--prompt-skip-list 0..99` (FilteredDomain). Same two-GPU + batch=2
+recipe, rounds=3, 4 seeds, per-round eval on all 64 at passk=5.
+
+**samples-per-prompt = 6** (thin harvest, ~18–27 pairs/round):
+
+| Seed | base | r0 | r1 | r2 | net |
+|------|------|----|----|----|-----|
+| 42 | 0.234 | 0.203 | 0.188 | 0.406 | +0.172 |
+| 100 | 0.281 | 0.172 | 0.359 | 0.406 | +0.125 |
+| 200 | 0.234 | 0.266 | 0.234 | 0.172 | −0.062 |
+| 300 | 0.234 | 0.312 | 0.266 | 0.375 | +0.141 |
+| **mean** | 0.246 | 0.238 | 0.262 | **0.340** | **+0.094 ± 0.106** |
+
+Real but noisy lift (3/4 up, one declines) — headroom present, but the base
+rarely passes the hard problems → sparse harvest → high variance
+(cold-start, Phase 9 S5 risk #11).
+
+**samples-per-prompt = 16** (rich harvest — base pass@1 ~0.15 → P(≥1 of 16
+pass) ≈ 0.93 per problem):
+
+| Seed | base | r0 | r1 | r2 | net |
+|------|------|----|----|----|-----|
+| 42 | 0.234 | 0.188 | 0.516 | 0.516 | +0.282 |
+| 100 | 0.281 | 0.359 | 0.500 | 0.547 | +0.266 |
+| 200 | 0.234 | 0.234 | 0.234 | 0.391 | +0.157 |
+| 300 | 0.234 | 0.312 | 0.344 | 0.547 | +0.313 |
+| **mean** | 0.246 | 0.273 | 0.399 | **0.500** | **+0.254 ± 0.068** |
+
+**Cold-start rescue works decisively:** mean lift more than doubled
+(+0.094 → +0.254; hard-tail pass@5 **doubled** 0.246 → 0.500), σ tightened
+(0.106 → 0.068), **4/4 seeds positive** (incl. the samples=6 dissenter,
+which sat at base through r0/r1 then jumped +0.156 once its harvest grew).
+Harvest self-reinforces (18 → 200 for the strongest seed). ~3.7σ significant
+— **the first robust self-improve win at 7B.**
+
 # Where next (not done)
 
-- **Harder benchmark** with real 7B headroom (HumanEval/MBPP are near-ceiling
-  for 7B) — to test whether self-improve helps a strong model *when there is
-  room*, isolating headroom from model strength.
 - **pass@k inside the Pekko actor stack** (Phase 21 Stage A wired it) on 7B.
-- **RL / verifier-reward** on the hard tail (idx 100–164), the only headroom.
+- **RL / verifier-reward** on the hard tail (the headroom region).
+- samples sweep (6/16/…) / harder external benchmark to map the
+  headroom×harvest frontier further.
