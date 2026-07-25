@@ -100,8 +100,44 @@ date: "2026-07-25"
 - **다운로드 + eval 스모크**: 수 시간(대역폭).
 - **SFT 프로파일/튜닝**: 메모리 프로파일에 따라 가변.
 
+# 구현 & 게이트 실행 결과 (2026-07-25)
+
+**코드 변경 (완료, origin/master):**
+- C1 sharded-safetensors 로더 — `resolve_safetensors` dual-mode + 3개 로드 지점.
+  commit `cbbfeb5`.
+- C2 `--model-dir` / `--model-id` 오버라이드 (4 Phase 22 example) + SFT merge base
+  를 스냅샷 DIR 로. commit `d954b98`.
+- C3 BF16 학습 경로 (`--train-bf16` / `--bf16`) + 스모크 shard-aware. commit
+  `fe63afd`. (0.5B 에서 bf16 loss −0.394 / f32 −0.391 실증, NaN 없음.)
+
+**7B (Qwen2.5-Coder-7B, 4-shard 15GB, `tie_word_embeddings=false`) 게이트:**
+
+| 게이트 | 결과 | 세부 |
+|--------|------|------|
+| 1. 추론 | ✅ PASS | 4 shard 로드, config 자동 적응(hidden=3584, 28 layer, 28/4 GQA, vocab 152064), **untied lm_head 감지**(`weight_tied=false`), bf16, 올바른 fibonacci 생성 |
+| 2. base eval | ✅ PASS | HumanEval task 0..20, passk=5, temp 0.8: per-prompt **pass@5=0.95 (19/20)**, aggregate **pass@1=0.69 (69/100)**, ~16.6s/problem |
+| 3. bf16 LoRA 학습 | ❌ **OOM @ 40GB** | 모델 build+tokenize(seq=5) 후 **첫 train step 에서 OOM**. GPU clean 이었으므로 진짜 메모리 한계 |
+
+**핵심 결론:**
+- C1+C2+C3 는 실제 7B 가중치에서 동작 — **추론+eval 절반은 완료·검증**.
+- 7B base 는 0.5B 대비 압도적: aggregate pass@1 **0.69 vs 0.22** (~3.1×, 동일
+  20-problem window). (주의: full 164 아닌 20-subset; 엄밀 비교는 0.5B 를 같은
+  20 task 로 재실행 필요, but magnitude 명확.)
+- **7B LoRA *학습* 은 40GB 단일 A100 에 안 들어감** — seq=5 에서도 OOM. 추론은
+  ~15GB(bf16 base)로 여유; 학습은 autograd 그래프 + `_slow` non-fused op +
+  28-layer f32 upcast 로 peak 가 40GB 초과. 계획서가 flag 한 SFT-half 리스크 실현.
+
+**SFT 절반 옵션 (C1–C3 범위 밖):**
+1. **80GB GPU** (H100/A100-80GB) — 가장 단순, 권장 경로.
+2. **40GB peak-memory 최적화** — 학습 경로가 all-position logits(vocab 152064)를
+   반환 + non-checkpointed `_slow` op. last-token/chunked logits + gradient
+   checkpointing + f32 upcast 회피로 40GB 진입 시도 가능하나 실질 엔지니어링.
+3. **7B 는 추론/eval 전용, SFT 는 0.5B** — 0.5B 가 이미 Phase 17 재현. 7B 는 더
+   강한 base + eval 레퍼런스로 활용.
+
 # 향후(범위 밖)
 
 - REINFORCE on 7B: micro-batch=1 + k=2 + 짧은 max_new + `/raid` adapter-sync 필요.
-  40GB 에선 별도 실험으로 신중히.
+  40GB 에선 별도 실험으로 신중히 (게이트 3 결과상 학습 자체가 40GB 초과이므로
+  REINFORCE 는 더욱 어려움).
 - 멀티 GPU 텐서 병렬: 현재 아키텍처 밖(모델 1개 = 1 GPU).
