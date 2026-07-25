@@ -55,7 +55,7 @@ backprop where weights *are* variables) passes unchanged.
 ## Upstreaming
 
 This is a general optimization, not workLLM-specific. The same single-hunk
-diff is being submitted to `huggingface/candle`. Once released upstream, drop
+diff is submitted upstream: huggingface/candle#3773. Once released upstream, drop
 the `[patch.crates-io]` entry and this vendor directory and depend on the
 published version.
 

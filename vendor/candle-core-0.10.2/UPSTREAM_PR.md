@@ -1,4 +1,6 @@
-# Upstream PR draft — huggingface/candle
+# Upstream PR — huggingface/candle#3773 (submitted)
+
+https://github.com/huggingface/candle/pull/3773
 
 Target: `huggingface/candle`, file `candle-core/src/backprop.rs`
 (current `main` has the identical unguarded code, lines 457–467).

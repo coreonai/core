@@ -175,7 +175,8 @@ input 보존) ≈ base(1×) + f32 weight copy(2×) + workspace(1×).
    변수/활성은 그대로. candle-core 0.10.2 를 `vendor/` 에 vendor + `[patch.crates-io]`.
    **측정: 0.5B 4.36→1.54GB, 1.5B 12.4→3.56GB, 7B OOM(>60GB)→15.2GB (40GB 적재,
    ~25GB 여유).** loss 궤적 bit-identical, 179 tests pass. 예측(~30GB)보다 좋음
-   (~1.2× base). huggingface/candle 로 upstream 진행 중(`UPSTREAM_PR.md`).
+   (~1.2× base). huggingface/candle#3773 로 upstream 제출됨
+   (https://github.com/huggingface/candle/pull/3773 · `UPSTREAM_PR.md`).
 
 3. **activation trim (chunked logits + grad checkpointing) — LOW~MEDIUM effort.**
    실제 SFT seq 길이용 *보완재*. 현재 seq-5 OOM 엔 무효. 1 또는 2 이후 진행.
