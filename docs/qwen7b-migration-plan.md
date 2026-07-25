@@ -135,9 +135,56 @@ date: "2026-07-25"
 3. **7B 는 추론/eval 전용, SFT 는 0.5B** — 0.5B 가 이미 Phase 17 재현. 7B 는 더
    강한 base + eval 레퍼런스로 활용.
 
+# Peak-memory 스코프 (측정 기반, 2026-07-25)
+
+게이트 3 OOM 이후 실측으로 원인을 특정. 이 host 는 A100-SXM4-**40GB** × 8
+(80GB 카드 없음).
+
+**측정치:**
+
+| 구성 | base (bf16) | peak | 배율 |
+|------|-------------|------|------|
+| 7B 추론 | 15.0 GB | 15.1 GB | ~1.0× |
+| 1.5B **학습** | ~3.0 GB | 12.4 GB | **~4.1×** |
+| 7B 학습 (예측) | 15.0 GB | **~60 GB** | ~4× → OOM@40 |
+
+**진단:** OOM 이 **seq-len 5~6** 에서 발생 → activation 메모리 아님. ~4× 오버헤드는
+**weight-scaled**. 가장 유력한 메커니즘: candle 이 bf16 weight 를 CUDA gemm 용
+f32 로 upcast 하고 그 **f32 copy 를 autograd 그래프에 retain**(backward 용 forward
+input 보존) ≈ base(1×) + f32 weight copy(2×) + workspace(1×).
+
+**중요 — 배제되는 접근:** last-token/chunked logits + gradient checkpointing 은
+**activation** 메모리 대상이라 seq-5 OOM 을 못 고침. 실제 SFT seq(200~500 tok)에서
+152K-vocab logits 가 얹힐 때만 의미 (나중에 필요, 지금은 불충분).
+
+**스코프된 작업 (impact / effort 순):**
+
+1. **QLoRA 4-bit base 양자화 — HIGH impact, HIGH effort (신뢰 경로).**
+   frozen base 15GB → ~4-5GB. ~4× 배율이라도 7B 학습 peak ≈ 16-20GB → 40GB 여유.
+   ≤24GB 카드에서 7B LoRA 학습하는 업계 표준. 작업: 4-bit quantized base 로드
+   (candle q4/gguf 지원) + `forward_train` 에서 on-the-fly dequant, `_slow` bwd +
+   LoRA adapter 통합. 추정: **수일**, 대부분 quantized-matmul-with-gradients 경로.
+
+2. **~4× 배율을 근원에서 절감 — MEDIUM effort, UNCERTAIN.**
+   candle matmul backward 를 프로파일해 f32-weight retention 확인 후, bf16-native
+   gemm 강제 또는 frozen weight `.detach()` 로 f32 copy 의 그래프 retain 방지. 성공
+   시 배율 → ~2× → 7B peak ~30GB → 적재. 리스크: candle library-level 이라 fork
+   에서 못 고칠 수 있음(upstream 필요). 추정: **1~2일 진단** 후 미지수.
+
+3. **activation trim (chunked logits + grad checkpointing) — LOW~MEDIUM effort.**
+   실제 SFT seq 길이용 *보완재*. 현재 seq-5 OOM 엔 무효. 1 또는 2 이후 진행.
+   추정: **~1일**.
+
+**권고:** 오버헤드가 weight-scaled + 대체로 candle-internal 이라 activation trick
+만으론 40GB 진입 불가. **7B LoRA 학습을 40GB 단일 카드에 넣으려면 base 축소(항목 1,
+QLoRA)가 사실상 필수.** 항목 2 는 더 싼 선행 probe(1~2일)로 QLoRA 를 회피할 수도
+있으나 speculative. 둘 다 비용 대비 가치 없으면 fallback 유지: **7B 는 추론/eval,
+SFT 는 0.5B** (0.5B 가 이미 Phase 17 재현 — G9, commit `aaf0594`).
+
 # 향후(범위 밖)
 
 - REINFORCE on 7B: micro-batch=1 + k=2 + 짧은 max_new + `/raid` adapter-sync 필요.
   40GB 에선 별도 실험으로 신중히 (게이트 3 결과상 학습 자체가 40GB 초과이므로
   REINFORCE 는 더욱 어려움).
-- 멀티 GPU 텐서 병렬: 현재 아키텍처 밖(모델 1개 = 1 GPU).
+- 멀티 GPU 텐서 병렬: 현재 아키텍처 밖(모델 1개 = 1 GPU). 8× 40GB = 320GB 풀은
+  존재하나 FSDP/tensor-parallel 은 Candle fork 에 미구현(대규모 작업).
