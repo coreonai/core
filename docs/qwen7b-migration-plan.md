@@ -165,21 +165,27 @@ input 보존) ≈ base(1×) + f32 weight copy(2×) + workspace(1×).
    (candle q4/gguf 지원) + `forward_train` 에서 on-the-fly dequant, `_slow` bwd +
    LoRA adapter 통합. 추정: **수일**, 대부분 quantized-matmul-with-gradients 경로.
 
-2. **~4× 배율을 근원에서 절감 — MEDIUM effort, UNCERTAIN.**
-   candle matmul backward 를 프로파일해 f32-weight retention 확인 후, bf16-native
-   gemm 강제 또는 frozen weight `.detach()` 로 f32 copy 의 그래프 retain 방지. 성공
-   시 배율 → ~2× → 7B peak ~30GB → 적재. 리스크: candle library-level 이라 fork
-   에서 못 고칠 수 있음(upstream 필요). 추정: **1~2일 진단** 후 미지수.
+2. **~4× 배율을 근원에서 절감 — ✅ 해결됨 (commit `41ed3ce`).**
+   실제 원인은 f32 retention 이 아니라 candle `backprop.rs:457` `Op::Matmul`
+   backward 가 **양쪽 operand 모두에 대해 grad 를 무조건 계산·저장**하는 것.
+   LoRA 에선 거의 모든 weight 가 frozen(non-variable) 이라 candle 이 frozen matmul
+   마다 weight-크기 grad(`zeros_like`)를 GradStore 에 할당해 backward 내내 유지 →
+   peak 지배. **Fix**: 각 side 를 `if operand.track_op()` 로 guard
+   (`track_op == is_variable || op.is_some()` = "grad 필요"). frozen leaf 는 skip,
+   변수/활성은 그대로. candle-core 0.10.2 를 `vendor/` 에 vendor + `[patch.crates-io]`.
+   **측정: 0.5B 4.36→1.54GB, 1.5B 12.4→3.56GB, 7B OOM(>60GB)→15.2GB (40GB 적재,
+   ~25GB 여유).** loss 궤적 bit-identical, 179 tests pass. 예측(~30GB)보다 좋음
+   (~1.2× base). huggingface/candle 로 upstream 진행 중(`UPSTREAM_PR.md`).
 
 3. **activation trim (chunked logits + grad checkpointing) — LOW~MEDIUM effort.**
    실제 SFT seq 길이용 *보완재*. 현재 seq-5 OOM 엔 무효. 1 또는 2 이후 진행.
    추정: **~1일**.
 
-**권고:** 오버헤드가 weight-scaled + 대체로 candle-internal 이라 activation trick
-만으론 40GB 진입 불가. **7B LoRA 학습을 40GB 단일 카드에 넣으려면 base 축소(항목 1,
-QLoRA)가 사실상 필수.** 항목 2 는 더 싼 선행 probe(1~2일)로 QLoRA 를 회피할 수도
-있으나 speculative. 둘 다 비용 대비 가치 없으면 fallback 유지: **7B 는 추론/eval,
-SFT 는 0.5B** (0.5B 가 이미 Phase 17 재현 — G9, commit `aaf0594`).
+**권고 (갱신):** 항목 2(candle backprop guard)로 **7B LoRA 학습이 40GB 단일
+카드에 적재됨 (~15GB, ~25GB 여유)** → QLoRA(항목 1) **불필요**. SFT 절반 unblocked.
+남은 것은 실제 `phase22_he_mr_sft --model-id Qwen2.5-Coder-7B --train-bf16` 로
+saturation 측정 (여유 메모리로 real batch/seq 가능). 항목 3(activation trim)은 아주
+긴 seq 에서만 필요. fallback(7B eval + 0.5B SFT)은 더 이상 불필요.
 
 # 향후(범위 밖)
 
