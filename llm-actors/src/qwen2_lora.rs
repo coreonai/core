@@ -724,15 +724,21 @@ pub fn save_merged_lora(
     lora_map: &candle_nn::VarMap,
     cfg: &Config,
     lora_cfg: LoraConfig,
-    device: &Device,
+    _device: &Device,
     out_path: &std::path::Path,
 ) -> Result<()> {
+    // Merge on CPU, NOT on `_device`. This is a one-time, I/O-bound op, and
+    // loading the full base onto the GPU here would be a THIRD ~15GB copy on
+    // top of the resident inference model + trainer base (~30GB) — that OOMs
+    // a 40GB A100 for 7B (the pipeline peaks at ~39GB before the merge). Host
+    // RAM is ample, and the per-layer delta matmuls are tiny, so CPU is free.
+    let merge_dev = Device::Cpu;
     // Sharded-aware: `base_safetensors_path` may be a single merged file
     // (0.5B, or a previously merged checkpoint) or an HF snapshot dir whose
     // weights span multiple shards (7B). Load every shard into one map.
     let mut tensors = std::collections::HashMap::new();
     for shard in resolve_safetensors(base_safetensors_path)? {
-        tensors.extend(candle_core::safetensors::load(&shard, device)?);
+        tensors.extend(candle_core::safetensors::load(&shard, &merge_dev)?);
     }
     let scale = (lora_cfg.alpha / lora_cfg.rank as f32) as f64;
 
@@ -758,12 +764,16 @@ pub fn save_merged_lora(
             let b = lora_vars
                 .get(&b_key)
                 .ok_or_else(|| candle_core::Error::Msg(format!("missing LoRA Var {b_key}")))?;
-            // a: (rank, in_dim), b: (out_dim, rank) → delta = b @ a (out, in)
-            let a_t = a.as_tensor().to_dtype(base.dtype())?;
-            let b_t = b.as_tensor().to_dtype(base.dtype())?;
-            let delta = b_t.matmul(&a_t)?;
-            let delta = (delta * scale)?;
-            let merged = (&base + &delta)?;
+            // a: (rank, in_dim), b: (out_dim, rank) → delta = b @ a (out, in).
+            // Merge in F32 on the CPU device: candle's CPU backend has no bf16
+            // matmul, so cast base + LoRA vars up to F32, compute, then cast
+            // the merged weight back to the base dtype for saving.
+            let out_dtype = base.dtype();
+            let base_f32 = base.to_device(&merge_dev)?.to_dtype(DType::F32)?;
+            let a_t = a.as_tensor().to_device(&merge_dev)?.to_dtype(DType::F32)?;
+            let b_t = b.as_tensor().to_device(&merge_dev)?.to_dtype(DType::F32)?;
+            let delta = (b_t.matmul(&a_t)? * scale)?;
+            let merged = (&base_f32 + &delta)?.to_dtype(out_dtype)?;
             tensors.insert(base_key, merged);
         }
     }

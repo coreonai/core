@@ -58,7 +58,12 @@ use crate::model_actor::{GenerateReply, ModelMessage};
 use crate::qwen2_lora::resolve_safetensors;
 
 pub struct QwenModelActor {
-    pub model: ModelForCausalLM,
+    /// `Option` so `ReloadCheckpoint` can drop the old model (freeing its
+    /// GPU memory) BEFORE building the replacement. For 7B the base is ~15GB
+    /// and a co-resident trainer holds another ~15GB, so loading the new
+    /// model while the old is still resident would need 3×15=45GB and OOM a
+    /// 40GB card. Always `Some` outside of a reload.
+    pub model: Option<ModelForCausalLM>,
     pub tokenizer: Arc<HfTokenizer>,
     pub config: Qwen2Config,
     pub device: Device,
@@ -86,7 +91,7 @@ impl QwenModelActor {
     ) -> anyhow::Result<Self> {
         let model = load_qwen_model(&resolve_safetensors(&model_path)?, &config, dtype, &device)?;
         Ok(Self {
-            model,
+            model: Some(model),
             tokenizer,
             config,
             device,
@@ -216,14 +221,22 @@ impl QwenModelActor {
         self.generate_autoregressive(prompt_ids, cfg)
     }
 
+    /// Mutable access to the loaded model, erroring if a reload left it empty
+    /// (should never happen outside `handle_reload`).
+    fn model_mut(&mut self) -> anyhow::Result<&mut ModelForCausalLM> {
+        self.model
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("QwenModelActor model not loaded"))
+    }
+
     fn handle_reload(&mut self, path: &Path) -> anyhow::Result<()> {
-        let new_model = load_qwen_model(
-            &resolve_safetensors(path)?,
-            &self.config,
-            self.dtype,
-            &self.device,
-        )?;
-        self.model = new_model;
+        let paths = resolve_safetensors(path)?;
+        // Free the old model's GPU memory BEFORE building the new one, so the
+        // reload reuses the freed allocations (peak ~15GB) instead of holding
+        // old+new simultaneously (~30GB) on top of a co-resident trainer.
+        self.model = None;
+        let new_model = load_qwen_model(&paths, &self.config, self.dtype, &self.device)?;
+        self.model = Some(new_model);
         self.model_path = path.to_path_buf();
         info!(?path, "QwenModelActor checkpoint reloaded");
         Ok(())
@@ -253,14 +266,14 @@ impl QwenModelActor {
             yb == b && yt == t,
             "LossOn shape mismatch: x={b}x{t}, y={yb}x{yt}"
         );
-        self.model.clear_kv_cache();
+        self.model_mut()?.clear_kv_cache();
         let mut total_loss = 0.0f64;
         for (seqlen_offset, pos) in (0..t).enumerate() {
             // x[:, pos:pos+1] → (B, 1)
             let x_step = x.narrow(1, pos, 1)?;
             // forward returns (B, 1, vocab); cast to F32 for log_softmax.
             let logits = self
-                .model
+                .model_mut()?
                 .forward(&x_step, seqlen_offset)?
                 .squeeze(1)?
                 .to_dtype(DType::F32)?;
@@ -298,7 +311,7 @@ impl QwenModelActor {
         if prompt_ids.is_empty() {
             anyhow::bail!("ScoreLogProb requires a non-empty prompt");
         }
-        self.model.clear_kv_cache();
+        self.model_mut()?.clear_kv_cache();
         // Prime with the full prompt → last-position logits is the
         // distribution over `completion[0]`.
         let mut logits = self.forward_chunk(prompt_ids, 0)?;
@@ -336,7 +349,7 @@ impl QwenModelActor {
     ) -> anyhow::Result<Vec<u32>> {
         // Each call is a fresh sequence — clear the KV cache so previous
         // priming doesn't leak in.
-        self.model.clear_kv_cache();
+        self.model_mut()?.clear_kv_cache();
         let mut rng: StdRng = match cfg.seed {
             Some(s) => StdRng::seed_from_u64(s),
             None => StdRng::from_entropy(),
@@ -365,7 +378,7 @@ impl QwenModelActor {
 
     fn forward_chunk(&mut self, chunk: &[u32], seqlen_offset: usize) -> anyhow::Result<Tensor> {
         let input = Tensor::from_slice(chunk, (1, chunk.len()), &self.device)?;
-        let logits = self.model.forward(&input, seqlen_offset)?; // (1, 1, vocab)
+        let logits = self.model_mut()?.forward(&input, seqlen_offset)?; // (1, 1, vocab)
         let logits = logits.squeeze(0)?.squeeze(0)?;
         Ok(logits.to_dtype(DType::F32)?)
     }
