@@ -30,6 +30,13 @@ base on HumanEval:
   collapse); lr=5e-5 → mean 15→3/256 (−80%, 1/4 still full-collapse).
   Gentler lr softens but doesn't prevent. RL is the *weak* axis; SFT
   (+0.254) is the robust hard-tail win. Reproduces Phase 22 Stage E.
+- **Harder external benchmark (HumanEval+) — SFT WINS at the headroom
+  metric.** EvalPlus's stricter tests (base pass@1 0.31 vs 0.37) give real
+  full-benchmark headroom. MR-SFT (full 164, samples=6): at **pass@1**
+  (where the headroom is) **0.326 → 0.413, +0.088 ± 0.0085 (4/4 seeds,
+  ~10σ)**; at the saturated pass@5 metric only +0.051 (noisy). **Meta-lesson:
+  the eval metric must match where the headroom is** — pass@5 masked the
+  effect the whole way through the 7B study.
 - **Verdict:** the MR-SFT recipe's worth is a function of **headroom ×
   harvest**, not the technique — and harvest is a *tuned* knob with a
   sweet spot, not "more is better". No headroom (full set @ pass@5) →
@@ -215,8 +222,45 @@ softens it. **RL + adapter-sync is unstable at this scale/sparsity** — the sam
 mode-collapse Phase 22 Stage E found on the full set. Infra works; the RL
 *algorithm* is the weak axis. **SFT's +0.254 is the robust hard-tail win.**
 
+# Experiment: harder external benchmark (HumanEval+)
+
+EvalPlus's HumanEval+ is a **zero-code drop-in** — same jsonl schema
+(`{task_id, prompt, entry_point, test}`, `test` defines `check(candidate)`),
+so `HumanEvalDomain` parses it via `--jsonl` (needs numpy for the tests).
+Saved to `data/humanevalplus/HumanEvalPlus.jsonl` (164 problems, ~77KB
+tests each). Genuinely harder — 7B base:
+
+| metric | HumanEval+ | standard | Δ |
+|--------|-----------|----------|---|
+| aggregate pass@1 | 0.307 | 0.366 | −0.059 |
+| per-prompt pass@10 | 0.634 | 0.713 | −0.079 |
+
+MR-SFT (full 164, rounds=3, samples=6, two-GPU + bf16, 4 seeds):
+
+- **pass@5** (per-round training metric, base ~0.59 — saturated): net
+  **+0.051 ± 0.047** (3/4 seeds up). Modest, cleaner than standard
+  HumanEval's +0.037, but the metric masks the headroom.
+- **pass@1** (full-164 aggregate on the r2 checkpoints — the headroom
+  metric, base 0.326):
+
+  | | pass@1 |
+  |---|---|
+  | base | 0.326 |
+  | r2 seeds | 0.424 / 0.413 / 0.404 / 0.412 |
+  | **r2 mean** | **0.413 ± 0.0085** |
+  | **net Δ** | **+0.088 ± 0.0085 (4/4 seeds, ~10σ)** |
+
+**SFT clearly helps on a genuinely harder external benchmark** — +0.088
+at pass@1, all four seeds tightly clustered. The pass@5 view understated
+it 2× because that metric is saturated (~0.64). **Meta-lesson: match the
+eval metric to where the headroom is** — pass@5 masked the SFT effect
+throughout the 7B study (the saturated full-HumanEval "flat" result is
+partly a pass@5 artifact; pass@1 has headroom the whole time).
+
 # Where next (not done)
 
-- **Fix RL collapse** if pursued: reference-policy KL penalty, off-policy
-  correction, no-sync + one final merge, or SFT-warmstart before RL.
-- harder external benchmark to map the headroom×harvest frontier further.
+- **Re-eval the standard-HumanEval SFT checkpoints at pass@1** — likely
+  also positive (the "flat" was a pass@5-saturation artifact).
+- **Fix RL collapse** if pursued: reference-policy KL, off-policy
+  correction, no-sync + one final merge, or SFT-warmstart.
+- Even harder benchmarks (LiveCodeBench / BigCodeBench) for more headroom.
