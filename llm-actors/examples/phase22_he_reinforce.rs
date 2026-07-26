@@ -52,6 +52,30 @@ use tokio::sync::oneshot;
 
 #[derive(Parser, Debug)]
 struct Args {
+    /// Qwen model snapshot directory (config.json + tokenizer.json +
+    /// model.safetensors or its shard index). Overrides --model-id.
+    /// Point at a 7B snapshot to run 7B.
+    #[arg(long)]
+    model_dir: Option<PathBuf>,
+    /// HF repo suffix under `models--Qwen--<id>` when --model-dir absent.
+    #[arg(long, default_value = "Qwen2.5-Coder-0.5B")]
+    model_id: String,
+    /// Run BF16 throughout (inference + policy-gradient training) instead
+    /// of the 0.5B default (F16 inference / F32 train). Required to fit 7B
+    /// on 40GB. Ignored on CPU.
+    #[arg(long, default_value_t = false)]
+    train_bf16: bool,
+    /// Put the QwenTrainerActor on a SEPARATE CUDA device (index among
+    /// visible GPUs) from the sampling model. For 7B both are ~15GB; the
+    /// policy-gradient graph needs a full card's headroom. Run e.g.
+    /// `CUDA_VISIBLE_DEVICES=0,1 ... --trainer-gpu 1`.
+    #[arg(long)]
+    trainer_gpu: Option<usize>,
+    /// Start index into the HumanEval prompt series. Prompts used are
+    /// `nth_prompt(prompt_offset .. prompt_offset+n_prompts)`. For the hard
+    /// tail: `--prompt-offset 100 --n-prompts 64` (idx 100..164). Default 0.
+    #[arg(long, default_value_t = 0)]
+    prompt_offset: usize,
     /// Number of RL outer steps (each = sample + verify + policy gradient).
     #[arg(long, default_value_t = 3)]
     rl_steps: usize,
@@ -131,10 +155,16 @@ fn pick_device() -> Device {
     Device::Cpu
 }
 
-fn resolve_default_snapshot() -> Result<PathBuf> {
+fn resolve_snapshot(model_dir: Option<&std::path::Path>, model_id: &str) -> Result<PathBuf> {
+    if let Some(d) = model_dir {
+        if !d.join("config.json").exists() {
+            anyhow::bail!("--model-dir {d:?} has no config.json");
+        }
+        return Ok(d.to_path_buf());
+    }
     let home = std::env::var("HOME").context("HOME unset")?;
     let snapshots_dir = PathBuf::from(format!(
-        "{home}/.cache/huggingface/hub/models--Qwen--Qwen2.5-Coder-0.5B/snapshots"
+        "{home}/.cache/huggingface/hub/models--Qwen--{model_id}/snapshots"
     ));
     let entries = std::fs::read_dir(&snapshots_dir)
         .with_context(|| format!("read_dir {snapshots_dir:?}"))?
@@ -166,10 +196,17 @@ async fn main() -> Result<()> {
         );
     }
 
-    let snapshot = resolve_default_snapshot()?;
+    let snapshot = resolve_snapshot(args.model_dir.as_deref(), &args.model_id)?;
     println!("[Phase22E] snapshot = {}", snapshot.display());
-    let inference_dtype = if on_cuda { DType::F16 } else { DType::F32 };
-    let train_dtype = DType::F32;
+    // dtype: default (0.5B) = F16 inference / F32 train; --train-bf16 = BF16
+    // throughout (7B on 40GB). CPU = F32.
+    let (inference_dtype, train_dtype) = if !on_cuda {
+        (DType::F32, DType::F32)
+    } else if args.train_bf16 {
+        (DType::BF16, DType::BF16)
+    } else {
+        (DType::F16, DType::F32)
+    };
 
     let tk = Arc::new(NgptTokenizer::from_hf_file(
         snapshot.join("tokenizer.json"),
@@ -190,19 +227,32 @@ async fn main() -> Result<()> {
     // `n_prompts` via `nth_prompt`). Phase 22 D's smoke also uses a
     // determinis subset so RL and SFT can be cross-compared on the
     // same problem distribution if desired.
-    let prompts: Vec<String> = (0..args.n_prompts)
+    let prompts: Vec<String> = (args.prompt_offset..args.prompt_offset + args.n_prompts)
         .filter_map(|i| humaneval.nth_prompt(i))
         .collect();
     println!(
-        "[Phase22E] using {} HumanEval prompts (task_id 0..{})",
+        "[Phase22E] using {} HumanEval prompts (task_id {}..{})",
         prompts.len(),
-        prompts.len()
+        args.prompt_offset,
+        args.prompt_offset + prompts.len()
     );
 
+    // Optionally place the trainer on its own GPU (see --trainer-gpu): for 7B
+    // the sampling model + policy-gradient trainer are ~15GB each, and the PG
+    // graph over generated tokens needs a full card's headroom.
+    let trainer_device = match args.trainer_gpu {
+        Some(idx) if on_cuda => {
+            let d = Device::new_cuda(idx)
+                .with_context(|| format!("--trainer-gpu {idx}: CUDA device unavailable"))?;
+            println!("[Phase22E] trainer on separate device cuda:{idx} (model on cuda:0)");
+            d
+        }
+        _ => device.clone(),
+    };
     let qwen_model = QwenModelActor::from_snapshot_dir(&snapshot, device.clone(), inference_dtype)?;
     let qwen_trainer = QwenTrainerActor::from_snapshot_dir(
         &snapshot,
-        device.clone(),
+        trainer_device,
         train_dtype,
         LoraConfig {
             rank: args.lora_rank,
@@ -299,7 +349,7 @@ async fn main() -> Result<()> {
             let base = args
                 .base_safetensors
                 .clone()
-                .unwrap_or_else(|| snapshot.join("model.safetensors"));
+                .unwrap_or_else(|| snapshot.clone());
             let (sx, sr) = oneshot::channel();
             trainer_ref
                 .tell(QwenTrainerMessage::SaveMergedCheckpoint {
@@ -362,7 +412,7 @@ async fn main() -> Result<()> {
         let base = args
             .base_safetensors
             .clone()
-            .unwrap_or_else(|| snapshot.join("model.safetensors"));
+            .unwrap_or_else(|| snapshot.clone());
         let (tx, rx) = oneshot::channel();
         trainer_ref
             .tell(QwenTrainerMessage::SaveMergedCheckpoint {
