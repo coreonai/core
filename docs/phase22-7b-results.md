@@ -24,6 +24,12 @@ base on HumanEval:
   samples-per-prompt on the hard tail: 6 → +0.094, **16 → +0.254**, 32 →
   +0.094 (right back down, one seed collapsed). Too little harvest =
   cold-start-noisy; too much = over-trains/destabilizes. An inverted-U.
+- **RL (REINFORCE) on the hard tail COLLAPSES on adapter sync.** RLOO
+  verifier-as-reward, k=4, sync-every=4: steps 0–3 healthy (~15/256 pass),
+  then the first adapter sync craters it — lr=2e-4 → all seeds 0/256 (full
+  collapse); lr=5e-5 → mean 15→3/256 (−80%, 1/4 still full-collapse).
+  Gentler lr softens but doesn't prevent. RL is the *weak* axis; SFT
+  (+0.254) is the robust hard-tail win. Reproduces Phase 22 Stage E.
 - **Verdict:** the MR-SFT recipe's worth is a function of **headroom ×
   harvest**, not the technique — and harvest is a *tuned* knob with a
   sweet spot, not "more is better". No headroom (full set @ pass@5) →
@@ -185,9 +191,32 @@ large self-generated corpus and destabilizes (same over-training failure mode
 as the full set). **Harvest is a tuned knob with an interior optimum, not a
 monotone lever.**
 
+# Experiment: RL (REINFORCE) on the hard tail
+
+Ported `phase22_he_reinforce` to 7B + hard tail (`--model-id`, `--train-bf16`,
+`--trainer-gpu`, `--prompt-offset`; commit `160ccd6`). RLOO verifier-as-reward,
+idx 100–163, k=4, max_new=192, pg-micro-batch=1, sync-every=4, 4 seeds.
+Validated: peak model GPU 15.1GB / PG-trainer GPU 20.2GB (fits 40GB).
+
+Per-step passes / 256 (all 4 seeds sample the hard tail each step):
+
+| step | 0 | 1 | 2 | 3 (sync fires) | **4 (first post-sync)** |
+|------|---|---|---|---|---|
+| lr=2e-4 (seed 42) | 17 | 18 | 17 | 13 | **0** → 0 for all remaining 16 steps |
+| lr=5e-5 mean (4 seeds) | 16 | 18 | 15 | **15** | **3** (seed 100 → 0, others 2/3/7) |
+
+**The first adapter sync craters the policy.** Steps 0–3 have a healthy,
+non-zero gradient signal (~15/256 ≈ 6% per-completion pass, plausible for the
+hard tail). At the first sync (`SaveMergedCheckpoint` → `ReloadCheckpoint`,
+step 3) the sampling model reloads the merged LoRA and the policy collapses:
+lr=2e-4 → **0/256 for every remaining step** (full mode collapse); lr=5e-5 →
+mean drops 15→3 (−80%), one seed to 0, the rest barely alive. Gentler lr only
+softens it. **RL + adapter-sync is unstable at this scale/sparsity** — the same
+mode-collapse Phase 22 Stage E found on the full set. Infra works; the RL
+*algorithm* is the weak axis. **SFT's +0.254 is the robust hard-tail win.**
+
 # Where next (not done)
 
-- **pass@k inside the Pekko actor stack** (Phase 21 Stage A wired it) on 7B.
-- **RL / verifier-reward** on the hard tail (the headroom region).
-- samples sweep (6/16/…) / harder external benchmark to map the
-  headroom×harvest frontier further.
+- **Fix RL collapse** if pursued: reference-policy KL penalty, off-policy
+  correction, no-sync + one final merge, or SFT-warmstart before RL.
+- harder external benchmark to map the headroom×harvest frontier further.
