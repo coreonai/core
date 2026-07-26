@@ -20,11 +20,17 @@ base on HumanEval:
   gives a noisy +0.094 ± 0.106 (3/4 seeds); **samples=16 gives +0.254 ±
   0.068 (pass@5 0.246 → 0.500, 4/4 seeds, ~3.7σ)** — the first robust 7B
   self-improve win.
+- **Harvest has an INTERIOR OPTIMUM (~samples=16).** Sweeping
+  samples-per-prompt on the hard tail: 6 → +0.094, **16 → +0.254**, 32 →
+  +0.094 (right back down, one seed collapsed). Too little harvest =
+  cold-start-noisy; too much = over-trains/destabilizes. An inverted-U.
 - **Verdict:** the MR-SFT recipe's worth is a function of **headroom ×
-  harvest**, not the technique. No headroom (full set @ pass@5) → flat;
-  headroom but thin harvest (hard tail, samples=6) → noisy; headroom +
-  rich harvest (hard tail, samples=16) → strong, tight lift. Orthogonally,
-  inference-time **pass@k** is always a training-free win (+0.347).
+  harvest**, not the technique — and harvest is a *tuned* knob with a
+  sweet spot, not "more is better". No headroom (full set @ pass@5) →
+  flat; headroom + optimal harvest (hard tail, samples≈16) → strong tight
+  lift; headroom + too-little/too-much harvest → noisy/degraded.
+  Orthogonally, inference-time **pass@k** is always a training-free win
+  (+0.347).
 
 # Migration (code, all on origin/master)
 
@@ -153,6 +159,31 @@ pass) ≈ 0.93 per problem):
 which sat at base through r0/r1 then jumped +0.156 once its harvest grew).
 Harvest self-reinforces (18 → 200 for the strongest seed). ~3.7σ significant
 — **the first robust self-improve win at 7B.**
+
+**samples-per-prompt = 32** (2× the harvest again — is more better?):
+
+| Seed | base | r0 | r1 | r2 | net |
+|------|------|----|----|----|-----|
+| 42 | 0.234 | 0.125 | 0.328 | 0.375 | +0.141 |
+| 100 | 0.281 | 0.266 | 0.391 | 0.344 | +0.063 |
+| 200 | 0.234 | 0.234 | 0.328 | 0.453 | +0.219 |
+| 300 | 0.234 | 0.422 | 0.422 | 0.188 | −0.046 |
+| **mean** | 0.246 | 0.262 | 0.367 | **0.340** | **+0.094 ± 0.113** |
+
+**Harvest frontier is an inverted-U with a peak at ~16:**
+
+| samples/prompt | r2 mean | net Δ (base→r2) |
+|----------------|---------|-----------------|
+| 6 | 0.340 | +0.094 ± 0.106 |
+| **16** | **0.500** | **+0.254 ± 0.068** |
+| 32 | 0.340 | +0.094 ± 0.113 |
+
+samples=32 lands **exactly back at samples=6** (0.340 / +0.094), with high
+variance (seed 300 collapsed 0.422 → 0.188 in r2). So more harvest is **not**
+better past ~16: too little → cold-start-noisy; too much → over-trains on the
+large self-generated corpus and destabilizes (same over-training failure mode
+as the full set). **Harvest is a tuned knob with an interior optimum, not a
+monotone lever.**
 
 # Where next (not done)
 
