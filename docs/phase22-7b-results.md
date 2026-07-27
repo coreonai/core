@@ -9,10 +9,13 @@ Migrated the Rust/Pekko self-improve stack from Qwen2.5-Coder-**0.5B** to
 **7B** (single A100 40GB), then measured what actually helps a strong 7B
 base on HumanEval:
 
-- **Multi-round SFT: ~0 (saturated).** base 0.638 → r2 0.675 (baseline,
-  +0.037 ± 0.085) / → 0.606 (gentler lr↓steps↓, −0.031 ± 0.043). Both flat
-  within noise. **Not over-training** — the gentler recipe does slightly
-  *worse*, not better. Contrast 0.5B: +0.25 over the same rounds.
+- **Multi-round SFT on full HumanEval: flat at pass@5 (saturated metric),
+  but +0.106 at pass@1.** The per-round **pass@5** view is flat (baseline
+  +0.037 ± 0.085, gentler −0.031) — but that metric is saturated (~0.64).
+  Re-evaluating the *same* r2 checkpoints at **pass@1** (base 0.381, real
+  headroom): **0.381 → 0.487, net +0.106 (4/4 seeds, ~2.3σ)**. **So SFT
+  is NOT saturated on 7B — the "flat" was a pass@5 artifact.** (⚠ This
+  supersedes the earlier "SFT ~0/saturated" reading below.)
 - **pass@k (inference-time scaling): +0.347.** full-164 aggregate
   **pass@1 = 0.366 → per-prompt pass@10 = 0.713** (≈1.95×).
 - **Self-SFT DOES work where there's headroom + harvest — the hard tail.**
@@ -259,8 +262,10 @@ partly a pass@5 artifact; pass@1 has headroom the whole time).
 
 # Where next (not done)
 
-- **Re-eval the standard-HumanEval SFT checkpoints at pass@1** — likely
-  also positive (the "flat" was a pass@5-saturation artifact).
+- ~~Re-eval standard-HumanEval SFT at pass@1~~ **DONE**: base 0.381 → r2
+  mean 0.487, **+0.106 (4/4 seeds)** — confirmed the "flat" was a pass@5
+  artifact. SFT helps 7B on HumanEval across the board at pass@1 (full
+  +0.106, HumanEval+ +0.088, hard tail +0.254).
 - **Fix RL collapse** if pursued: reference-policy KL, off-policy
   correction, no-sync + one final merge, or SFT-warmstart.
 - Even harder benchmarks (LiveCodeBench / BigCodeBench) for more headroom.
