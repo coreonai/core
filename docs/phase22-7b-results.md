@@ -22,7 +22,10 @@ base on HumanEval:
   On HumanEval idx 100–163 (base pass@5 ~0.25, real headroom): samples=6
   gives a noisy +0.094 ± 0.106 (3/4 seeds); **samples=16 gives +0.254 ±
   0.068 (pass@5 0.246 → 0.500, 4/4 seeds, ~3.7σ)** — the first robust 7B
-  self-improve win.
+  self-improve win. ⚠ **Magnitude corrected to +0.145** (pass@5 0.422 →
+  0.566) / **+0.203** (pass@1) on a consistent eval ruler — the base here
+  was mis-measured. Still the robust win; see
+  `docs/phase22-c4-c5-rl-vs-sft.md`.
 - **Harvest has an INTERIOR OPTIMUM (~samples=16).** Sweeping
   samples-per-prompt on the hard tail: 6 → +0.094, **16 → +0.254**, 32 →
   +0.094 (right back down, one seed collapsed). Too little harvest =
@@ -43,6 +46,12 @@ base on HumanEval:
   cumulative updates). Root cause is the unbounded negative-advantage CE
   ascent in `pg_sample_loss`; the update-count fix removes a 256×
   amplifier, not the runaway.
+  **C4/C5 follow-up** (`docs/phase22-c4-c5-rl-vs-sft.md`): bounding the
+  objective (positive-advantage-only) gives +0.070 pass@5 / +0.083 pass@1 —
+  real, but about half of SFT's +0.145 / +0.203 on the same ruler. Also
+  found: the RL loop verified completions **without** `truncate_completion`
+  while every other consumer applies it, a 3× reward-signal gap that
+  invalidated C4's training-time metric.
 - **Harder external benchmark (HumanEval+) — SFT WINS at the headroom
   metric.** EvalPlus's stricter tests (base pass@1 0.31 vs 0.37) give real
   full-benchmark headroom. MR-SFT (full 164, samples=6): at **pass@1**
@@ -178,6 +187,18 @@ pass) ≈ 0.93 per problem):
 | 200 | 0.234 | 0.234 | 0.234 | 0.391 | +0.157 |
 | 300 | 0.234 | 0.312 | 0.344 | 0.547 | +0.313 |
 | **mean** | 0.246 | 0.273 | 0.399 | **0.500** | **+0.254 ± 0.068** |
+
+⚠ **The +0.254 figure is inflated — on one consistent eval ruler it is
++0.145.** See `docs/phase22-c4-c5-rl-vs-sft.md`: re-scoring these *same*
+saved r2 checkpoints through the `EvalSequential` path gives 0.566, but the
+**base** measures 0.422 there, not 0.246. The r2 endpoint reproduces; the
+base does not, so the gain was inflated ~1.75× by pairing a mis-measured
+base with a sound r2. Corrected: **pass@5 0.422 → 0.566 = +0.145** (4 seeds,
+σ 0.020), **pass@1 0.172 → 0.364 = +0.203**. Base re-verified on a second
+independent draw (passk=10, 640 samples: pass@1 0.161). Direction and
+robustness of the win are unchanged; only the magnitude is. The mechanism
+behind the 0.246 is unrecovered — these runs were launched ad hoc and no
+command line survives.
 
 **Cold-start rescue works decisively:** mean lift more than doubled
 (+0.094 → +0.254; hard-tail pass@5 **doubled** 0.246 → 0.500), σ tightened

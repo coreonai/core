@@ -211,6 +211,14 @@ in-domain compression, HF wins on coverage).
    env-var-gated fail-fast guard that bails immediately on Cpu
    rather than running for 60s+ — set `PHASE22_ALLOW_CPU=1` to
    override (for trivial smoke runs).
+   **Also note:** `cargo test --workspace` builds examples too, so it
+   clobbers them just like `cargo build --examples`. And checking that
+   a binary's **timestamp** is unchanged does NOT tell you it was ever
+   a CUDA build — an early CPU clobber leaves an old timestamp on a
+   CPU binary. Verify the artifact itself:
+   `strings target/release/examples/<name> | grep -c cudarc`
+   (74 on a CUDA build, 0 on CPU). The Phase 22 C3-C5 session hit this
+   three times.
 
 9. **When a Pekko-driven mechanism diverges from its Python reference
    recipe, byte-compare the training step before suspecting actor
