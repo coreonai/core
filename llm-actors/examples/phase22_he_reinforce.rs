@@ -157,6 +157,14 @@ struct Args {
     /// them costs a forward+backward each. Stage E kept them.
     #[arg(long, default_value_t = false)]
     pg_keep_zero_advantage: bool,
+    /// Phase 22 follow-up C4 — train ONLY on positive-advantage samples
+    /// (the completions that passed the verifier). Removes the unbounded
+    /// negative-advantage CE-ascent term that C3 identified as the root
+    /// cause of the policy runaway; the loss becomes `reward * CE >= 0`,
+    /// i.e. reward-weighted SFT on verified-correct completions
+    /// (rejection-sampling FT / RAFT).
+    #[arg(long, default_value_t = false)]
+    pg_positive_only: bool,
 }
 
 fn pick_device() -> Device {
@@ -275,7 +283,8 @@ async fn main() -> Result<()> {
         args.lr,
     )?
     .with_pg_micro_batch_size(args.pg_micro_batch_size)
-    .with_pg_step_semantics(!args.pg_legacy_updates, !args.pg_keep_zero_advantage);
+    .with_pg_step_semantics(!args.pg_legacy_updates, !args.pg_keep_zero_advantage)
+    .with_pg_positive_advantage_only(args.pg_positive_only);
 
     let system = ActorSystem::new("phase22-e");
     let model_ref = system.spawn(qwen_model, "qwen-model").await?;

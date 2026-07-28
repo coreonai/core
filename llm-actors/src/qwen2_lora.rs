@@ -629,6 +629,22 @@ pub struct PgStepConfig {
     /// Drop samples whose `|reward|` is below `f32::EPSILON` before the
     /// forward pass.
     pub skip_zero_advantage: bool,
+    /// Phase 22 follow-up C4 — keep only strictly-positive-advantage
+    /// samples, i.e. train on the completions that *passed* the verifier.
+    ///
+    /// This removes the unbounded term from the objective. `pg_sample_loss`
+    /// computes `mean_ce * reward`, so a negative-advantage sample is
+    /// gradient *ascent* on cross-entropy — which has no upper bound, and
+    /// under RLOO with k=4 is ~75% of the surviving samples. That is what
+    /// makes the policy run away (C3 measured 2/2 seeds collapsing to
+    /// 0/256 even with an adapter sync every step). With only positive
+    /// rewards the loss is `reward * CE >= 0`: bounded below, and
+    /// equivalent to reward-weighted SFT on verified-correct completions
+    /// — i.e. rejection-sampling fine-tuning / RAFT, the same family as
+    /// the Phase 22 SFT recipe that is worth +0.254 on this hard tail.
+    ///
+    /// Implies `skip_zero_advantage` (zero is not positive).
+    pub positive_advantage_only: bool,
 }
 
 impl Default for PgStepConfig {
@@ -637,6 +653,7 @@ impl Default for PgStepConfig {
             micro_batch_size: 0,
             accumulate_grads: true,
             skip_zero_advantage: true,
+            positive_advantage_only: false,
         }
     }
 }
@@ -686,7 +703,8 @@ pub fn train_qwen_lora_pg_step_cfg(
         .iter()
         .filter(|(_, comp, reward)| {
             let no_advantage = cfg.skip_zero_advantage && reward.abs() <= f32::EPSILON;
-            let keep = !comp.is_empty() && !no_advantage;
+            let not_positive = cfg.positive_advantage_only && *reward <= f32::EPSILON;
+            let keep = !comp.is_empty() && !no_advantage && !not_positive;
             if !keep {
                 n_skipped += 1;
             }
@@ -699,7 +717,7 @@ pub fn train_qwen_lora_pg_step_cfg(
         // verdict) — report a no-op rather than failing the RL run. Without
         // the filter it means every completion was empty, which is the
         // Stage E error case.
-        if cfg.skip_zero_advantage {
+        if cfg.skip_zero_advantage || cfg.positive_advantage_only {
             return Ok(PgStepStats {
                 loss: 0.0,
                 n_used: 0,
@@ -819,6 +837,7 @@ pub fn train_qwen_lora_pg_step(
             micro_batch_size,
             accumulate_grads: false,
             skip_zero_advantage: false,
+            positive_advantage_only: false,
         },
     )
     .map(|s| s.loss)
@@ -1601,6 +1620,7 @@ mod tests {
                     micro_batch_size: mb,
                     accumulate_grads: true,
                     skip_zero_advantage: true,
+                    positive_advantage_only: false,
                 },
             )?;
             assert_eq!(stats.n_updates, 1, "mb={mb}: one PG step = one update");
@@ -1645,6 +1665,7 @@ mod tests {
                 micro_batch_size: 1,
                 accumulate_grads: false,
                 skip_zero_advantage: false,
+                positive_advantage_only: false,
             },
         )?;
         assert_eq!(stats.n_updates, 4);
@@ -1674,6 +1695,64 @@ mod tests {
         )?;
         assert_eq!(stats.n_used, 4, "the 4 non-zero-advantage samples");
         assert_eq!(stats.n_skipped, 2, "the 2 zero-advantage samples");
+        Ok(())
+    }
+
+    /// Phase 22 C4 — positive-advantage-only keeps just the verifier-passing
+    /// completions, so the loss is `reward * CE >= 0` (bounded below) rather
+    /// than unbounded ascent on the ~75% of RLOO samples with negative
+    /// advantage. Zero-advantage samples go too: zero is not positive.
+    #[test]
+    fn pg_positive_only_drops_negative_and_zero_advantage() -> Result<()> {
+        let dev = Device::Cpu;
+        let mut samples = toy_samples(); // one +0.75, three -0.25
+        samples.push((vec![3, 4, 5], vec![12, 13], 0.0));
+
+        let (mut model, _base, lora) = toy_model(&dev)?;
+        let mut opt = adamw(&lora)?;
+        let stats = train_qwen_lora_pg_step_cfg(
+            &mut model,
+            &mut opt,
+            &dev,
+            &samples,
+            &lora.all_vars(),
+            PgStepConfig {
+                positive_advantage_only: true,
+                ..PgStepConfig::default()
+            },
+        )?;
+        assert_eq!(stats.n_used, 1, "only the +0.75 sample survives");
+        assert_eq!(stats.n_skipped, 4, "3 negative + 1 zero");
+        assert_eq!(stats.n_updates, 1);
+        Ok(())
+    }
+
+    /// A step where nothing passed the verifier yields no positive-advantage
+    /// samples at all — a no-op, not an error that kills the RL run.
+    #[test]
+    fn pg_positive_only_with_no_passes_is_a_noop() -> Result<()> {
+        let dev = Device::Cpu;
+        let samples = vec![
+            (vec![1, 2, 3], vec![4, 5], -0.25),
+            (vec![1, 2, 3], vec![6, 7], -0.25),
+        ];
+        let (mut model, _base, lora) = toy_model(&dev)?;
+        let before = lora_snapshot(&lora);
+        let mut opt = adamw(&lora)?;
+        let stats = train_qwen_lora_pg_step_cfg(
+            &mut model,
+            &mut opt,
+            &dev,
+            &samples,
+            &lora.all_vars(),
+            PgStepConfig {
+                positive_advantage_only: true,
+                ..PgStepConfig::default()
+            },
+        )?;
+        assert_eq!(stats.n_updates, 0);
+        assert_eq!(stats.n_skipped, 2);
+        assert_eq!(before, lora_snapshot(&lora));
         Ok(())
     }
 

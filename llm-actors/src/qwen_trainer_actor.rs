@@ -176,6 +176,10 @@ pub struct QwenTrainerActor {
     /// Phase 22 follow-up C3 — drop RLOO zero-advantage samples before the
     /// forward pass (default `true`).
     pub pg_skip_zero_advantage: bool,
+    /// Phase 22 follow-up C4 — train only on positive-advantage (verifier-
+    /// passing) completions, which bounds the objective. See
+    /// [`PgStepConfig::positive_advantage_only`]. Default `false`.
+    pub pg_positive_advantage_only: bool,
 }
 
 impl QwenTrainerActor {
@@ -230,6 +234,7 @@ impl QwenTrainerActor {
             pg_micro_batch_size: 0,
             pg_accumulate_grads: true,
             pg_skip_zero_advantage: true,
+            pg_positive_advantage_only: false,
         })
     }
 
@@ -274,6 +279,14 @@ impl QwenTrainerActor {
     pub fn with_pg_step_semantics(mut self, accumulate: bool, skip_zero_adv: bool) -> Self {
         self.pg_accumulate_grads = accumulate;
         self.pg_skip_zero_advantage = skip_zero_adv;
+        self
+    }
+
+    /// Phase 22 follow-up C4 — train only on positive-advantage samples,
+    /// bounding the policy-gradient objective (reward-weighted SFT on
+    /// verified-correct completions). Builder-style.
+    pub fn with_pg_positive_advantage_only(mut self, enabled: bool) -> Self {
+        self.pg_positive_advantage_only = enabled;
         self
     }
 
@@ -350,6 +363,7 @@ impl Actor for QwenTrainerActor {
                             micro_batch_size: self.pg_micro_batch_size,
                             accumulate_grads: self.pg_accumulate_grads,
                             skip_zero_advantage: self.pg_skip_zero_advantage,
+                            positive_advantage_only: self.pg_positive_advantage_only,
                         },
                     )
                     .map_err(anyhow::Error::from);
