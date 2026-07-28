@@ -143,6 +143,20 @@ struct Args {
     /// so that max_new ≥ 64 or k > 2 become viable.
     #[arg(long, default_value_t = 0)]
     pg_micro_batch_size: usize,
+    /// Phase 22 follow-up C3 — restore the Stage E policy-gradient step
+    /// semantics: one AdamW update **per micro-batch** instead of one per
+    /// RL step. At `--n-prompts 64 --k-per-prompt 4 --pg-micro-batch-size 1`
+    /// that is 256 optimizer updates per RL step (~1024 before the first
+    /// `--sync-every 4` sync), which is what collapsed the 7B hard-tail
+    /// policy. Only pass this to reproduce the collapse.
+    #[arg(long, default_value_t = false)]
+    pg_legacy_updates: bool,
+    /// Phase 22 follow-up C3 — keep RLOO zero-advantage samples (prompts
+    /// where all k completions share a verdict). They contribute no
+    /// gradient; on the hard tail they are ~94% of the batch, so keeping
+    /// them costs a forward+backward each. Stage E kept them.
+    #[arg(long, default_value_t = false)]
+    pg_keep_zero_advantage: bool,
 }
 
 fn pick_device() -> Device {
@@ -260,7 +274,8 @@ async fn main() -> Result<()> {
         },
         args.lr,
     )?
-    .with_pg_micro_batch_size(args.pg_micro_batch_size);
+    .with_pg_micro_batch_size(args.pg_micro_batch_size)
+    .with_pg_step_semantics(!args.pg_legacy_updates, !args.pg_keep_zero_advantage);
 
     let system = ActorSystem::new("phase22-e");
     let model_ref = system.spawn(qwen_model, "qwen-model").await?;
@@ -275,6 +290,12 @@ async fn main() -> Result<()> {
     for rl_step in 0..args.rl_steps {
         let mut samples: Vec<(Vec<u32>, Vec<u32>, f32)> = Vec::new();
         let mut prompt_passes: Vec<usize> = Vec::with_capacity(prompts.len());
+        // Phase 22 follow-up C3 — mean completion length is the collapse
+        // tell-tale: a mode-collapsed policy emits EOS immediately, so the
+        // length (and the step wallclock) falls off a cliff while `pass`
+        // goes to 0.
+        let mut comp_len_sum = 0usize;
+        let mut comp_len_n = 0usize;
 
         let t_step = std::time::Instant::now();
         for (p_idx, prompt) in prompts.iter().enumerate() {
@@ -305,6 +326,8 @@ async fn main() -> Result<()> {
                 } else {
                     vec![]
                 };
+                comp_len_sum += comp_ids.len();
+                comp_len_n += 1;
                 let comp_text = tk.decode(&comp_ids)?;
                 let verdict = humaneval.verify(prompt, &comp_text);
                 let v_value: f32 = if verdict.is_correct() { 1.0 } else { 0.0 };
@@ -336,7 +359,8 @@ async fn main() -> Result<()> {
         trainer_ref
             .tell(QwenTrainerMessage::TrainPolicyGradient { samples, reply: tx })
             .map_err(|e| anyhow!("{e:?}"))?;
-        let loss = rx.await??;
+        let stats = rx.await??;
+        let loss = stats.loss;
         losses.push(loss);
         step_passes.push(total_pass);
         step_totals.push(total_samples);
@@ -372,11 +396,21 @@ async fn main() -> Result<()> {
             false
         };
 
+        let mean_comp_len = if comp_len_n == 0 {
+            0.0
+        } else {
+            comp_len_sum as f64 / comp_len_n as f64
+        };
         println!(
             "[Phase22E] rl_step {rl_step}  loss = {loss:+.4}  pass = {}/{}  \
+             upd = {}  used/skip = {}/{}  comp_len = {:.1}  \
              elapsed_step = {:.1}s  synced = {}",
             total_pass,
             total_samples,
+            stats.n_updates,
+            stats.n_used,
+            stats.n_skipped,
+            mean_comp_len,
             t_step.elapsed().as_secs_f64(),
             synced
         );

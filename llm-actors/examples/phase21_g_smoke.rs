@@ -187,7 +187,7 @@ async fn main() -> Result<()> {
         trainer_ref
             .tell(QwenTrainerMessage::TrainPolicyGradient { samples, reply: tx })
             .map_err(|e| anyhow!("{e:?}"))?;
-        let loss = rx.await??;
+        let loss = rx.await??.loss;
         losses.push(loss);
 
         let pass_counts: Vec<usize> = prompt_verdicts

@@ -32,9 +32,9 @@ use tokio::sync::oneshot;
 use tracing::{error, info, warn};
 
 use crate::qwen2_lora::{
-    cosine_warmup_lr, resolve_safetensors, save_merged_lora, train_qwen_lora_pg_step,
+    cosine_warmup_lr, resolve_safetensors, save_merged_lora, train_qwen_lora_pg_step_cfg,
     train_qwen_lora_step, train_qwen_lora_step_masked, train_qwen_lora_step_masked_batched,
-    LoraConfig, ModelForCausalLM,
+    LoraConfig, ModelForCausalLM, PgStepConfig, PgStepStats,
 };
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
@@ -102,13 +102,15 @@ pub enum QwenTrainerMessage {
     /// over the completion span; baseline-subtracted rewards (e.g.,
     /// per-prompt RLOO) belong at the call site.
     ///
-    /// One actor message = one optimizer step (single batch update).
-    /// Run multiple via repeated sends for multi-step RL.
+    /// One actor message = one optimizer step (single batch update) —
+    /// true again as of Phase 22 follow-up C3, which accumulates the
+    /// micro-batch gradients instead of stepping per chunk. See
+    /// [`PgStepConfig`]. Run multiple via repeated sends for multi-step RL.
     TrainPolicyGradient {
         /// `(prompt_ids, completion_ids, reward)` triples. Empty
         /// completions are skipped silently.
         samples: Vec<(Vec<u32>, Vec<u32>, f32)>,
-        reply: oneshot::Sender<anyhow::Result<f32>>,
+        reply: oneshot::Sender<anyhow::Result<PgStepStats>>,
     },
     /// Health check.
     Ping { reply: oneshot::Sender<()> },
@@ -166,6 +168,14 @@ pub struct QwenTrainerActor {
     /// size and calls `backward_step` once per chunk, bounding peak GPU
     /// memory when completions are long (max_new ≥ 64).
     pub pg_micro_batch_size: usize,
+    /// Phase 22 follow-up C3 — accumulate micro-batch gradients into a
+    /// single optimizer update per `TrainPolicyGradient` (default), instead
+    /// of one AdamW update per micro-batch. See [`PgStepConfig`] for why
+    /// the old behaviour collapsed the 7B hard-tail policy.
+    pub pg_accumulate_grads: bool,
+    /// Phase 22 follow-up C3 — drop RLOO zero-advantage samples before the
+    /// forward pass (default `true`).
+    pub pg_skip_zero_advantage: bool,
 }
 
 impl QwenTrainerActor {
@@ -218,6 +228,8 @@ impl QwenTrainerActor {
             fresh_optimizer_per_round: false,
             weight_decay: 0.0,
             pg_micro_batch_size: 0,
+            pg_accumulate_grads: true,
+            pg_skip_zero_advantage: true,
         })
     }
 
@@ -251,6 +263,17 @@ impl QwenTrainerActor {
     /// bounding peak GPU memory for long completions (max_new ≥ 64).
     pub fn with_pg_micro_batch_size(mut self, size: usize) -> Self {
         self.pg_micro_batch_size = size;
+        self
+    }
+
+    /// Phase 22 follow-up C3 — policy-gradient step semantics. `accumulate`
+    /// makes one `TrainPolicyGradient` message = one optimizer update
+    /// (default); `skip_zero_adv` drops RLOO zero-advantage samples before
+    /// they cost a forward pass. Both default to `true`; pass `false` to
+    /// reproduce the Stage E behaviour that collapsed at the first sync.
+    pub fn with_pg_step_semantics(mut self, accumulate: bool, skip_zero_adv: bool) -> Self {
+        self.pg_accumulate_grads = accumulate;
+        self.pg_skip_zero_advantage = skip_zero_adv;
         self
     }
 
@@ -317,12 +340,17 @@ impl Actor for QwenTrainerActor {
                     log_send(reply, result, "qwen_save_lora_adapter");
                 }
                 QwenTrainerMessage::TrainPolicyGradient { samples, reply } => {
-                    let result = train_qwen_lora_pg_step(
+                    let result = train_qwen_lora_pg_step_cfg(
                         &mut self.model,
                         &mut self.optimizer,
                         &self.device,
                         &samples,
-                        self.pg_micro_batch_size,
+                        &self.lora_map.all_vars(),
+                        PgStepConfig {
+                            micro_batch_size: self.pg_micro_batch_size,
+                            accumulate_grads: self.pg_accumulate_grads,
+                            skip_zero_advantage: self.pg_skip_zero_advantage,
+                        },
                     )
                     .map_err(anyhow::Error::from);
                     log_send(reply, result, "qwen_train_pg");

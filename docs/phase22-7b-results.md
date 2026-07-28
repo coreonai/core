@@ -33,6 +33,16 @@ base on HumanEval:
   collapse); lr=5e-5 → mean 15→3/256 (−80%, 1/4 still full-collapse).
   Gentler lr softens but doesn't prevent. RL is the *weak* axis; SFT
   (+0.254) is the robust hard-tail win. Reproduces Phase 22 Stage E.
+  ⚠ **RETRACTED — sync is not the trigger.** See
+  `docs/phase22-c3-rl-step-semantics.md`: the PG step was issuing **256
+  optimizer updates per RL step** (a `--pg-micro-batch-size` memory knob
+  leaking into the training math), so ~1024 updates had already ruined the
+  policy before the first sync made it *visible* — steps 0–3 looked healthy
+  only because the sampler was still on frozen base weights. Re-run with
+  `--sync-every 1`, 2/2 seeds still collapse to 0/256 (at 1024 / 1280
+  cumulative updates). Root cause is the unbounded negative-advantage CE
+  ascent in `pg_sample_loss`; the update-count fix removes a 256×
+  amplifier, not the runaway.
 - **Harder external benchmark (HumanEval+) — SFT WINS at the headroom
   metric.** EvalPlus's stricter tests (base pass@1 0.31 vs 0.37) give real
   full-benchmark headroom. MR-SFT (full 164, samples=6): at **pass@1**
@@ -266,6 +276,11 @@ partly a pass@5 artifact; pass@1 has headroom the whole time).
   mean 0.487, **+0.106 (4/4 seeds)** — confirmed the "flat" was a pass@5
   artifact. SFT helps 7B on HumanEval across the board at pass@1 (full
   +0.106, HumanEval+ +0.088, hard tail +0.254).
-- **Fix RL collapse** if pursued: reference-policy KL, off-policy
-  correction, no-sync + one final merge, or SFT-warmstart.
+- ~~**Fix RL collapse**: reference-policy KL, off-policy correction,
+  no-sync + one final merge, or SFT-warmstart.~~ **DIAGNOSED** in
+  `docs/phase22-c3-rl-step-semantics.md` — the collapse is an
+  optimizer-step-count bug (256 updates/RL step) on top of an unbounded
+  REINFORCE objective, *not* adapter sync. Step-count fixed; the remaining
+  work is bounding the objective (positive-advantage-only first, then KL /
+  PPO clip) and re-testing the fixed path at equal update dose.
 - Even harder benchmarks (LiveCodeBench / BigCodeBench) for more headroom.

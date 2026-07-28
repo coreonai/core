@@ -596,15 +596,210 @@ fn pg_sample_loss(
     Ok(Some((&mean_ce * (reward as f64))?))
 }
 
+/// Phase 22 follow-up C3 — knobs for one REINFORCE policy-gradient update.
+///
+/// The Stage E defaults (`micro_batch_size` chunking, one AdamW update per
+/// chunk, every sample forwarded) collapsed the 7B hard-tail policy at the
+/// first adapter sync. Two things were wrong, both fixed by this config:
+///
+/// - **`accumulate_grads`**: micro-batching was introduced purely to bound
+///   peak GPU memory, but it also turned one PG step into `n_samples /
+///   micro_batch` *optimizer* steps. At the 7B hard-tail setting (64 prompts
+///   × k=4, `--pg-micro-batch-size 1`) that is **256 AdamW updates per RL
+///   step** — vs 30 for a whole SFT round. AdamW normalises by gradient
+///   magnitude, so a numerically tiny loss is *not* a tiny step; 4 RL steps
+///   applied ~1024 full-size updates before the first sync ever revealed
+///   them. Accumulating the per-chunk gradients and issuing a single
+///   `Optimizer::step` restores "one PG step = one update" while keeping the
+///   memory bound.
+/// - **`skip_zero_advantage`**: under RLOO, every prompt whose k samples all
+///   share a verdict gets advantage exactly 0. On the hard tail that is ~94%
+///   of samples. They contribute no gradient, but they still cost a
+///   forward+backward — and, without accumulation, each one still *moved the
+///   weights*, because `AdamW::step` applies `m_hat/(sqrt(v_hat)+eps)` from
+///   the momentum tail even when the incoming gradient is all zeros.
+#[derive(Debug, Clone, Copy)]
+pub struct PgStepConfig {
+    /// Samples per forward/backward chunk. `0` = one chunk for everything
+    /// (may OOM with long completions).
+    pub micro_batch_size: usize,
+    /// Accumulate chunk gradients and apply ONE optimizer update per call.
+    /// `false` restores the Stage E per-chunk-update behaviour.
+    pub accumulate_grads: bool,
+    /// Drop samples whose `|reward|` is below `f32::EPSILON` before the
+    /// forward pass.
+    pub skip_zero_advantage: bool,
+}
+
+impl Default for PgStepConfig {
+    fn default() -> Self {
+        Self {
+            micro_batch_size: 0,
+            accumulate_grads: true,
+            skip_zero_advantage: true,
+        }
+    }
+}
+
+/// What one `train_qwen_lora_pg_step_cfg` call actually did — the
+/// diagnostics that would have caught the Stage E collapse from the logs.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PgStepStats {
+    /// Mean per-chunk loss (the conventional REINFORCE logging choice).
+    pub loss: f32,
+    /// Samples that reached a forward pass.
+    pub n_used: usize,
+    /// Samples dropped by `skip_zero_advantage` (or for being empty).
+    pub n_skipped: usize,
+    /// Optimizer updates issued. `1` when accumulating.
+    pub n_updates: usize,
+}
+
 /// Phase 21 Stage G / Phase 22 Stage E — REINFORCE policy-gradient update.
 ///
-/// Processes `samples` in chunks of `micro_batch_size` to bound peak GPU
-/// memory. Each chunk's loss is normalised by the chunk length and a
-/// separate `backward_step` call is issued, giving one AdamW update per
-/// chunk. Pass `micro_batch_size = 0` to process all samples in a single
-/// backward pass (original behaviour; may OOM with large completions).
+/// Processes `samples` in chunks of `cfg.micro_batch_size` to bound peak GPU
+/// memory. With `cfg.accumulate_grads` (the default) the chunk gradients are
+/// summed and a single optimizer update is applied; otherwise each chunk gets
+/// its own update (the Stage E behaviour — see [`PgStepConfig`]).
 ///
-/// Returns the mean per-sample loss across all chunks.
+/// `trainable` is the LoRA `Var` set the optimizer owns. Accumulation keeps
+/// **only** those gradients between chunks: a candle `GradStore` also holds a
+/// gradient for every intermediate activation, so retaining whole stores
+/// across chunks OOMs a 7B backward at max_new=192. The last chunk's store is
+/// reused as the carrier handed to `Optimizer::step`, which keeps peak memory
+/// at exactly one chunk's backward — the same as the per-chunk-update path.
+pub fn train_qwen_lora_pg_step_cfg(
+    model: &mut ModelForCausalLM,
+    optimizer: &mut candle_nn::AdamW,
+    device: &Device,
+    samples: &[(Vec<u32>, Vec<u32>, f32)],
+    trainable: &[candle_core::Var],
+    cfg: PgStepConfig,
+) -> Result<PgStepStats> {
+    use candle_core::backprop::GradStore;
+    use candle_nn::Optimizer;
+    if samples.is_empty() {
+        candle_core::bail!("train_qwen_lora_pg_step: samples is empty");
+    }
+    let mut n_skipped = 0usize;
+    let kept: Vec<&(Vec<u32>, Vec<u32>, f32)> = samples
+        .iter()
+        .filter(|(_, comp, reward)| {
+            let no_advantage = cfg.skip_zero_advantage && reward.abs() <= f32::EPSILON;
+            let keep = !comp.is_empty() && !no_advantage;
+            if !keep {
+                n_skipped += 1;
+            }
+            keep
+        })
+        .collect();
+    if kept.is_empty() {
+        // Every sample was filtered out. Under `skip_zero_advantage` that is
+        // an ordinary outcome on a sparse-reward step (no prompt had a mixed
+        // verdict) — report a no-op rather than failing the RL run. Without
+        // the filter it means every completion was empty, which is the
+        // Stage E error case.
+        if cfg.skip_zero_advantage {
+            return Ok(PgStepStats {
+                loss: 0.0,
+                n_used: 0,
+                n_skipped,
+                n_updates: 0,
+            });
+        }
+        candle_core::bail!("train_qwen_lora_pg_step: no usable samples");
+    }
+    let mb = if cfg.micro_batch_size == 0 {
+        kept.len()
+    } else {
+        cfg.micro_batch_size
+    };
+
+    let mut total_loss = 0.0f32;
+    let mut n_chunks = 0usize;
+    let mut n_used = 0usize;
+    let mut n_updates = 0usize;
+    // Summed gradients for the trainable Vars only — a whole `GradStore` per
+    // chunk would pin every intermediate activation gradient and OOM 7B.
+    let mut acc: std::collections::HashMap<candle_core::TensorId, Tensor> =
+        std::collections::HashMap::new();
+    // The most recent chunk's store, reused as the carrier for the final
+    // `Optimizer::step`. Only kept past the loop body on the last chunk.
+    let mut carrier: Option<GradStore> = None;
+    let n_total_chunks = kept.chunks(mb).len();
+
+    for (chunk_idx, chunk) in kept.chunks(mb).enumerate() {
+        let mut loss: Option<Tensor> = None;
+        let mut n_in_chunk = 0usize;
+        for (prompt, comp, reward) in chunk {
+            if let Some(contrib) = pg_sample_loss(model, device, prompt, comp, *reward)? {
+                loss = Some(match loss {
+                    Some(prev) => (prev + contrib)?,
+                    None => contrib,
+                });
+                n_in_chunk += 1;
+            }
+        }
+        let Some(loss) = loss else { continue };
+        let loss = (loss / n_in_chunk as f64)?;
+        total_loss += loss.to_scalar::<f32>()?;
+        n_used += n_in_chunk;
+        n_chunks += 1;
+        if cfg.accumulate_grads {
+            let grads = loss.backward()?;
+            for var in trainable {
+                let Some(g) = grads.get(var.as_tensor()) else {
+                    continue;
+                };
+                let id = var.as_tensor().id();
+                let merged = match acc.remove(&id) {
+                    Some(prev) => (prev + g)?,
+                    None => g.clone(),
+                };
+                acc.insert(id, merged);
+            }
+            // Drop every other chunk's store right here; keep the last one
+            // to hand to the optimizer.
+            if chunk_idx + 1 == n_total_chunks {
+                carrier = Some(grads);
+            }
+        } else {
+            optimizer.step(&loss.backward()?)?;
+            n_updates += 1;
+        }
+    }
+    if n_chunks == 0 {
+        candle_core::bail!("train_qwen_lora_pg_step: no usable samples");
+    }
+    if let Some(mut carrier) = carrier {
+        // Mean over chunks: each chunk loss is already a per-sample mean, so
+        // dividing the summed gradients by the chunk count makes the update
+        // independent of how the batch happened to be split.
+        let scale = 1.0 / n_chunks as f64;
+        for var in trainable {
+            if let Some(g) = acc.remove(&var.as_tensor().id()) {
+                carrier.insert(var.as_tensor(), (g * scale)?);
+            }
+        }
+        optimizer.step(&carrier)?;
+        n_updates += 1;
+    } else if !acc.is_empty() {
+        // Unreachable while every kept sample has a non-empty completion
+        // (the filter above guarantees it), but never silently swallow an
+        // accumulated gradient.
+        candle_core::bail!("train_qwen_lora_pg_step: accumulated gradients with no carrier store");
+    }
+    Ok(PgStepStats {
+        loss: total_loss / n_chunks as f32,
+        n_used,
+        n_skipped,
+        n_updates,
+    })
+}
+
+/// Back-compat wrapper preserving the exact Phase 22 Stage E semantics
+/// (one optimizer update per micro-batch, zero-advantage samples kept).
+/// New call sites should use [`train_qwen_lora_pg_step_cfg`].
 pub fn train_qwen_lora_pg_step(
     model: &mut ModelForCausalLM,
     optimizer: &mut candle_nn::AdamW,
@@ -612,41 +807,21 @@ pub fn train_qwen_lora_pg_step(
     samples: &[(Vec<u32>, Vec<u32>, f32)],
     micro_batch_size: usize,
 ) -> Result<f32> {
-    use candle_nn::Optimizer;
-    if samples.is_empty() {
-        candle_core::bail!("train_qwen_lora_pg_step: samples is empty");
-    }
-    let mb = if micro_batch_size == 0 {
-        samples.len()
-    } else {
-        micro_batch_size
-    };
-    let mut total_loss = 0.0f32;
-    let mut n_chunks = 0usize;
-
-    for chunk in samples.chunks(mb) {
-        let mut loss: Option<Tensor> = None;
-        let mut n_used = 0usize;
-        for (prompt, comp, reward) in chunk {
-            if let Some(contrib) = pg_sample_loss(model, device, prompt, comp, *reward)? {
-                loss = Some(match loss {
-                    Some(prev) => (prev + contrib)?,
-                    None => contrib,
-                });
-                n_used += 1;
-            }
-        }
-        if let Some(loss) = loss {
-            let loss = (loss / n_used as f64)?;
-            total_loss += loss.to_scalar::<f32>()?;
-            optimizer.backward_step(&loss)?;
-            n_chunks += 1;
-        }
-    }
-    if n_chunks == 0 {
-        candle_core::bail!("train_qwen_lora_pg_step: no usable samples");
-    }
-    Ok(total_loss / n_chunks as f32)
+    train_qwen_lora_pg_step_cfg(
+        model,
+        optimizer,
+        device,
+        samples,
+        // The legacy path steps per chunk and never accumulates, so it needs
+        // no Var list.
+        &[],
+        PgStepConfig {
+            micro_batch_size,
+            accumulate_grads: false,
+            skip_zero_advantage: false,
+        },
+    )
+    .map(|s| s.loss)
 }
 
 /// Resolve the safetensors shard file(s) that make up a model.
@@ -1305,5 +1480,232 @@ mod tests {
         let dir = scratch("empty");
         assert!(resolve_safetensors(&dir).is_err());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ---- Phase 22 follow-up C3 — policy-gradient step semantics ----
+
+    /// A randomly-initialised toy Qwen2 (2 layers, hidden 16) small enough
+    /// to run a real forward+backward on CPU in a unit test. Both the base
+    /// weights and the LoRA adapters are created by the VarBuilder's
+    /// default init, so gradients are non-trivial.
+    fn toy_model(dev: &Device) -> Result<(ModelForCausalLM, VarMap, VarMap)> {
+        let cfg = Config {
+            vocab_size: 32,
+            hidden_size: 16,
+            intermediate_size: 32,
+            num_hidden_layers: 2,
+            num_attention_heads: 2,
+            num_key_value_heads: 1,
+            max_position_embeddings: 64,
+            sliding_window: 64,
+            max_window_layers: 2,
+            tie_word_embeddings: false,
+            rope_theta: 10000.0,
+            rms_norm_eps: 1e-6,
+            use_sliding_window: false,
+            hidden_act: candle_nn::Activation::Silu,
+        };
+        let base_map = VarMap::new();
+        let base_vb = VarBuilder::from_varmap(&base_map, DType::F32, dev);
+        let lora_map = VarMap::new();
+        let lora_vb = VarBuilder::from_varmap(&lora_map, DType::F32, dev);
+        let model = ModelForCausalLM::new(
+            &cfg,
+            base_vb,
+            Some(lora_vb),
+            LoraConfig {
+                rank: 4,
+                alpha: 8.0,
+            },
+        )?;
+        Ok((model, base_map, lora_map))
+    }
+
+    fn toy_samples() -> Vec<(Vec<u32>, Vec<u32>, f32)> {
+        vec![
+            (vec![1, 2, 3], vec![4, 5], 0.75),
+            (vec![1, 2, 3], vec![6, 7], -0.25),
+            (vec![2, 3, 4], vec![8, 9], -0.25),
+            (vec![2, 3, 4], vec![10, 11], -0.25),
+        ]
+    }
+
+    fn lora_snapshot(map: &VarMap) -> Vec<f32> {
+        let data = map.data().lock().unwrap();
+        let mut names: Vec<&String> = data.keys().collect();
+        names.sort();
+        names
+            .iter()
+            .flat_map(|n| {
+                data[*n]
+                    .as_tensor()
+                    .flatten_all()
+                    .unwrap()
+                    .to_vec1::<f32>()
+                    .unwrap()
+            })
+            .collect()
+    }
+
+    fn adamw(map: &VarMap) -> Result<candle_nn::AdamW> {
+        use candle_nn::Optimizer;
+        candle_nn::AdamW::new(
+            map.all_vars(),
+            candle_nn::ParamsAdamW {
+                lr: 1e-3,
+                ..Default::default()
+            },
+        )
+    }
+
+    /// The core Stage E defect: micro-batching (a *memory* knob) silently
+    /// multiplied the number of AdamW updates per RL step. With
+    /// accumulation, splitting the same batch into chunks of 1 must land on
+    /// the same weights as a single un-chunked pass — one update either way.
+    #[test]
+    fn pg_accumulation_makes_micro_batching_update_equivalent() -> Result<()> {
+        let dev = Device::Cpu;
+        let samples = toy_samples();
+
+        // One model for all three variants: `VarBuilder` init draws from a
+        // fresh RNG per model, so re-creating it would change the starting
+        // point. Instead we restore the LoRA vars between variants — the
+        // base weights are frozen anyway.
+        let (mut model, _base, lora) = toy_model(&dev)?;
+        let initial: Vec<(String, Tensor)> = {
+            let data = lora.data().lock().unwrap();
+            data.iter()
+                .map(|(name, var)| Ok((name.clone(), var.as_tensor().copy()?)))
+                .collect::<Result<Vec<_>>>()?
+        };
+        let restore = || -> Result<()> {
+            let data = lora.data().lock().unwrap();
+            for (name, t) in &initial {
+                data[name].set(t)?;
+            }
+            Ok(())
+        };
+
+        let mut updated = Vec::new();
+        for mb in [0usize, 1, 2] {
+            restore()?;
+            let before = lora_snapshot(&lora);
+            let mut opt = adamw(&lora)?;
+            let stats = train_qwen_lora_pg_step_cfg(
+                &mut model,
+                &mut opt,
+                &dev,
+                &samples,
+                &lora.all_vars(),
+                PgStepConfig {
+                    micro_batch_size: mb,
+                    accumulate_grads: true,
+                    skip_zero_advantage: true,
+                },
+            )?;
+            assert_eq!(stats.n_updates, 1, "mb={mb}: one PG step = one update");
+            assert_eq!(stats.n_used, 4, "mb={mb}: all 4 samples have advantage");
+            let after = lora_snapshot(&lora);
+            assert!(
+                before.iter().zip(&after).any(|(b, a)| (b - a).abs() > 1e-9),
+                "mb={mb}: the update must actually move the LoRA weights"
+            );
+            updated.push(after);
+        }
+        for (i, w) in updated.iter().enumerate().skip(1) {
+            let max_diff = updated[0]
+                .iter()
+                .zip(w)
+                .map(|(a, b)| (a - b).abs())
+                .fold(0.0f32, f32::max);
+            assert!(
+                max_diff < 1e-6,
+                "micro_batch variant {i} diverged from the un-chunked update: max_diff={max_diff}"
+            );
+        }
+        Ok(())
+    }
+
+    /// Without accumulation (the Stage E path) the same batch issues one
+    /// AdamW update *per chunk* — 4 updates for 4 samples at mb=1. This is
+    /// the behaviour that applied ~1024 updates before the first adapter
+    /// sync on the 7B hard tail.
+    #[test]
+    fn pg_legacy_path_issues_one_update_per_micro_batch() -> Result<()> {
+        let dev = Device::Cpu;
+        let (mut model, _base, lora) = toy_model(&dev)?;
+        let mut opt = adamw(&lora)?;
+        let stats = train_qwen_lora_pg_step_cfg(
+            &mut model,
+            &mut opt,
+            &dev,
+            &toy_samples(),
+            &lora.all_vars(),
+            PgStepConfig {
+                micro_batch_size: 1,
+                accumulate_grads: false,
+                skip_zero_advantage: false,
+            },
+        )?;
+        assert_eq!(stats.n_updates, 4);
+        assert_eq!(stats.n_used, 4);
+        Ok(())
+    }
+
+    /// RLOO gives advantage exactly 0 to every prompt whose k completions
+    /// share a verdict — ~94% of the 7B hard-tail batch. They must be
+    /// dropped before they cost a forward pass.
+    #[test]
+    fn pg_skips_zero_advantage_samples() -> Result<()> {
+        let dev = Device::Cpu;
+        let mut samples = toy_samples();
+        samples.push((vec![3, 4, 5], vec![12, 13], 0.0));
+        samples.push((vec![3, 4, 5], vec![14, 15], 0.0));
+
+        let (mut model, _base, lora) = toy_model(&dev)?;
+        let mut opt = adamw(&lora)?;
+        let stats = train_qwen_lora_pg_step_cfg(
+            &mut model,
+            &mut opt,
+            &dev,
+            &samples,
+            &lora.all_vars(),
+            PgStepConfig::default(),
+        )?;
+        assert_eq!(stats.n_used, 4, "the 4 non-zero-advantage samples");
+        assert_eq!(stats.n_skipped, 2, "the 2 zero-advantage samples");
+        Ok(())
+    }
+
+    /// A sparse-reward RL step where no prompt had a mixed verdict is an
+    /// ordinary outcome, not an error: report a no-op instead of killing
+    /// the run.
+    #[test]
+    fn pg_all_zero_advantage_is_a_noop_not_an_error() -> Result<()> {
+        let dev = Device::Cpu;
+        let samples = vec![
+            (vec![1, 2, 3], vec![4, 5], 0.0),
+            (vec![1, 2, 3], vec![6, 7], 0.0),
+        ];
+        let (mut model, _base, lora) = toy_model(&dev)?;
+        let before = lora_snapshot(&lora);
+        let mut opt = adamw(&lora)?;
+        let stats = train_qwen_lora_pg_step_cfg(
+            &mut model,
+            &mut opt,
+            &dev,
+            &samples,
+            &lora.all_vars(),
+            PgStepConfig::default(),
+        )?;
+        assert_eq!(stats.n_updates, 0);
+        assert_eq!(stats.n_used, 0);
+        assert_eq!(stats.n_skipped, 2);
+        assert_eq!(
+            before,
+            lora_snapshot(&lora),
+            "a no-signal step must leave the weights untouched"
+        );
+        Ok(())
     }
 }
