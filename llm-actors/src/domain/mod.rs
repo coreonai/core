@@ -112,9 +112,43 @@ pub fn truncate_python_completion(text: &str) -> String {
     out.join("\n")
 }
 
+/// Phase 22 follow-up C5 — the token-space counterpart of
+/// [`truncate_python_completion`].
+///
+/// `truncate_completion` works on text, but a policy-gradient / SFT step
+/// needs token ids. Re-encoding the truncated text would hand the trainer a
+/// sequence the model never actually sampled (the tokenizer may pick
+/// different merge boundaries), so instead this binary-searches for the
+/// longest prefix of `comp_ids` whose decode covers `truncated` — about 8
+/// decodes for a 192-token completion.
+///
+/// `decode` is injected so this is testable without a real tokenizer.
+pub fn truncated_token_prefix<F, E>(
+    comp_ids: &[u32],
+    truncated: &str,
+    decode: F,
+) -> std::result::Result<Vec<u32>, E>
+where
+    F: Fn(&[u32]) -> std::result::Result<String, E>,
+{
+    if truncated.is_empty() {
+        return Ok(Vec::new());
+    }
+    let (mut lo, mut hi) = (0usize, comp_ids.len());
+    while lo < hi {
+        let mid = lo.midpoint(hi);
+        if decode(&comp_ids[..mid])?.len() >= truncated.len() {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    Ok(comp_ids[..lo].to_vec())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::truncate_python_completion;
+    use super::{truncate_python_completion, truncated_token_prefix};
 
     #[test]
     fn keeps_clean_body_unchanged() {
@@ -153,5 +187,41 @@ mod tests {
     fn trims_trailing_blank_lines() {
         let raw = "    return 1\n\n   \n";
         assert_eq!(truncate_python_completion(raw), "    return 1");
+    }
+
+    // ---- Phase 22 C5 — token-space truncation ----
+
+    /// Fake tokenizer: one char per token, so decode(ids[..k]).len() == k.
+    fn char_decode(ids: &[u32]) -> std::result::Result<String, std::convert::Infallible> {
+        Ok(ids.iter().map(|c| char::from(*c as u8)).collect())
+    }
+
+    #[test]
+    fn token_prefix_covers_the_truncated_text() {
+        let ids: Vec<u32> = "def f():\n    return 1\ndef g():"
+            .bytes()
+            .map(u32::from)
+            .collect();
+        let truncated = "def f():\n    return 1";
+        let got = truncated_token_prefix(&ids, truncated, char_decode).unwrap();
+        assert_eq!(got.len(), truncated.len());
+        assert_eq!(char_decode(&got).unwrap(), truncated);
+    }
+
+    #[test]
+    fn token_prefix_of_empty_truncation_is_empty() {
+        let ids: Vec<u32> = "abc".bytes().map(u32::from).collect();
+        let got = truncated_token_prefix(&ids, "", char_decode).unwrap();
+        assert!(got.is_empty());
+    }
+
+    /// Nothing was cut — the prefix must be the whole completion, not a
+    /// silently shortened one.
+    #[test]
+    fn token_prefix_keeps_everything_when_nothing_truncated() {
+        let text = "    return 1";
+        let ids: Vec<u32> = text.bytes().map(u32::from).collect();
+        let got = truncated_token_prefix(&ids, text, char_decode).unwrap();
+        assert_eq!(got, ids);
     }
 }

@@ -42,7 +42,7 @@ use anyhow::{anyhow, Context, Result};
 use candle_core::{DType, Device};
 use clap::Parser;
 use llm_actors::{
-    domain::{human_eval::HumanEvalDomain, Domain},
+    domain::{human_eval::HumanEvalDomain, truncated_token_prefix, Domain},
     qwen2_lora::LoraConfig,
     ModelMessage, QwenModelActor, QwenTrainerActor, QwenTrainerMessage,
 };
@@ -337,7 +337,21 @@ async fn main() -> Result<()> {
                 };
                 comp_len_sum += comp_ids.len();
                 comp_len_n += 1;
-                let comp_text = tk.decode(&comp_ids)?;
+                // Phase 22 follow-up C5 — truncate exactly as
+                // `EvaluatorActor` does before verifying (`evaluator_actor.rs`
+                // calls `domain.truncate_completion`). Without this the RL
+                // reward came from a STRICTER verifier than the eval: a
+                // correct function followed by a stray top-level `def` scored
+                // FAIL in training but PASS at eval. Measured on the same 7B
+                // base policy and identical sampling, that gap was 3x
+                // (0.06 vs 0.172 pass@1) — it both starved the reward signal
+                // and penalised long completions for being long, not wrong.
+                let raw_text = tk.decode(&comp_ids)?;
+                let comp_text = humaneval.truncate_completion(&raw_text);
+                // Train on what was actually rewarded: keep the token prefix
+                // whose decode covers the truncated text, so the PG target is
+                // the verified completion and not the trailing junk.
+                let comp_ids = truncated_token_prefix(&comp_ids, &comp_text, |ids| tk.decode(ids))?;
                 let verdict = humaneval.verify(prompt, &comp_text);
                 let v_value: f32 = if verdict.is_correct() { 1.0 } else { 0.0 };
                 prompt_samples.push((comp_ids, v_value));
