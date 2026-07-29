@@ -101,6 +101,20 @@ impl Domain for FilteredDomain {
         let &inner_idx = self.valid_indices.get(i)?;
         self.inner.nth_prompt(inner_idx)
     }
+
+    /// Phase 22 C5 follow-up — **must** delegate. This wrapper previously
+    /// inherited the trait's identity default, so wrapping a code domain
+    /// silently switched OFF `truncate_python_completion` at every
+    /// generate/verify site. Every hard-tail experiment ran through
+    /// `--prompt-skip-list`, so all of them scored completions raw: a
+    /// correct function followed by a trailing top-level `def` counted as
+    /// wrong. That is what made the hard-tail base measure 0.246 pass@5
+    /// where the unfiltered path measures 0.422, and it inflated the
+    /// reported SFT gain — the base is penalised harder than a trained
+    /// checkpoint, because training teaches the model to stop.
+    fn truncate_completion(&self, completion: &str) -> String {
+        self.inner.truncate_completion(completion)
+    }
 }
 
 #[cfg(test)]
@@ -122,6 +136,48 @@ mod tests {
             p2
         };
         HumanEvalDomain::from_jsonl(&path, &scratch).ok()
+    }
+
+    /// Minimal domain that overrides `truncate_completion`, so the
+    /// delegation test doesn't depend on HumanEval.jsonl being on disk.
+    struct TruncatingDomain;
+
+    impl Domain for TruncatingDomain {
+        fn sample_prompt(&self, _rng: &mut StdRng) -> String {
+            "p".to_string()
+        }
+        fn verify(&self, _prompt: &str, _completion: &str) -> Verdict {
+            Verdict::Correct
+        }
+        fn charset(&self) -> &str {
+            ""
+        }
+        fn n_prompts(&self) -> Option<usize> {
+            Some(3)
+        }
+        fn nth_prompt(&self, i: usize) -> Option<String> {
+            (i < 3).then(|| format!("p{i}"))
+        }
+        fn truncate_completion(&self, completion: &str) -> String {
+            completion.split("CUT").next().unwrap_or("").to_string()
+        }
+    }
+
+    /// Phase 22 C5 follow-up — the wrapper must not silently disable the
+    /// inner domain's completion truncation. It inherited the trait's
+    /// identity default for the whole hard-tail series, which scored every
+    /// completion raw and depressed the measured base pass rate.
+    #[test]
+    fn truncate_completion_delegates_to_inner() {
+        let inner: Arc<dyn Domain> = Arc::new(TruncatingDomain);
+        assert_eq!(inner.truncate_completion("keepCUTdrop"), "keep");
+        let wrapped = FilteredDomain::new(Arc::clone(&inner), [0usize]);
+        assert_eq!(
+            wrapped.truncate_completion("keepCUTdrop"),
+            "keep",
+            "FilteredDomain must delegate truncate_completion, not fall back \
+             to the identity default"
+        );
     }
 
     #[test]

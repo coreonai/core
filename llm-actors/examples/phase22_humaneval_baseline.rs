@@ -33,7 +33,7 @@ use anyhow::{anyhow, Context, Result};
 use candle_core::{DType, Device};
 use clap::Parser;
 use llm_actors::{
-    domain::{human_eval::HumanEvalDomain, Domain},
+    domain::{filtered::FilteredDomain, human_eval::HumanEvalDomain, Domain},
     EvaluatorActor, EvaluatorMessage, QwenModelActor,
 };
 use nanogpt_rs::{generate::GenerateConfig, Tokenizer as NgptTokenizer};
@@ -98,6 +98,11 @@ struct Args {
     /// with the upstream `candle_transformers::models::qwen2` loader.
     #[arg(long)]
     checkpoint: Option<PathBuf>,
+    /// Hide these prompt indices behind a `FilteredDomain`, renumbering
+    /// the rest. Present so the eval path used by the multi-round SFT
+    /// runs (which always wrap in FilteredDomain) is reproducible here.
+    #[arg(long, value_delimiter = ',')]
+    prompt_skip_list: Vec<usize>,
 }
 
 fn pick_device() -> Device {
@@ -181,7 +186,22 @@ async fn main() -> Result<()> {
         "[Phase22A] HumanEvalDomain loaded {} problems (using {} for this run)",
         n_total, args.n_problems
     );
-    let domain: Arc<dyn Domain> = Arc::new(domain);
+    let domain: Arc<dyn Domain> = if args.prompt_skip_list.is_empty() {
+        Arc::new(domain)
+    } else {
+        // Phase 22 C5 follow-up — reproduce the SFT-era hard-tail eval
+        // condition (which wrapped the domain in FilteredDomain) so the
+        // 0.246-vs-0.422 base discrepancy can be measured directly rather
+        // than argued about. With the skip list set, indices are renumbered:
+        // the hard tail is `--prompt-skip-list 0..99 --offset 0`.
+        let filtered = FilteredDomain::new(Arc::new(domain), args.prompt_skip_list.iter().copied());
+        println!(
+            "[Phase22A] FilteredDomain: hiding {} indices, {} surviving",
+            args.prompt_skip_list.len(),
+            filtered.n_surviving()
+        );
+        Arc::new(filtered)
+    };
 
     let system = ActorSystem::new("phase22-a");
     let model_ref = system.spawn(qwen, "qwen-model").await?;
