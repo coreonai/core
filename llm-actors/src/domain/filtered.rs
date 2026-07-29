@@ -85,6 +85,15 @@ impl Domain for FilteredDomain {
         self.inner.verify(prompt, completion)
     }
 
+    /// Delegated for the same reason as `truncate_completion` below: a
+    /// wrapper that inherits a trait default silently overrides whatever the
+    /// inner domain meant. No domain overrides `score` today, so this is
+    /// currently a no-op — it exists so the next one to do so isn't quietly
+    /// ignored the way `truncate_completion` was.
+    fn score(&self, verdict: &Verdict) -> f32 {
+        self.inner.score(verdict)
+    }
+
     fn charset(&self) -> &str {
         self.inner.charset()
     }
@@ -161,6 +170,23 @@ mod tests {
         fn truncate_completion(&self, completion: &str) -> String {
             completion.split("CUT").next().unwrap_or("").to_string()
         }
+        fn score(&self, _verdict: &Verdict) -> f32 {
+            0.5 // deliberately not the trait default
+        }
+    }
+
+    /// Every defaulted `Domain` method must be delegated, not inherited.
+    /// `truncate_completion` was not, and that silently disabled HumanEval
+    /// completion truncation for every filtered experiment.
+    #[test]
+    fn score_delegates_to_inner() {
+        let inner: Arc<dyn Domain> = Arc::new(TruncatingDomain);
+        let wrapped = FilteredDomain::new(Arc::clone(&inner), [0usize]);
+        assert_eq!(
+            wrapped.score(&Verdict::Correct),
+            0.5,
+            "FilteredDomain must delegate score, not fall back to the default"
+        );
     }
 
     /// Phase 22 C5 follow-up — the wrapper must not silently disable the

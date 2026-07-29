@@ -13,11 +13,15 @@ Three results, in increasing order of consequence:
   the 7B hard tail. Multi-round SFT on the same ruler gives **+0.145 /
   +0.203** — roughly double, with 4 seeds instead of 2 and much tighter
   spread. RL remains the weak axis.
-- **C5 — the RL reward came from a stricter verifier than the eval.** The RL
-  loop verified raw completions; every other consumer first calls
+- **C5 — completion truncation was skipped in two places, and both mattered.**
+  (a) The RL loop verified raw completions; every other consumer first calls
   `domain.truncate_completion`. Same base policy, identical sampling: RL saw
   pass@1 ≈ 0.06, the evaluator 0.172 — a **3× gap**. This starved the reward
   signal and penalised long completions for being long rather than wrong.
+  (b) `FilteredDomain` never delegated `truncate_completion`, so wrapping a
+  code domain in it turned truncation **off** — and every hard-tail
+  experiment uses `--prompt-skip-list`. That is what produced the
+  mis-measured base behind the corrected SFT claim.
 - **The `+0.254` hard-tail SFT headline is inflated; on one consistent ruler
   it is `+0.145`.** The SFT-era number paired a **mis-measured base**
   (0.246) with a fine r2 measurement (0.500). Re-scoring the *same* saved r2
@@ -176,16 +180,44 @@ Two independent draws agree (se ≈ 0.015), and hard-tail pass@10 = 0.531 sits
 below the published full-set pass@10 = 0.713, which is the right direction.
 The base measurement holds; the SFT-era 0.246 is the outlier.
 
-## What is *not* established
+## The mechanism: `FilteredDomain` silently disabled truncation
 
-The mechanism behind the SFT-era 0.246. Both paths use the same sampling
-config, the same `stop_char` (`None`), and the same truncation. The
-differences are `EvaluatorMessage::Eval` (random `sample_prompt`, with
-replacement) versus `EvalSequential` (`nth_prompt` sweep), and a possible
-`max_new_tokens` difference — the hard-tail SFT runs were launched ad hoc
-and **no command line survives**, so this could not be reconstructed from
-artifacts. What is established is that on one consistent ruler the gain is
-+0.145, not +0.254.
+The initial guess — that the two paths differed only in random-vs-sequential
+prompt selection — was wrong. The cause is a third instance of the same bug
+as C5, this time in the library:
+
+**`FilteredDomain` implements `Domain` but never overrode
+`truncate_completion`**, so it inherited the trait's identity default. Only
+`HumanEvalDomain` and `MbppDomain` override that method, so wrapping either
+in the filter switched truncation **off** at every generate/verify site —
+and every hard-tail experiment runs through `--prompt-skip-list`.
+
+Measured, same 7B base, same 64 problems, same sampling:
+
+| | pass@5 | pass@1 |
+|---|---|---|
+| unfiltered (truncation on) | 0.4219 | 0.1719 |
+| **filtered (truncation off)** | **0.1562** | **0.0437** |
+
+This also explains why the discrepancy was *asymmetric* — r2 reproduced far
+better than base (0.500 vs 0.566). SFT teaches the model to stop emitting
+trailing top-level statements, so an un-truncated scorer penalises a trained
+checkpoint less than it penalises the base. Penalising the base harder than
+the endpoint is exactly what inflates a measured gain.
+
+The module doc already warned: *"use it for training convenience, not for
+benchmark-aligned eval."* The hard-tail eval did precisely that, and nothing
+in the type system objected — a defaulted trait method is invisible at the
+call site.
+
+**Honest limit**: this is the dominant cause but does not fully account for
+the SFT-era 0.246, which sits *between* 0.156 and 0.422. The residual is
+`EvaluatorMessage::Eval` (random, with-replacement) versus `EvalSequential`,
+or a `max_new_tokens` difference. Those runs were launched ad hoc and **no
+command line survives**, so the remainder is not reconstructible.
+
+Fixed by delegating (plus `score`, which no domain overrides today — closed
+so the next one to do so isn't silently ignored the same way).
 
 **SFT still wins, and still comfortably.** +0.145 pass@5 / +0.203 pass@1 over
 base, 4 seeds, σ = 0.020. The correction changes the magnitude of the
@@ -214,6 +246,18 @@ headline, not its direction.
    monitor fired on `pass == 0` or `comp_len >= 190`; `fulladv` degraded to
    1–10 passes with `comp_len` 158 and never tripped it. Trend-based alerts
    are the right shape for runaway detection.
+6. **A defaulted trait method is a silent-failure surface.** Three separate
+   truncation bugs in one study, all invisible at the call site: two missing
+   calls and one wrapper inheriting the default. `Domain::truncate_completion`
+   has a sensible identity default, which is exactly what let a *code* domain
+   end up scoring raw completions with nothing to notice. A wrapper should
+   delegate every defaulted method mechanically, not case by case.
+7. **Wait on artifacts, not on process names.** Two orchestration deadlocks
+   here came from `pgrep -f <name>` matching the waiting shell itself,
+   because the same shell's command line also contained the binary path. The
+   `[p]attern` trick only protects the literal it is written in. The second
+   deadlock idled 8 GPUs for 3 hours. Poll for the output file instead —
+   `until [ -f checkpoint ]` cannot match itself — and bound every wait.
 
 # Where next
 
