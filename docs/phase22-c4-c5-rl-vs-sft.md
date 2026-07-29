@@ -1,18 +1,22 @@
 ---
-title: "Phase 22 follow-up C4/C5 — bounded RL, a reward-measurement bug, and a correction to the SFT hard-tail claim"
-date: "2026-07-29"
+title: "Phase 22 follow-up C4/C5 — RL matches SFT once the reward is scored correctly"
+date: "2026-07-30"
 ---
 
 # TL;DR
 
 Three results, in increasing order of consequence:
 
-- **C4 — positive-advantage-only RL works, but loses to SFT.** Bounding the
-  objective (train only on verifier-passing completions, so the loss is
-  `reward * CE >= 0`) gives **+0.070 pass@5 / +0.083 pass@1** over base on
-  the 7B hard tail. Multi-round SFT on the same ruler gives **+0.145 /
-  +0.203** — roughly double, with 4 seeds instead of 2 and much tighter
-  spread. RL remains the weak axis.
+- **C4 (re-run, 4 seeds/arm, correct reward) — RL matches SFT.**
+  Positive-advantage-only gives **+0.152 pass@5 / +0.218 pass@1** over base
+  on the 7B hard tail; multi-round SFT on the same ruler gives +0.145 /
+  +0.203. Full-advantage RL gives +0.145 / +0.161. **But RL's spread is
+  3–4× wider** (pass@5 σ 0.068–0.077 vs SFT's 0.020), so SFT is still the
+  better bet in practice even at an equal mean.
+  ⚠ The **first** C4 run concluded "RL loses to SFT, roughly half the gain"
+  (+0.070 / +0.083). That run was scored with the C5 reward bug active and
+  is **superseded** — see "C4, first attempt" below. It is kept in this
+  document because the way it failed is the point.
 - **C5 — completion truncation was skipped in two places, and both mattered.**
   (a) The RL loop verified raw completions; every other consumer first calls
   `domain.truncate_completion`. Same base policy, identical sampling: RL saw
@@ -29,11 +33,13 @@ Three results, in increasing order of consequence:
   base measures 0.422 — so the gain is +0.145 pass@5 (+0.203 pass@1), not
   +0.254.
 
-The C4 experiment itself was nearly wrecked by C5: the training-time metric
-showed a dramatic double dissociation between the arms that **did not
-survive** a correctly-scored eval. That is written up below rather than
-buried, because the failure mode — trusting an in-loop metric that was never
-checked against the eval it is compared to — is the reusable lesson.
+C5 did not merely add noise — it **inverted a conclusion**. The first C4 run
+produced a clean-looking double dissociation between the arms and a "RL is
+half of SFT" verdict; both evaporated once the reward was scored the same way
+the eval scores it. Both attempts are written up below rather than the second
+one replacing the first, because the failure mode is the reusable lesson:
+an in-loop metric that was never checked against the eval it will be compared
+to can look like a result and point the wrong way.
 
 # C5: the reward bug
 
@@ -81,7 +87,7 @@ spite of. `truncated_token_prefix` binary-searches the token prefix whose
 decode covers the truncated text (~8 decodes/sample) instead of re-encoding
 it, so the trainer sees tokens the model actually sampled.
 
-# C4: the experiment
+# C4, first attempt (superseded — reward bug active)
 
 `scripts/phase22_c4/positive_advantage_ab.sh` — 7B, HumanEval idx 100–163,
 k=4, max_new=192, `--pg-micro-batch-size 1`, `--sync-every 1`, lr=2e-4,
@@ -140,9 +146,73 @@ Per-seed: posonly 0.500 / 0.484; fulladv 0.406 / 0.609.
 | posonly ≥ fulladv | **fail** — means indistinguishable (0.492 vs 0.508); `fulladv` merely has a huge spread (0.406, 0.609) |
 | is the unbounded objective destructive | **not answered** — the evidence was the training metric, which C5 invalidates |
 
-So the honest reading: **bounding the objective did not demonstrably help**,
-and the arm that was supposed to be broken was not measurably broken at
-eval. Both RL arms land at roughly half of SFT's gain.
+(Re-run verdict: posonly learns **pass**; posonly ≥ fulladv **4/4 seeds
+paired, p ≈ 0.10 — directional, not established**; unbounded objective
+destructive **no — 8/8 runs rise and `fulladv` never collapses**.)
+
+So the reading at the time was: bounding the objective did not demonstrably
+help, and both RL arms land at roughly half of SFT's gain. **That conclusion
+was wrong** — the reward bug depressed both arms. See the re-run below.
+
+# C4, re-run (C5 fixed, 4 seeds per arm)
+
+Identical configuration — the only change is the C5 fix, so the two batches
+are directly comparable. 4 seeds × 2 arms, run as two batches of 4 (only 4
+runs fit on 8 GPUs at 2 cards each):
+`positive_advantage_ab.sh 30 "" 42,100 <dir>` then `... 200,300 <dir>`.
+
+The fix is immediately visible at step 0, before any training: 41/256 passes
+versus 16/256 in the first attempt, on the same policy and the same
+completions. That is the ~3× reward-density gain, and it means **the old
+noise floor (16.4/256, σ 4.5) does not apply to these runs** — it was
+measured with un-truncated scoring.
+
+Training-metric trajectories (mean passes/256 over the first and last 10 of
+30 steps):
+
+| seed | posonly | fulladv |
+|------|---------|---------|
+| 42 | 41.6 → 101.6 | 40.5 → 99.5 |
+| 100 | 35.5 → 55.6 | 38.4 → 49.3 |
+| 200 | 39.5 → 88.1 | 37.1 → 85.1 |
+| 300 | 39.4 → 70.8 | 39.6 → 57.9 |
+
+**8/8 runs rise, and `fulladv` never collapses.** In the first attempt 2/2
+`fulladv` seeds fell (to 7.3 and 4.3) with `comp_len` drifting toward the
+ceiling. With the reward scored correctly that reverses completely. The
+"unbounded objective runs away" narrative — built across C3 and C4 — was an
+artifact of the length penalty, and there is now **no evidence for it**.
+
+## Eval (same ruler, 64 hard-tail problems, passk=5)
+
+| | pass@5 | pass@1 | Δ pass@5 | Δ pass@1 |
+|---|---|---|---|---|
+| base | 0.4219 | 0.1719 | — | — |
+| **posonly** (4 seeds) | **0.574 ± 0.068** | **0.390 ± 0.100** | **+0.152** | **+0.218** |
+| **fulladv** (4 seeds) | **0.566 ± 0.077** | **0.333 ± 0.137** | **+0.145** | **+0.161** |
+| SFT samples=16 r2 (4 seeds) | 0.566 ± 0.020 | 0.364 ± 0.037 | +0.145 | +0.203 |
+| first-attempt C4 (2 seeds, buggy) | 0.492 / 0.508 | 0.255 / 0.236 | +0.070 / +0.086 | +0.083 / +0.064 |
+
+Per-seed pass@5 — posonly 0.641 / 0.516 / 0.625 / 0.516; fulladv 0.641 /
+0.500 / 0.625 / 0.500.
+
+**Three findings:**
+
+1. **RL matches SFT on the mean.** posonly edges it on both metrics (+0.008
+   pass@5, +0.026 pass@1). "RL is the weak axis" no longer holds at this
+   configuration — that conclusion was an artifact of the reward bug.
+2. **RL is far less reliable.** pass@5 σ is 0.068–0.077 against SFT's 0.020,
+   a 3–4× spread. At equal means, SFT is the better deployment choice.
+   Seeds 42/200 land near 0.63 in *both* arms and seeds 100/300 near 0.51 in
+   *both* — **the seed dominates the arm**, which is also why the arms are
+   hard to separate.
+3. **Bounding the objective shows a consistent but inconclusive edge.** The
+   arms share seeds, so the comparison pairs. posonly ≥ fulladv in **4/4
+   seeds on both metrics**; the paired pass@1 difference is
+   **+0.057 (diffs +0.016 / +0.063 / +0.025 / +0.125, paired t = 2.30,
+   df = 3, p ≈ 0.10)**. Sign-consistent across every seed, but not
+   significant at n = 4. This is the first of three measurements to show a
+   direction at all; it is not yet a claim.
 
 # The correction to the SFT hard-tail claim
 
@@ -261,12 +331,26 @@ headline, not its direction.
 
 # Where next
 
-- **Re-run C4 with the C5 fix.** The reward is now ~3× denser and the
-  spurious length gradient is gone; both arms deserve a clean measurement,
-  and the "is the unbounded objective destructive" question is still open.
-- **Fix the eval-path split.** Two paths give 0.246 and 0.422 for the same
-  base. Pick one as canonical, and re-state any hard-tail number that was
-  measured on the other.
-- **n = 2 is not a claim.** Any C4 result that survives the re-run needs 4–5
-  seeds before it goes in a headline — this repo has retracted Phase 12 S1,
-  14 C2/C3, and 15 S2 for exactly that.
+- **Settle posonly vs fulladv.** 4/4 seeds favour posonly at pass@1 (+0.057)
+  but p ≈ 0.10. The paired design is efficient, so ~8 seeds/arm would resolve
+  it — worth it, because it is the difference between "bound the objective"
+  being a real recipe rule and a coin flip.
+- **Attack the variance, not the mean.** RL already matches SFT's mean; its
+  problem is σ 0.068 vs 0.020. The seed dominates the arm (42/200 ≈ 0.63,
+  100/300 ≈ 0.51 in *both* arms), so the lever is whatever the seed controls
+  — prompt order and the harvest draw — not the objective. Phase 15 S3b
+  reached the same conclusion for SFT: harvest, not init, is the noise axis.
+- **Re-check the other filtered experiments.** `FilteredDomain` disabled
+  truncation for every `--prompt-skip-list` run, and `MbppDomain` overrides
+  `truncate_completion` too — so the MBPP filtered results carry the same
+  defect. Any absolute number from a filtered run needs re-measuring; gains
+  measured base-to-endpoint within that ruler are inflated, not merely
+  shifted.
+- **Verify the two eval paths now agree.** The post-fix filtered measurement
+  still needs a GPU (the first attempt used a stale binary and is invalid).
+  Expect ~0.42 to match the unfiltered path; anything else means the
+  delegation fix is not the whole story.
+- **n = 4 is a direction, not a headline.** This repo retracted Phase 12 S1,
+  14 C2/C3, and 15 S2 for under-powered claims. The one durable statement
+  here is negative and robust: **the unbounded-objective runaway does not
+  exist** (8/8 runs rise).

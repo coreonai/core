@@ -3,6 +3,20 @@ title: "Phase 22 follow-up C3 — the 7B RL collapse is an optimizer-step-count 
 date: "2026-07-28"
 ---
 
+# ⚠ Superseded in part (2026-07-30)
+
+The step-count defect below is real and the fix stands. **But this document's
+root-cause attribution — "an unbounded objective, amplified by the update
+count" — is retracted.** `docs/phase22-c4-c5-rl-vs-sft.md` found that the RL
+loop scored completions *without* `domain.truncate_completion` while the eval
+applies it. That penalised long completions for being long rather than wrong,
+which is exactly the "collapse toward / away from EOS" signature reported
+here. With the reward scored the same way the eval scores it, **8/8 runs rise
+and the full-advantage arm never collapses** — including at 30 updates, and
+including the configuration this document calls fatal. Read the collapse
+tables below as "what an un-truncated scorer reports", not as policy
+behaviour.
+
 # TL;DR
 
 `docs/phase22-7b-results.md` concluded that REINFORCE on the 7B hard tail

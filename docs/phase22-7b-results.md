@@ -43,15 +43,20 @@ base on HumanEval:
   policy before the first sync made it *visible* — steps 0–3 looked healthy
   only because the sampler was still on frozen base weights. Re-run with
   `--sync-every 1`, 2/2 seeds still collapse to 0/256 (at 1024 / 1280
-  cumulative updates). Root cause is the unbounded negative-advantage CE
-  ascent in `pg_sample_loss`; the update-count fix removes a 256×
-  amplifier, not the runaway.
-  **C4/C5 follow-up** (`docs/phase22-c4-c5-rl-vs-sft.md`): bounding the
-  objective (positive-advantage-only) gives +0.070 pass@5 / +0.083 pass@1 —
-  real, but about half of SFT's +0.145 / +0.203 on the same ruler. Also
-  found: the RL loop verified completions **without** `truncate_completion`
-  while every other consumer applies it, a 3× reward-signal gap that
-  invalidated C4's training-time metric.
+  cumulative updates). C3 attributed the residual runaway to the unbounded
+  negative-advantage CE ascent in `pg_sample_loss` — **that attribution is
+  also retracted**, see the C4/C5 line below: the collapse was a scoring
+  artifact, not an objective pathology.
+  **C4/C5 follow-up** (`docs/phase22-c4-c5-rl-vs-sft.md`): the RL loop
+  verified completions **without** `truncate_completion` while every other
+  consumer applies it — a 3× reward-signal gap. With that fixed, **RL matches
+  SFT**: positive-advantage-only gives **+0.152 pass@5 / +0.218 pass@1**
+  (4 seeds) vs SFT's +0.145 / +0.203, though RL's σ is 3–4× wider (0.068 vs
+  0.020), so SFT remains the better deployment choice. **The "RL collapses /
+  runs away" narrative is retracted** — 8/8 runs rise once the reward is
+  scored correctly; the earlier collapse was a length penalty in disguise
+  (longer completions are likelier to emit a trailing top-level statement,
+  which an un-truncated scorer counts as wrong).
 - **Harder external benchmark (HumanEval+) — SFT WINS at the headroom
   metric.** EvalPlus's stricter tests (base pass@1 0.31 vs 0.37) give real
   full-benchmark headroom. MR-SFT (full 164, samples=6): at **pass@1**
