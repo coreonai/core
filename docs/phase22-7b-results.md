@@ -26,10 +26,14 @@ base on HumanEval:
   0.566) / **+0.203** (pass@1) on a consistent eval ruler — the base here
   was mis-measured. Still the robust win; see
   `docs/phase22-c4-c5-rl-vs-sft.md`.
-- **Harvest has an INTERIOR OPTIMUM (~samples=16).** Sweeping
-  samples-per-prompt on the hard tail: 6 → +0.094, **16 → +0.254**, 32 →
-  +0.094 (right back down, one seed collapsed). Too little harvest =
-  cold-start-noisy; too much = over-trains/destabilizes. An inverted-U.
+- **Harvest: thin is worst, past ~16 the mean is flat and the variance
+  grows.** ⚠ The original "interior optimum / inverted-U (6 → +0.094,
+  16 → +0.254, 32 → +0.094)" is **retracted** — it was measured with
+  truncation disabled. Re-scored on a consistent ruler: pass@5 0.500 / 0.566 /
+  0.535 and pass@1 0.325 / 0.364 / **0.385** for samples 6 / 16 / 32. 6 → 16
+  helps (paired +0.066 pass@5, 4/4 seeds); 16 → 32 is indistinguishable and
+  the ranking **flips with the metric**, with 32 3–5× noisier. `samples≈16`
+  stays the default for tightness, not for a higher mean.
 - **RL (REINFORCE) on the hard tail COLLAPSES on adapter sync.** RLOO
   verifier-as-reward, k=4, sync-every=4: steps 0–3 healthy (~15/256 pass),
   then the first adapter sync craters it — lr=2e-4 → all seeds 0/256 (full
@@ -65,10 +69,13 @@ base on HumanEval:
   the eval metric must match where the headroom is** — pass@5 masked the
   effect the whole way through the 7B study.
 - **Verdict:** the MR-SFT recipe's worth is a function of **headroom ×
-  harvest**, not the technique — and harvest is a *tuned* knob with a
-  sweet spot, not "more is better". No headroom (full set @ pass@5) →
-  flat; headroom + optimal harvest (hard tail, samples≈16) → strong tight
-  lift; headroom + too-little/too-much harvest → noisy/degraded.
+  harvest**, not the technique. No headroom (full set @ pass@5) → flat;
+  headroom + adequate harvest (hard tail, samples ≥ 16) → a real lift
+  (+0.145 pass@5 / +0.192 pass@1); thin harvest (samples=6) → weaker and
+  noisier. Past ~16 more harvest neither helps nor hurts the mean but widens
+  the spread — so pick 16 for tightness, not because it is a peak. (The
+  earlier "tuned knob with a sweet spot / inverted-U" framing was a scoring
+  artifact; see the harvest section.)
   Orthogonally, inference-time **pass@k** is always a training-free win
   (+0.347).
 
@@ -222,7 +229,13 @@ Harvest self-reinforces (18 → 200 for the strongest seed). ~3.7σ significant
 | 300 | 0.234 | 0.422 | 0.422 | 0.188 | −0.046 |
 | **mean** | 0.246 | 0.262 | 0.367 | **0.340** | **+0.094 ± 0.113** |
 
-**Harvest frontier is an inverted-U with a peak at ~16:**
+**⚠ RETRACTED — the inverted-U was a scoring artifact.** The table below was
+measured with `FilteredDomain` silently disabling completion truncation (see
+`docs/phase22-c4-c5-rl-vs-sft.md`). All three r2 checkpoint sets have now been
+re-scored on the unfiltered path; the symmetry that made it look like a clean
+inverted-U does not survive.
+
+*Old (un-truncated) ruler:*
 
 | samples/prompt | r2 mean | net Δ (base→r2) |
 |----------------|---------|-----------------|
@@ -230,12 +243,37 @@ Harvest self-reinforces (18 → 200 for the strongest seed). ~3.7σ significant
 | **16** | **0.500** | **+0.254 ± 0.068** |
 | 32 | 0.340 | +0.094 ± 0.113 |
 
-samples=32 lands **exactly back at samples=6** (0.340 / +0.094), with high
-variance (seed 300 collapsed 0.422 → 0.188 in r2). So more harvest is **not**
-better past ~16: too little → cold-start-noisy; too much → over-trains on the
-large self-generated corpus and destabilizes (same over-training failure mode
-as the full set). **Harvest is a tuned knob with an interior optimum, not a
-monotone lever.**
+*Re-measured on the consistent ruler (same r2 checkpoints, 4 seeds, 64
+hard-tail problems, base 0.4219 pass@5 / 0.1719 pass@1):*
+
+| samples/prompt | pass@5 | Δ | pass@1 | Δ |
+|----------------|--------|---|--------|---|
+| 6 | 0.500 ± 0.038 | +0.078 | 0.325 ± 0.062 | +0.153 |
+| **16** | **0.566 ± 0.020** | **+0.145** | 0.364 ± 0.037 | +0.192 |
+| 32 | 0.535 ± 0.090 | +0.113 | **0.385 ± 0.108** | **+0.213** |
+
+What actually holds:
+
+- **6 → 16 helps** at pass@5: paired +0.066, 4/4 seeds positive (t = 2.50,
+  df = 3). At pass@1 the same comparison is +0.039 (t = 0.92) — not resolved.
+- **16 → 32 is indistinguishable, and the ranking flips with the metric.**
+  pass@5 favours 16 by +0.031 (t = 0.59); pass@1 favours **32** by 0.021
+  (t = −0.32). Neither is significant at n = 4.
+- **32 is much noisier**: σ 0.090 / 0.108 versus 16's 0.020 / 0.037, a 3–5×
+  spread. So "too much harvest destabilises" survives *as a variance claim*
+  — but not as a mean-degradation claim.
+- The old "samples=32 lands exactly back at samples=6" symmetry is gone: on
+  the consistent ruler 32 beats 6 on both metrics.
+- The specific collapse cited as the mechanism — "seed 300 collapsed
+  0.422 → 0.188" — inverts: **that seed is the best checkpoint of any harvest
+  setting** on the consistent ruler (pass@5 0.641). It produced longer
+  completions, which an un-truncated scorer punishes as wrong. Same mechanism
+  that made the RL `fulladv` arm look like it was collapsing.
+
+**Corrected reading**: harvest matters, thinly-harvested (6) is worst, and
+past ~16 the mean is flat while the variance grows. "Interior optimum /
+inverted-U" overstates what the data supports; `samples≈16` remains a
+reasonable default, chosen for **tightness** rather than a higher mean.
 
 # Experiment: RL (REINFORCE) on the hard tail
 
