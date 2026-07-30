@@ -280,11 +280,38 @@ benchmark-aligned eval."* The hard-tail eval did precisely that, and nothing
 in the type system objected — a defaulted trait method is invisible at the
 call site.
 
-**Honest limit**: this is the dominant cause but does not fully account for
-the SFT-era 0.246, which sits *between* 0.156 and 0.422. The residual is
-`EvaluatorMessage::Eval` (random, with-replacement) versus `EvalSequential`,
-or a `max_new_tokens` difference. Those runs were launched ad hoc and **no
-command line survives**, so the remainder is not reconstructible.
+## Verified after the fix, and the residual explained
+
+Re-measured with one binary built at HEAD, same 64 problems, same sampling:
+
+| | pass@5 | pass@1 |
+|---|---|---|
+| filtered, pre-fix | 0.1562 | 0.0437 |
+| **filtered, post-fix** | **0.3438** | **0.1344** |
+| unfiltered, same build | 0.4219 | 0.1719 |
+
+The fix lands: within the filtered path — identical draw, only the
+delegation differs — pass@5 goes **0.1562 → 0.3438** (2.2×) and pass@1
+**0.0437 → 0.1344** (3.1×). That is the cleanest measure of the bug's
+magnitude.
+
+The two paths still differ by 0.078 pass@5, and that residual is **not** a
+second bug. `EvalSequential` derives its generation seed as
+`k_seed = prompt_idx * passk + k`, where `prompt_idx` is the *domain* index.
+The filter renumbers indices (100–163 → 0–63), so the filtered path draws
+seeds `0*5+k … 63*5+k` while the unfiltered path draws `500 … 819`:
+**different completions for the same problems.** 0.078 is 5 problems out of
+64, ≈1.3σ — ordinary draw variation. The paths cannot be made bit-identical,
+because the seed derives from an index that filtering changes.
+
+This also accounts for the SFT-era 0.246: it and our pre-fix 0.156 are both
+"filtered + un-truncated" but on different draws (the SFT-era eval used the
+random `Eval` path). Truncation is the ~2× factor; the draw moves it ±0.08.
+
+**Practical corollary**: even with the delegation fixed, a number from a
+filtered run is **not** directly comparable to an unfiltered baseline — the
+draws differ. To compare, re-measure both on the same path. That is what the
+hard-tail re-scoring in this document does.
 
 Fixed by delegating (plus `score`, which no domain overrides today — closed
 so the next one to do so isn't silently ignored the same way).
