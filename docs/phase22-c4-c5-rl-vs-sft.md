@@ -340,12 +340,18 @@ headline, not its direction.
   100/300 ≈ 0.51 in *both* arms), so the lever is whatever the seed controls
   — prompt order and the harvest draw — not the objective. Phase 15 S3b
   reached the same conclusion for SFT: harvest, not init, is the noise axis.
-- **Re-check the other filtered experiments.** `FilteredDomain` disabled
-  truncation for every `--prompt-skip-list` run, and `MbppDomain` overrides
-  `truncate_completion` too — so the MBPP filtered results carry the same
-  defect. Any absolute number from a filtered run needs re-measuring; gains
-  measured base-to-endpoint within that ruler are inflated, not merely
-  shifted.
+- **Blast radius of the `FilteredDomain` defect: HumanEval hard-tail runs
+  only.** Audited rather than assumed. `phase22_mbpp_mr_sft` does expose
+  `--prompt-skip-list` (it was cloned from the HumanEval binary), but **no
+  MBPP run ever passed it** — no script in the repo does, and no MBPP
+  document describes a filtered or hard-tail run. So every MBPP number
+  (Phase 17 SB 0.453, Phase 18 S3 0.457, Phase 20 S2 0.541) is unaffected:
+  without the wrapper, `MbppDomain::truncate_completion` is called normally.
+  What *is* affected is the 7B HumanEval hard-tail series
+  (`--prompt-skip-list 0..99`): every absolute number there was measured with
+  truncation off, and base-to-endpoint gains within that ruler are inflated
+  rather than merely shifted, because the base is penalised harder than a
+  trained checkpoint.
 - **Verify the two eval paths now agree.** The post-fix filtered measurement
   still needs a GPU (the first attempt used a stale binary and is invalid).
   Expect ~0.42 to match the unfiltered path; anything else means the
