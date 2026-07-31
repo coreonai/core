@@ -2,8 +2,14 @@
 /target/
 # Cargo.lock is committed (this workspace has runnable examples — pin versions for reproducibility)
 
-# Claude Code session metadata (per-machine)
-/.claude/
+# Claude Code session metadata (per-machine) — ignore everything under
+# .claude EXCEPT the shareable, versioned skills/ and agents/ (project
+# workflow, not machine-specific). `/.claude/*` (not `/.claude/`) so the
+# negations below apply — git refuses to recurse into a whole-directory
+# ignore (same reason as `/data/*` below).
+/.claude/*
+!/.claude/skills/
+!/.claude/agents/
 
 # Trained checkpoints (regenerable, large)
 /checkpoints/
