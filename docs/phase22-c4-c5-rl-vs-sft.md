@@ -12,7 +12,11 @@ Three results, in increasing order of consequence:
   on the 7B hard tail; multi-round SFT on the same ruler gives +0.145 /
   +0.203. Full-advantage RL gives +0.145 / +0.161. **But RL's spread is
   3–4× wider** (pass@5 σ 0.068–0.077 vs SFT's 0.020), so SFT is still the
-  better bet in practice even at an equal mean.
+  better bet in practice even at an equal mean. **Extended to 6 seeds/arm:
+  posonly firms to +0.159 / +0.240 (σ steady ~0.067), fulladv weakens to
+  +0.120 / +0.127 (both new seeds poor for it), the σ gap holds (~3.3×),
+  and posonly > fulladv strengthens to 6/6 seeds on pass@1 — verdict
+  unchanged. See "Seed extension (6 seeds per arm)".**
   ⚠ The **first** C4 run concluded "RL loses to SFT, roughly half the gain"
   (+0.070 / +0.083). That run was scored with the C5 reward bug active and
   is **superseded** — see "C4, first attempt" below. It is kept in this
@@ -213,6 +217,36 @@ Per-seed pass@5 — posonly 0.641 / 0.516 / 0.625 / 0.516; fulladv 0.641 /
    df = 3, p ≈ 0.10)**. Sign-consistent across every seed, but not
    significant at n = 4. This is the first of three measurements to show a
    direction at all; it is not yet a claim.
+
+## Seed extension (6 seeds per arm)
+
+Seeds 400 and 500 added to each RL arm (the SFT arm is unchanged at 4
+seeds), scored on the same ruler:
+
+| | pass@5 | pass@1 | Δ pass@5 | Δ pass@1 |
+|---|---|---|---|---|
+| base | 0.4219 | 0.1719 | — | — |
+| **posonly** (6 seeds) | **0.581 ± 0.067** | **0.412 ± 0.103** | **+0.159** | **+0.240** |
+| **fulladv** (6 seeds) | **0.542 ± 0.071** | **0.299 ± 0.118** | **+0.120** | **+0.127** |
+| SFT samples=16 r2 (4 seeds) | 0.566 ± 0.020 | 0.364 ± 0.037 | +0.145 | +0.203 |
+
+New per-seed pass@5 — posonly 400/500 = 0.656 / 0.531; fulladv 400/500 =
+0.484 / 0.500.
+
+The extension **confirms and sharpens** the 4-seed reading:
+
+1. **posonly firms up, fulladv weakens.** posonly's mean edges up
+   (+0.152 → +0.159 pass@5, +0.218 → +0.240 pass@1) with σ steady; fulladv
+   drops (+0.145 → +0.120, +0.161 → +0.127) because both new seeds were
+   poor for it. posonly is the arm to keep; fulladv is out.
+2. **The σ gap holds.** RL pass@5 σ ≈ 0.067–0.071 vs SFT's 0.020 (~3.3×);
+   pass@1 σ ≈ 0.10–0.12 vs 0.037 (~3–5×). More seeds *confirmed* the spread
+   rather than shrinking it — **equal-or-better RL mean, far wider RL
+   variance → SFT is still the deployment pick.**
+3. **posonly > fulladv strengthens.** Sign-consistent now in **6/6 seeds**
+   on pass@1 (was 4/4), paired mean gap widened **+0.057 → +0.113**. The
+   bounded objective's edge over full-advantage is no longer marginal — the
+   one direction that was "consistent but inconclusive" at n=4 firmed up.
 
 # The correction to the SFT hard-tail claim
 
