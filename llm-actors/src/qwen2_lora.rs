@@ -596,6 +596,85 @@ fn pg_sample_loss(
     Ok(Some((&mean_ce * (reward as f64))?))
 }
 
+/// How a prompt-group's per-sample verifier rewards become REINFORCE
+/// advantages (Phase 22 RL variance-reduction study). For binary verifier
+/// rewards `v ∈ {0,1}` over `k` samples that share a prompt:
+///
+/// `MeanCenter`: `a_i = v_i − mean(v)`. The historical default; GRPO without
+/// the std normalization. A prompt passing 3/4 and one passing 1/4 push with
+/// different-magnitude gradients.
+///
+/// `Rloo`: leave-one-out baseline `a_i = (k·v_i − Σv)/(k−1)`. Unbiased; for
+/// binary rewards it equals `MeanCenter × k/(k−1)`, i.e. only a rescale.
+///
+/// `Grpo`: group-relative normalization `a_i = (v_i − mean(v)) / (std(v) +
+/// ε)`. Equalizes each prompt's advantage magnitude so easy and hard prompts
+/// push with comparable scale — the variance-reduction lever under test. For
+/// binary rewards std stays well away from 0 whenever the group has signal
+/// (≥ 0.43 for k=4 mixed), so the divisor is stable.
+///
+/// A group with no signal (all verdicts equal) maps to all-zero advantages
+/// under every mode; the PG step then skips it via `skip_zero_advantage`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdvantageMode {
+    MeanCenter,
+    Rloo,
+    Grpo,
+}
+
+impl AdvantageMode {
+    /// Parse a CLI spelling. Returns `None` for unknown input so the caller
+    /// can error with a usage message.
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "mean" | "meancenter" | "mean-center" | "mean_center" => Some(Self::MeanCenter),
+            "rloo" | "loo" | "leave-one-out" => Some(Self::Rloo),
+            "grpo" | "norm" | "group-norm" => Some(Self::Grpo),
+            _ => None,
+        }
+    }
+}
+
+/// Turn one prompt-group's verdicts into advantages under `mode`, with an
+/// optional symmetric clip to `[−clip, clip]` applied last. `eps` guards the
+/// GRPO divisor. All modes return all-zero for a no-signal group.
+pub fn group_advantages(verdicts: &[f32], mode: AdvantageMode, clip: Option<f32>) -> Vec<f32> {
+    let k = verdicts.len();
+    if k == 0 {
+        return Vec::new();
+    }
+    let sum: f32 = verdicts.iter().copied().sum();
+    let mean = sum / k as f32;
+    let mut adv: Vec<f32> = match mode {
+        AdvantageMode::MeanCenter => verdicts.iter().map(|v| v - mean).collect(),
+        AdvantageMode::Rloo => {
+            if k < 2 {
+                // No leave-one-out baseline exists with a single sample.
+                vec![0.0; k]
+            } else {
+                let denom = (k - 1) as f32;
+                verdicts
+                    .iter()
+                    .map(|v| (k as f32 * v - sum) / denom)
+                    .collect()
+            }
+        }
+        AdvantageMode::Grpo => {
+            let var = verdicts.iter().map(|v| (v - mean).powi(2)).sum::<f32>() / k as f32;
+            let std = var.sqrt();
+            const EPS: f32 = 1e-6;
+            verdicts.iter().map(|v| (v - mean) / (std + EPS)).collect()
+        }
+    };
+    if let Some(c) = clip {
+        let c = c.abs();
+        for a in adv.iter_mut() {
+            *a = a.clamp(-c, c);
+        }
+    }
+    adv
+}
+
 /// Phase 22 follow-up C3 — knobs for one REINFORCE policy-gradient update.
 ///
 /// The Stage E defaults (`micro_batch_size` chunking, one AdamW update per
@@ -1216,6 +1295,85 @@ mod tests {
         let cfg = LoraConfig::default();
         assert_eq!(cfg.rank, 16);
         assert!((cfg.alpha - 32.0).abs() < 1e-6);
+    }
+
+    fn approx_eq(a: &[f32], b: &[f32]) {
+        assert_eq!(a.len(), b.len(), "len {a:?} vs {b:?}");
+        for (x, y) in a.iter().zip(b) {
+            assert!((x - y).abs() < 1e-4, "{a:?} vs {b:?}");
+        }
+    }
+
+    #[test]
+    fn advantage_mode_parses_spellings() {
+        assert_eq!(
+            AdvantageMode::parse("mean"),
+            Some(AdvantageMode::MeanCenter)
+        );
+        assert_eq!(
+            AdvantageMode::parse("Mean-Center"),
+            Some(AdvantageMode::MeanCenter)
+        );
+        assert_eq!(AdvantageMode::parse("rloo"), Some(AdvantageMode::Rloo));
+        assert_eq!(AdvantageMode::parse("GRPO"), Some(AdvantageMode::Grpo));
+        assert_eq!(AdvantageMode::parse("nope"), None);
+    }
+
+    #[test]
+    fn group_advantages_mean_center_is_current_default() {
+        // v - mean; matches the historical inline baseline in the RL example.
+        let a = group_advantages(&[1.0, 0.0, 0.0, 0.0], AdvantageMode::MeanCenter, None);
+        approx_eq(&a, &[0.75, -0.25, -0.25, -0.25]);
+        assert!(
+            (a.iter().sum::<f32>()).abs() < 1e-5,
+            "centered advantages sum to 0"
+        );
+    }
+
+    #[test]
+    fn group_advantages_rloo_is_mean_center_times_k_over_km1() {
+        // Leave-one-out on binary rewards = mean-center * k/(k-1).
+        let a = group_advantages(&[1.0, 0.0, 0.0, 0.0], AdvantageMode::Rloo, None);
+        approx_eq(&a, &[1.0, -1.0 / 3.0, -1.0 / 3.0, -1.0 / 3.0]);
+        // k=1: no baseline possible -> 0.
+        approx_eq(&group_advantages(&[1.0], AdvantageMode::Rloo, None), &[0.0]);
+    }
+
+    #[test]
+    fn group_advantages_grpo_normalizes_by_group_std() {
+        // mean=0.25, std=sqrt(0.1875)=0.43301; passing=0.75/std, fail=-0.25/std.
+        let a = group_advantages(&[1.0, 0.0, 0.0, 0.0], AdvantageMode::Grpo, None);
+        approx_eq(&a, &[1.73205, -0.57735, -0.57735, -0.57735]);
+        // Two prompts of different difficulty get the SAME passing magnitude
+        // under GRPO — the equalization that MeanCenter lacks.
+        let easy = group_advantages(&[1.0, 1.0, 1.0, 0.0], AdvantageMode::Grpo, None); // 3/4
+        let hard = group_advantages(&[1.0, 0.0, 0.0, 0.0], AdvantageMode::Grpo, None); // 1/4
+        assert!(
+            (easy[3].abs() - hard[0].abs()).abs() < 1e-4,
+            "|adv| equalized: {easy:?} {hard:?}"
+        );
+    }
+
+    #[test]
+    fn group_advantages_no_signal_is_all_zero() {
+        for v in [&[1.0f32, 1.0, 1.0, 1.0][..], &[0.0, 0.0, 0.0][..]] {
+            for m in [
+                AdvantageMode::MeanCenter,
+                AdvantageMode::Rloo,
+                AdvantageMode::Grpo,
+            ] {
+                let a = group_advantages(v, m, None);
+                assert!(a.iter().all(|x| x.abs() < 1e-5), "{m:?} on {v:?} -> {a:?}");
+            }
+        }
+        assert!(group_advantages(&[], AdvantageMode::Grpo, None).is_empty());
+    }
+
+    #[test]
+    fn group_advantages_clip_is_symmetric_and_last() {
+        let a = group_advantages(&[1.0, 0.0, 0.0, 0.0], AdvantageMode::Grpo, Some(1.0));
+        // 1.732 clipped to 1.0; -0.577 untouched.
+        approx_eq(&a, &[1.0, -0.57735, -0.57735, -0.57735]);
     }
 
     /// Phase 22 Stage D fix — masking helper tests. Verify that

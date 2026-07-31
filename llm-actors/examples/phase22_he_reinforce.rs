@@ -43,7 +43,7 @@ use candle_core::{DType, Device};
 use clap::Parser;
 use llm_actors::{
     domain::{human_eval::HumanEvalDomain, truncated_token_prefix, Domain},
-    qwen2_lora::LoraConfig,
+    qwen2_lora::{group_advantages, AdvantageMode, LoraConfig},
     ModelMessage, QwenModelActor, QwenTrainerActor, QwenTrainerMessage,
 };
 use nanogpt_rs::{generate::GenerateConfig, Tokenizer as NgptTokenizer};
@@ -165,6 +165,18 @@ struct Args {
     /// (rejection-sampling FT / RAFT).
     #[arg(long, default_value_t = false)]
     pg_positive_only: bool,
+    /// Phase 22 RL variance study — how per-prompt verdicts become
+    /// advantages: `mean` (v − group mean, the historical default),
+    /// `rloo` (leave-one-out baseline), or `grpo` (group-relative,
+    /// (v − mean)/(std + ε) — the variance-reduction lever). See
+    /// `qwen2_lora::AdvantageMode`.
+    #[arg(long, default_value = "mean")]
+    advantage_mode: String,
+    /// Phase 22 RL variance study — optional symmetric advantage clip to
+    /// `[−c, c]`, applied after `--advantage-mode`. Calibrate the range on
+    /// the post-fix reward distribution, not pre-fix data. Omit to disable.
+    #[arg(long)]
+    advantage_clip: Option<f32>,
 }
 
 fn pick_device() -> Device {
@@ -286,6 +298,17 @@ async fn main() -> Result<()> {
     .with_pg_step_semantics(!args.pg_legacy_updates, !args.pg_keep_zero_advantage)
     .with_pg_positive_advantage_only(args.pg_positive_only);
 
+    let adv_mode = AdvantageMode::parse(&args.advantage_mode).ok_or_else(|| {
+        anyhow!(
+            "--advantage-mode '{}' unknown (expected mean | rloo | grpo)",
+            args.advantage_mode
+        )
+    })?;
+    println!(
+        "[Phase22E] advantage mode = {adv_mode:?}, clip = {:?}",
+        args.advantage_clip
+    );
+
     let system = ActorSystem::new("phase22-e");
     let model_ref = system.spawn(qwen_model, "qwen-model").await?;
     let trainer_ref = system.spawn(qwen_trainer, "qwen-trainer").await?;
@@ -357,16 +380,17 @@ async fn main() -> Result<()> {
                 prompt_samples.push((comp_ids, v_value));
             }
 
-            // RLOO baseline — center rewards on the prompt's mean
-            // verdict so high-variance prompts don't dominate.
-            let baseline: f32 =
-                prompt_samples.iter().map(|(_, v)| *v).sum::<f32>() / prompt_samples.len() as f32;
+            // Turn the group's verdicts into advantages. `mean` reproduces
+            // the historical inline baseline (v − group mean); `grpo` divides
+            // by the group std to equalize per-prompt magnitude — the Phase 22
+            // RL variance-reduction lever.
+            let verdicts: Vec<f32> = prompt_samples.iter().map(|(_, v)| *v).collect();
+            let advantages = group_advantages(&verdicts, adv_mode, args.advantage_clip);
             let mut passes_this_prompt = 0usize;
-            for (comp_ids, v) in prompt_samples {
+            for ((comp_ids, v), reward) in prompt_samples.into_iter().zip(advantages) {
                 if v > 0.5 {
                     passes_this_prompt += 1;
                 }
-                let reward = v - baseline;
                 if !comp_ids.is_empty() {
                     samples.push((prompt_ids.clone(), comp_ids, reward));
                 }
