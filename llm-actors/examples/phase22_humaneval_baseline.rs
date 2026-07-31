@@ -103,6 +103,12 @@ struct Args {
     /// runs (which always wrap in FilteredDomain) is reproducible here.
     #[arg(long, value_delimiter = ',')]
     prompt_skip_list: Vec<usize>,
+    /// Phase 22 §6.5 — in the canonical greedy full-set base config, compare
+    /// the measured base pass@1 against the published Qwen2.5-Coder number
+    /// (`eval_sanity`) and exit non-zero on a drift beyond tolerance. Off by
+    /// default (the check still prints an informational `[SANITY]` line).
+    #[arg(long, default_value_t = false)]
+    sanity_strict: bool,
 }
 
 fn pick_device() -> Device {
@@ -268,6 +274,44 @@ async fn main() -> Result<()> {
             p1_raw, passes, att
         );
     }
+    // Phase 22 §6.5 — public-baseline sanity check. Only the canonical greedy
+    // full-set BASE config is comparable to the published number; a filtered,
+    // subset, sampled, or trained-checkpoint run is not, and saying so is half
+    // the lesson (the FilteredDomain bug measured a non-comparable number and
+    // compared it anyway).
+    let sanity_fail = {
+        use llm_actors::eval_sanity::check_public_baseline;
+        let model_label = args
+            .model_dir
+            .as_deref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| args.model_id.clone());
+        let p1 = report.pass_rate() as f64;
+        if !args.prompt_skip_list.is_empty() {
+            println!(
+                "[SANITY] WARN filtered domain ({} skipped) — a subset is NOT \
+                 benchmark-comparable; do not compare this pass@1 to any public \
+                 or unfiltered baseline (docs/phase22-c4-c5-rl-vs-sft.md).",
+                args.prompt_skip_list.len()
+            );
+            false
+        } else if args.checkpoint.is_some() {
+            false // trained checkpoint, not the base — nothing to compare
+        } else if args.passk == 1 && args.offset == 0 && args.sequential && args.n_problems >= 164 {
+            let verdict = check_public_baseline(&model_label, "HumanEval", p1);
+            println!("{}", verdict.describe(&model_label, "HumanEval", p1));
+            args.sanity_strict && verdict.is_drift()
+        } else {
+            println!(
+                "[SANITY] skipped — not the canonical greedy full-set base config \
+                 (need --passk 1 --offset 0 --sequential --n-problems 164, no \
+                 --checkpoint / --prompt-skip-list); this pass@1 is not \
+                 public-comparable."
+            );
+            false
+        }
+    };
+
     // Sample dump
     for (i, s) in report.samples.iter().take(3).enumerate() {
         let first_line = s
@@ -282,6 +326,12 @@ async fn main() -> Result<()> {
             "  sample {i}  prompt[0]={:?}  completion[:80]={:?}",
             first_line,
             s.completion.chars().take(80).collect::<String>(),
+        );
+    }
+    if sanity_fail {
+        anyhow::bail!(
+            "sanity check failed (--sanity-strict): base pass@1 drifted from the \
+             published baseline — see the [SANITY] DRIFT line above"
         );
     }
     println!("\nphase22_humaneval_baseline: PASS");

@@ -12,6 +12,7 @@ pub mod critic;
 pub mod curator_actor;
 pub mod domain;
 pub mod ensemble;
+pub mod eval_sanity;
 pub mod evaluator_actor;
 pub mod evolution;
 pub mod generator_actor;

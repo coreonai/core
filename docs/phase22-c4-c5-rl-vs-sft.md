@@ -421,3 +421,37 @@ headline, not its direction.
   14 C2/C3, and 15 S2 for under-powered claims. The one durable statement
   here is negative and robust: **the unbounded-objective runaway does not
   exist** (8/8 runs rise).
+
+# §6.5 follow-ups — CLOSED (2026-08-01)
+
+The two structural remedies this study called for (Lesson #6: a defaulted trait
+method is a silent-failure surface; Lesson #1: an unchecked metric can point the
+wrong way) are now landed and enforced, not just documented:
+
+1. **Delegation completeness is CI-enforced.** `assert_domain_fully_delegates!`
+   (`llm-actors/src/domain/delegation_probe.rs`) wraps a `ProbeDomain` that
+   returns a non-default sentinel from every defaulted `Domain` method, so a
+   wrapper that forgets to delegate one fails `cargo test`. `FilteredDomain`'s
+   two hand-written delegation tests are replaced by one macro call covering all
+   four defaulted methods, and the guard is verified to bite (a
+   `#[should_panic]` test omits a delegation on purpose). Pure pass-through
+   wrappers should instead use the `ambassador` `#[delegate]` macro
+   (compile-time); added when the first such wrapper appears.
+2. **The eval pipeline sanity-checks against the published baseline.**
+   `llm_actors::eval_sanity` holds the official Qwen2.5-Coder base greedy
+   full-set pass@1 (arXiv:2409.12186 Table 5: 7B HumanEval 0.616, 0.5B 0.280,
+   MBPP 0.769/0.529). `phase22_humaneval_baseline` prints a `[SANITY]` line in
+   the canonical config, `--sanity-strict` fails CI on drift, and a filtered
+   run prints `[SANITY] WARN filtered — not benchmark-comparable`. The exact
+   0.246 mis-measurement is a unit-tested DRIFT against 0.616 — it would have
+   been caught at measurement time.
+
+Both are codified as the default **`rust-guardrails`** project skill
+(`.claude/skills/rust-guardrails/SKILL.md`, referenced from CLAUDE.md) so future
+wrapper/eval work applies the checklist by default.
+
+Still open (measurement, not structural): the GPU sanity calibration run —
+`phase22_humaneval_baseline --model-id Qwen2.5-Coder-7B --n-problems 164
+--passk 1 --sequential --aggregate` in the canonical config, to confirm our
+greedy pipeline lands inside 0.616 ± 0.10 (deferred while the RL-variance GPU
+wave holds the cards).

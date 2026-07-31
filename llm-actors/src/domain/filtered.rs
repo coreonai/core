@@ -147,63 +147,17 @@ mod tests {
         HumanEvalDomain::from_jsonl(&path, &scratch).ok()
     }
 
-    /// Minimal domain that overrides `truncate_completion`, so the
-    /// delegation test doesn't depend on HumanEval.jsonl being on disk.
-    struct TruncatingDomain;
-
-    impl Domain for TruncatingDomain {
-        fn sample_prompt(&self, _rng: &mut StdRng) -> String {
-            "p".to_string()
-        }
-        fn verify(&self, _prompt: &str, _completion: &str) -> Verdict {
-            Verdict::Correct
-        }
-        fn charset(&self) -> &str {
-            ""
-        }
-        fn n_prompts(&self) -> Option<usize> {
-            Some(3)
-        }
-        fn nth_prompt(&self, i: usize) -> Option<String> {
-            (i < 3).then(|| format!("p{i}"))
-        }
-        fn truncate_completion(&self, completion: &str) -> String {
-            completion.split("CUT").next().unwrap_or("").to_string()
-        }
-        fn score(&self, _verdict: &Verdict) -> f32 {
-            0.5 // deliberately not the trait default
-        }
-    }
-
-    /// Every defaulted `Domain` method must be delegated, not inherited.
-    /// `truncate_completion` was not, and that silently disabled HumanEval
-    /// completion truncation for every filtered experiment.
+    /// Every defaulted `Domain` method must be delegated, not inherited — the
+    /// silent-failure surface that switched `truncate_completion` OFF for the
+    /// whole hard-tail series (see `docs/phase22-c4-c5-rl-vs-sft.md`, Lesson
+    /// #6). The shared guard wraps a `ProbeDomain` (non-default sentinels) and
+    /// checks that no defaulted method falls back to the trait default. This
+    /// one call replaces the former per-method `score` / `truncate_completion`
+    /// tests and additionally covers `n_prompts` / `nth_prompt`.
     #[test]
-    fn score_delegates_to_inner() {
-        let inner: Arc<dyn Domain> = Arc::new(TruncatingDomain);
-        let wrapped = FilteredDomain::new(Arc::clone(&inner), [0usize]);
-        assert_eq!(
-            wrapped.score(&Verdict::Correct),
-            0.5,
-            "FilteredDomain must delegate score, not fall back to the default"
-        );
-    }
-
-    /// Phase 22 C5 follow-up — the wrapper must not silently disable the
-    /// inner domain's completion truncation. It inherited the trait's
-    /// identity default for the whole hard-tail series, which scored every
-    /// completion raw and depressed the measured base pass rate.
-    #[test]
-    fn truncate_completion_delegates_to_inner() {
-        let inner: Arc<dyn Domain> = Arc::new(TruncatingDomain);
-        assert_eq!(inner.truncate_completion("keepCUTdrop"), "keep");
-        let wrapped = FilteredDomain::new(Arc::clone(&inner), [0usize]);
-        assert_eq!(
-            wrapped.truncate_completion("keepCUTdrop"),
-            "keep",
-            "FilteredDomain must delegate truncate_completion, not fall back \
-             to the identity default"
-        );
+    fn all_defaulted_methods_delegate() {
+        use crate::domain::delegation_probe::assert_domain_fully_delegates;
+        assert_domain_fully_delegates!(|inner| FilteredDomain::new(inner, [0usize]));
     }
 
     #[test]

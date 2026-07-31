@@ -274,6 +274,26 @@ Optional but useful for example-touching changes:
 cargo build --workspace --examples --release
 ```
 
+## Skills (Claude-specific)
+
+Project skills live in `.claude/skills/`; they are auto-discovered every
+session. **`rust-guardrails` is the default skill for Rust work here** — invoke
+`/rust-guardrails` (or apply it as a checklist) whenever you:
+
+- add or review a type that implements a trait by **wrapping** another impl of
+  that trait (a new `Domain`/actor wrapper). A forgotten *defaulted*-method
+  delegation is a silent-failure surface the compiler can't catch — it is what
+  disabled `truncate_completion` for the whole hard-tail series. Use
+  `assert_domain_fully_delegates!` (`llm-actors/src/domain/delegation_probe.rs`)
+  and, for pure pass-throughs, the `ambassador` `#[delegate]` macro.
+- add or change an **eval/measurement** path. Compare the base measurement
+  against the published number via `llm_actors::eval_sanity` in the comparable
+  config (full-set, greedy, unfiltered, no checkpoint); never compare a
+  filtered/subset number to a public/unfiltered baseline. `phase22_humaneval_baseline
+  --sanity-strict` fails CI on drift.
+
+The skill encodes the C4/C5 lessons (`docs/phase22-c4-c5-rl-vs-sft.md` #1/#6).
+
 ## Memory system (Claude-specific)
 
 The user has an auto-memory at

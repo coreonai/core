@@ -9,6 +9,8 @@ use rand::rngs::StdRng;
 use crate::types::Verdict;
 
 pub mod arithmetic;
+#[cfg(test)]
+pub(crate) mod delegation_probe;
 pub mod filtered;
 pub mod human_eval;
 pub mod korean_completion;
