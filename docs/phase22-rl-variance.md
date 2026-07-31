@@ -107,10 +107,41 @@ std-normalization is acting (it shouldn't, for binary rewards).
   prior behavior) and `--advantage-clip`. The inline `v − mean` baseline is
   replaced by a `group_advantages` call; default path unchanged.
 
+# Guard #1 result — base-policy reward distribution + clip decision
+
+`scripts/phase22_rl_variance/calibrate_reward_dist.sh`, 3 seeds × step-0
+(base policy frozen via `--sync-every 0`), k=4, 64 hard-tail problems,
+temp 0.8 / top_k 40 / top_p 0.95 / max_new 192. Per-prompt pass-count `p`
+histograms `[p0,p1,p2,p3,p4]`:
+
+| seed | p0 | p1 | p2 | p3 | p4 | signal (0<p<4) |
+|---|---|---|---|---|---|---|
+| 42 | 37 | 19 | 6 | 1 | 1 | 26/64 |
+| 100 | 38 | 15 | 8 | 2 | 1 | 25/64 |
+| 200 | 35 | 17 | 11 | 1 | 0 | 29/64 |
+| **agg (192)** | **110** | **51** | **25** | **4** | **2** | **80/192** |
+
+Under GRPO+posonly the trained-on positive advantages are fully determined
+by `p`: `p=1 → +1.732`, `p=2 → +1.0`, `p=3 → +0.577` (p=0,4 are
+zero-advantage, skipped). **`p=1` — a prompt solved by a single lucky sample
+out of 4 — is 64% of all signal prompts and receives the *maximum* advantage
++1.732.** That single-sample spike is exactly the high-variance term.
+
+**Decision: `--advantage-clip 1.0`.** It caps the +1.732 (p=1) spikes to
+parity with p=2's passing samples — targeting the dominant variance source —
+while preserving the p2 > p3 ordering. Clip 0.577 would over-flatten (erase
+the legitimate p3 signal); no clip leaves the spikes unbounded. Calibrated on
+post-fix (truncation-on) data per guard #1, not pre-fix.
+
 # Status
 
 - [x] Mechanism + unit tests + CUDA example build (74 cudarc symbols, flags live).
-- [ ] Guard #1: re-measure post-fix per-prompt pass-count distribution (k=4,
-      base policy, RL sampling) → set `--advantage-clip`.
-- [ ] Run arms (≥6 seeds each), score on the one ruler, evaluate against the
-      criteria above.
+- [x] Guard #1: post-fix base-policy pass-count distribution measured →
+      `--advantage-clip 1.0` (p=1 dominates at 64% of signal prompts).
+- [ ] **Wave 1 (running): GRPO+clip 1.0, seeds 42/100/200/300**, 30 steps,
+      posonly, `--sync-every 1`. The calibration-recommended best candidate,
+      tested first for the fastest decisive read.
+- [ ] Score wave-1 checkpoints on the one ruler; evaluate vs criteria. Then:
+      succeed → run plain GRPO (attribute norm vs clip) + extend to 6 seeds;
+      fail → objective-side lever is dead (C4's harvest-driven caveat) →
+      pivot to the K=8 harvest arm.
