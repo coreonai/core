@@ -133,15 +133,51 @@ while preserving the p2 > p3 ordering. Clip 0.577 would over-flatten (erase
 the legitimate p3 signal); no clip leaves the spikes unbounded. Calibrated on
 post-fix (truncation-on) data per guard #1, not pre-fix.
 
+# Wave 1 result — GRPO+clip 1.0 DOES NOT QUALIFY (objective-side lever fails)
+
+4 paired seeds, 30 steps, posonly, `--sync-every 1`, scored on the one ruler.
+Training was healthy — 4/4 seeds rose (step-29 pass 58–125/256 vs base ≈41),
+comp_len steady 155–160, no runaway.
+
+| seed | pass@1 | Δ base | pass@5 | Δ base |
+|---|---|---|---|---|
+| 42 | 0.5156 | +0.344 | 0.7031 | +0.281 |
+| 100 | 0.2375 | +0.066 | 0.5469 | +0.125 |
+| 200 | 0.2375 | +0.066 | 0.4531 | +0.031 |
+| 300 | 0.4469 | +0.275 | 0.6719 | +0.250 |
+| **mean** | **0.359 ± 0.144** | | **0.594 ± 0.116** | |
+
+| criterion (locked) | value | verdict |
+|---|---|---|
+| pass@1 σ ≤ 0.056 | **0.144** | **FAIL** (worse than MeanCenter RL's 0.103) |
+| pass@1 mean ≥ 0.327 | 0.359 | PASS |
+| **overall** | | **DOES NOT QUALIFY** |
+
+**The objective-side lever made variance *worse*, not better.** σ rose from
+MeanCenter RL's 0.103 to 0.144 (pass@1), 2.6× over the 0.056 target. Paired
+pass@5 vs the MeanCenter posonly arm is mixed — 42/100/300 up, 200 down 0.172
+— i.e. no consistent gain, just more spread (seed 42 = 0.516 pass@1 while
+100/200 = 0.238).
+
+**Mechanism.** GRPO's advantage scale is ~2.3× MeanCenter's (magnitudes
+1.0–1.732 vs 0.25–0.75), so at the same lr it takes larger steps and amplifies
+whatever the seed already controls — the harvest draw. The huge seed spread
+directly reproduces C4's "**seed dominates the arm**": variance is
+harvest-driven, and normalizing the objective cannot touch it. This is a clean
+confirmation of the pre-registered caveat.
+
+**Plain GRPO (no clip) not run — and not worth 7.5 h.** Clip 1.0 *reduces*
+advantage magnitude (caps 1.732→1.0), so it is the *gentler* of the two; the
+uncapped version takes even larger steps and would be even higher-variance. If
+the gentler config already fails at σ 0.144, the harsher one cannot qualify.
+
 # Status
 
-- [x] Mechanism + unit tests + CUDA example build (74 cudarc symbols, flags live).
-- [x] Guard #1: post-fix base-policy pass-count distribution measured →
-      `--advantage-clip 1.0` (p=1 dominates at 64% of signal prompts).
-- [ ] **Wave 1 (running): GRPO+clip 1.0, seeds 42/100/200/300**, 30 steps,
-      posonly, `--sync-every 1`. The calibration-recommended best candidate,
-      tested first for the fastest decisive read.
-- [ ] Score wave-1 checkpoints on the one ruler; evaluate vs criteria. Then:
-      succeed → run plain GRPO (attribute norm vs clip) + extend to 6 seeds;
-      fail → objective-side lever is dead (C4's harvest-driven caveat) →
-      pivot to the K=8 harvest arm.
+- [x] Mechanism + unit tests + CUDA example build.
+- [x] Guard #1: base-policy pass-count distribution → `--advantage-clip 1.0`.
+- [x] **Wave 1: GRPO+clip 1.0 — DOES NOT QUALIFY** (σ 0.144, worse than
+      MeanCenter). Objective-side lever fails; confirms harvest-driven variance.
+- [ ] **Pivot to the harvest-side lever: K=8** (`--k-per-prompt 8`, MeanCenter,
+      posonly). More samples/prompt is the direct CLT reduction of the harvest
+      noise C4 and this wave both point at. This is the remaining live
+      hypothesis for bringing RL's σ down.
