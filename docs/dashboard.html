@@ -67,6 +67,33 @@
     border:1px solid var(--line);background:var(--surface);color:var(--muted)}
   button.theme:hover{border-color:var(--accent);color:var(--accent)}
   button.theme:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .dot.bad{background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 25%,transparent)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  #c-live .dot.live{animation:pulse 2s ease-in-out infinite}
+
+  /* live panel */
+  .live-sec{padding-top:34px}
+  .live-grid{display:grid;grid-template-columns:1.15fr 1fr;gap:16px}
+  @media (max-width:720px){.live-grid{grid-template-columns:1fr}}
+  .live-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .lc-label{font-size:12px;color:var(--muted);margin-bottom:12px}
+  .lc-label span{color:var(--ink);font-weight:550}
+  .gpu-strip{display:grid;grid-template-columns:repeat(8,1fr);gap:7px}
+  @media (max-width:560px){.gpu-strip{grid-template-columns:repeat(4,1fr)}}
+  .gpu{position:relative;border:1px solid var(--line);border-radius:7px;padding:8px 0 7px;text-align:center;
+    background:var(--surface-2);overflow:hidden}
+  .gpu .gi{font-family:var(--mono);font-size:11px;color:var(--muted);position:relative;z-index:1}
+  .gpu .gm{font-family:var(--mono);font-size:10px;color:var(--faint);position:relative;z-index:1;margin-top:2px}
+  .gpu .fill{position:absolute;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--accent) 22%,transparent);z-index:0}
+  .gpu.busy{border-color:color-mix(in srgb,var(--accent) 55%,var(--line))}
+  .gpu.busy .gi{color:var(--accent)}
+  .runs-list{display:flex;flex-direction:column;gap:8px}
+  .runs-empty{font-size:13px;color:var(--faint)}
+  .run-row{display:flex;align-items:center;gap:9px;font-size:13px}
+  .run-row .rd{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none;
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
+  .run-row .rn{font-family:var(--mono);color:var(--ink);font-size:12.5px}
+  .run-row .rx{color:var(--muted);font-size:12.5px}
 
   /* hero thesis */
   .hero{padding:56px 0 40px;border-bottom:1px solid var(--line)}
@@ -151,9 +178,10 @@
   <div class="bar-in">
     <span class="logo">workLLM<b>/</b>7B self-improve</span>
     <div class="chips">
-      <span class="chip"><span class="dot idle"></span>no active runs</span>
-      <span class="chip">8&times;A100-SXM4-40GB idle</span>
-      <span class="chip">synced <span class="mono">@240c6f1</span></span>
+      <span class="chip" id="c-live" title="live connection"><span class="dot idle" id="d-live"></span><span id="t-live">snapshot</span></span>
+      <span class="chip" id="c-runs"><span class="dot idle" id="d-runs"></span>no active runs</span>
+      <span class="chip" id="c-gpu">8&times;A100-40GB</span>
+      <span class="chip" id="c-sync">synced <span class="mono" id="t-head">&mdash;</span></span>
       <button class="theme" id="tg" type="button">theme</button>
     </div>
   </div>
@@ -165,8 +193,23 @@
     <div class="eyebrow">Rust &times; Pekko &middot; Qwen2.5-Coder-7B &middot; project status</div>
     <h1>Self-improve works on 7B &mdash; once you measure it where the headroom is.</h1>
     <p class="law">The operating law after the C3&ndash;C5 corrections: <strong>MR-SFT's worth = headroom &times; harvest, read at a non-saturated metric.</strong> RL (REINFORCE) matches SFT's mean but carries <strong>~3.3&times; the run-to-run variance</strong>, so SFT stays the deployment pick. <strong>pass@k</strong> is the orthogonal, training-free inference win.</p>
-    <div class="updated">last updated 2026-07-31 &middot; head <span style="color:var(--accent)">240c6f1</span> &middot; origin/master in sync</div>
+    <div class="updated">head <span style="color:var(--accent)" id="hero-head">240c6f1</span> &middot; <span id="hero-updated">snapshot 2026-07-31</span></div>
   </div>
+
+  <!-- LIVE -->
+  <section class="live-sec">
+    <div class="h-row"><h2>Live</h2><span class="count" id="live-ts">polling&hellip;</span></div>
+    <div class="live-grid">
+      <div class="live-card">
+        <div class="lc-label">GPUs &middot; <span id="gpu-summary" class="mono">8&times;A100-SXM4-40GB</span></div>
+        <div class="gpu-strip" id="gpu-strip" aria-label="per-GPU memory + utilization"></div>
+      </div>
+      <div class="live-card">
+        <div class="lc-label">Active runs &middot; <span id="runs-count" class="mono">0</span></div>
+        <div class="runs-list" id="runs-list"><span class="runs-empty">no active runs &mdash; idle</span></div>
+      </div>
+    </div>
+  </section>
 
   <!-- FINDINGS -->
   <section>
@@ -297,6 +340,85 @@
       return matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'; }
     btn.addEventListener('click',function(){ root.dataset.theme = cur()==='dark'?'light':'dark'; });
   })();
+
+  // live status polling — reads /status.json served by scripts/llm_dashboard_server.py.
+  // On the standalone/Artifact origin the fetch fails silently → page stays a static snapshot.
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    function ago(iso){
+      try{
+        var s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime())/1000));
+        if(s < 60) return s + 's ago';
+        if(s < 3600) return Math.round(s/60) + 'm ago';
+        return Math.round(s/3600) + 'h ago';
+      }catch(e){ return ''; }
+    }
+    function setLive(ok){
+      var d = $('d-live'), t = $('t-live');
+      if(!d) return;
+      d.className = 'dot ' + (ok ? 'live' : 'bad');
+      t.textContent = ok ? 'live' : 'snapshot';
+    }
+    function render(s){
+      // header chips
+      var dr = $('d-runs');
+      if(s.run_count > 0){
+        dr.className = 'dot busy';
+        $('c-runs').lastChild.textContent = s.run_count + (s.run_count === 1 ? ' active run' : ' active runs');
+      } else {
+        dr.className = 'dot idle';
+        $('c-runs').lastChild.textContent = 'no active runs';
+      }
+      $('c-gpu').innerHTML = s.gpu_total + '&times;A100-40GB &middot; ' +
+        (s.gpu_busy ? s.gpu_busy + ' busy' : 'all idle');
+      $('t-head').textContent = '@' + s.git_head;
+      $('c-sync').firstChild.textContent = s.git_synced ? 'synced ' : 'ahead ';
+      $('hero-head').textContent = s.git_head;
+      $('hero-updated').textContent = 'updated ' + ago(s.ts);
+      $('live-ts').textContent = 'updated ' + ago(s.ts);
+
+      // gpu strip
+      var strip = $('gpu-strip'); strip.innerHTML = '';
+      (s.gpus || []).forEach(function(g){
+        var busy = g.mem > 2000;
+        var pct = Math.min(100, Math.round(g.mem / 40960 * 100));
+        var cell = document.createElement('div');
+        cell.className = 'gpu' + (busy ? ' busy' : '');
+        cell.title = 'GPU ' + g.i + ' · ' + g.mem + ' MiB · util ' + g.util + '%';
+        cell.innerHTML = '<div class="fill" style="height:' + pct + '%"></div>' +
+          '<div class="gi">' + g.i + '</div><div class="gm">' +
+          (g.mem >= 1024 ? (g.mem/1024).toFixed(1) + 'G' : g.mem + 'M') + '</div>';
+        strip.appendChild(cell);
+      });
+      var totMem = (s.gpus || []).reduce(function(a,g){ return a + g.mem; }, 0);
+      $('gpu-summary').textContent = s.gpu_total + '×A100-40GB · ' +
+        (totMem/1024).toFixed(1) + 'G used';
+
+      // active runs
+      $('runs-count').textContent = s.run_count;
+      var rl = $('runs-list'); rl.innerHTML = '';
+      if(!s.run_count){
+        rl.innerHTML = '<span class="runs-empty">no active runs &mdash; idle</span>';
+      } else {
+        s.runs.forEach(function(r){
+          var row = document.createElement('div');
+          row.className = 'run-row';
+          row.innerHTML = '<span class="rd"></span><span class="rn">' + r.name + '</span>' +
+            (r.desc ? '<span class="rx">' + r.desc + '</span>' : '');
+          rl.appendChild(row);
+        });
+      }
+    }
+    function poll(){
+      fetch('/status.json', {cache:'no-store'})
+        .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+        .then(function(s){ render(s); setLive(true); })
+        .catch(function(){ setLive(false); });
+    }
+    poll();
+    setInterval(poll, 12000);
+  })();
+</script>
 </script>
 </body>
 </html>
