@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="workLLM — Qwen2.5-Coder-7B self-improve investigation: status, findings (C3–C5 corrected), infrastructure, and next-step planning.">
+<title>workLLM · 7B Self-Improve Dashboard</title>
+</head>
+<body>
+<style>
+  :root{
+    --ground:#f3f5f8; --surface:#ffffff; --surface-2:#eef1f5; --line:#d9dfe7;
+    --ink:#141b23; --muted:#5a6b7b; --faint:#8496a6;
+    --accent:#1f8bab; --accent-soft:#e2f0f5;
+    --ok:#3f9d6e; --ok-bg:#e7f4ec; --warn:#b77a1f; --warn-bg:#faf0dd;
+    --bad:#c3554f; --bad-bg:#fae8e6; --info:#5c74a0; --info-bg:#e8eef7;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --ground:#0e151e; --surface:#151f2b; --surface-2:#1b2733; --line:#26333f;
+      --ink:#e6edf4; --muted:#93a3b3; --faint:#6b7d8d;
+      --accent:#45b2d1; --accent-soft:#16323d;
+      --ok:#5bb98a; --ok-bg:#132a20; --warn:#d39a52; --warn-bg:#2c2213;
+      --bad:#cf6b6b; --bad-bg:#2c1817; --info:#8ba6c9; --info-bg:#16202f;
+    }
+  }
+  :root[data-theme="light"]{
+    --ground:#f3f5f8; --surface:#ffffff; --surface-2:#eef1f5; --line:#d9dfe7;
+    --ink:#141b23; --muted:#5a6b7b; --faint:#8496a6;
+    --accent:#1f8bab; --accent-soft:#e2f0f5;
+    --ok:#3f9d6e; --ok-bg:#e7f4ec; --warn:#b77a1f; --warn-bg:#faf0dd;
+    --bad:#c3554f; --bad-bg:#fae8e6; --info:#5c74a0; --info-bg:#e8eef7;
+  }
+  :root[data-theme="dark"]{
+    --ground:#0e151e; --surface:#151f2b; --surface-2:#1b2733; --line:#26333f;
+    --ink:#e6edf4; --muted:#93a3b3; --faint:#6b7d8d;
+    --accent:#45b2d1; --accent-soft:#16323d;
+    --ok:#5bb98a; --ok-bg:#132a20; --warn:#d39a52; --warn-bg:#2c2213;
+    --bad:#cf6b6b; --bad-bg:#2c1817; --info:#8ba6c9; --info-bg:#16202f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
+    line-height:1.55;-webkit-font-smoothing:antialiased;font-size:15px}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px 80px}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .num{font-variant-numeric:tabular-nums}
+  a{color:var(--accent);text-decoration:none}
+  h1,h2,h3{text-wrap:balance;margin:0}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+
+  /* status bar */
+  header.bar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 88%,transparent);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .bar-in{max-width:1120px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .logo{font-family:var(--mono);font-weight:600;letter-spacing:-.01em;font-size:15px;color:var(--ink)}
+  .logo b{color:var(--accent)}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto;align-items:center}
+  .chip{font-family:var(--mono);font-size:11.5px;padding:4px 9px;border-radius:6px;border:1px solid var(--line);
+    color:var(--muted);background:var(--surface);display:inline-flex;gap:6px;align-items:center}
+  .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+  .dot.live{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent)}
+  .dot.idle{background:var(--faint)}
+  button.theme{font-family:var(--mono);font-size:11.5px;padding:4px 10px;border-radius:6px;cursor:pointer;
+    border:1px solid var(--line);background:var(--surface);color:var(--muted)}
+  button.theme:hover{border-color:var(--accent);color:var(--accent)}
+  button.theme:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  /* hero thesis */
+  .hero{padding:56px 0 40px;border-bottom:1px solid var(--line)}
+  .hero h1{font-size:clamp(28px,4.4vw,44px);font-weight:680;letter-spacing:-.02em;line-height:1.08;margin:14px 0 0}
+  .hero .law{margin-top:22px;max-width:60ch;font-size:16.5px;color:var(--muted)}
+  .hero .law strong{color:var(--ink);font-weight:600}
+  .updated{margin-top:20px;font-family:var(--mono);font-size:12px;color:var(--faint)}
+
+  section{padding:44px 0 8px;border-bottom:1px solid var(--line)}
+  section:last-of-type{border-bottom:0}
+  .h-row{display:flex;align-items:baseline;gap:14px;margin-bottom:22px}
+  .h-row h2{font-size:20px;font-weight:640;letter-spacing:-.01em}
+  .h-row .count{font-family:var(--mono);font-size:12px;color:var(--faint)}
+
+  /* findings grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 18px 16px;
+    position:relative;overflow:hidden;display:flex;flex-direction:column;gap:10px}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--stripe,var(--line))}
+  .card.ok{--stripe:var(--ok)} .card.warn{--stripe:var(--warn)} .card.bad{--stripe:var(--bad)} .card.info{--stripe:var(--info)}
+  .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .card-cat{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+  .card h3{font-size:15.5px;font-weight:620;margin-top:2px;line-height:1.3}
+  .pill{font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    padding:3px 8px;border-radius:20px;white-space:nowrap}
+  .pill.ok{color:var(--ok);background:var(--ok-bg)} .pill.warn{color:var(--warn);background:var(--warn-bg)}
+  .pill.bad{color:var(--bad);background:var(--bad-bg)} .pill.info{color:var(--info);background:var(--info-bg)}
+  .metric{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:23px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+  .metric small{font-size:13px;font-weight:500;color:var(--muted);margin-left:6px}
+  .card p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.5}
+  .card .note{font-size:12.5px;color:var(--faint);border-top:1px dashed var(--line);padding-top:8px;margin-top:auto}
+  .card .note b{color:var(--warn);font-weight:600}
+  .delta-up{color:var(--ok)} .delta-flat{color:var(--faint)}
+
+  /* root-cause callout */
+  .rootcause{margin-top:16px;background:var(--warn-bg);border:1px solid color-mix(in srgb,var(--warn) 40%,var(--line));
+    border-radius:12px;padding:16px 18px;display:flex;gap:14px;align-items:flex-start}
+  .rootcause .tag{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--warn);
+    text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .rootcause p{margin:0;font-size:13.5px;color:var(--ink)}
+  .rootcause code{font-family:var(--mono);font-size:12.5px;background:color-mix(in srgb,var(--warn) 16%,transparent);padding:1px 5px;border-radius:4px}
+
+  /* infra table */
+  .infra{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+  .irow{display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--line);
+    border-radius:9px;padding:11px 13px}
+  .irow .ok-mark{color:var(--ok);font-family:var(--mono);font-weight:700;flex:none}
+  .irow .k{font-size:13.5px;font-weight:550;color:var(--ink)}
+  .irow .sub{font-size:12px;color:var(--muted)}
+  .irow .hash{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--faint);flex:none}
+  .memnote{margin-top:14px;font-size:13px;color:var(--muted)}
+  .memnote code{font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--surface-2);padding:1px 5px;border-radius:4px}
+
+  /* phase rail */
+  .rail{display:flex;flex-direction:column;gap:0;border-left:2px solid var(--line);margin-left:6px;padding-left:0}
+  .ph{display:grid;grid-template-columns:64px 1fr;gap:16px;padding:9px 0 9px 20px;position:relative}
+  .ph::before{content:"";position:absolute;left:-5px;top:16px;width:8px;height:8px;border-radius:50%;
+    background:var(--surface);border:2px solid var(--accent)}
+  .ph .pn{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent);letter-spacing:.02em}
+  .ph .pd{font-size:13.5px;color:var(--muted)}
+  .ph .pd b{color:var(--ink);font-weight:600}
+
+  /* next steps */
+  .steps{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .step{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .step .st-top{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+  .step .prio{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    padding:2px 7px;border-radius:5px}
+  .prio.p1{color:var(--accent);background:var(--accent-soft)}
+  .prio.p2{color:var(--muted);background:var(--surface-2)}
+  .step h3{font-size:14.5px;font-weight:620}
+  .step p{margin:6px 0 0;font-size:13px;color:var(--muted)}
+
+  .foot{padding:34px 0 0;color:var(--faint);font-size:12.5px}
+  .foot code{font-family:var(--mono);color:var(--muted);background:var(--surface-2);padding:1px 6px;border-radius:4px}
+  .foot .cmd{display:block;margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--muted);
+    background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow-x:auto;white-space:pre}
+  @media (max-width:560px){.ph{grid-template-columns:52px 1fr;gap:10px}}
+</style>
+
+<header class="bar">
+  <div class="bar-in">
+    <span class="logo">workLLM<b>/</b>7B self-improve</span>
+    <div class="chips">
+      <span class="chip"><span class="dot idle"></span>no active runs</span>
+      <span class="chip">8&times;A100-SXM4-40GB idle</span>
+      <span class="chip">synced <span class="mono">@240c6f1</span></span>
+      <button class="theme" id="tg" type="button">theme</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="eyebrow">Rust &times; Pekko &middot; Qwen2.5-Coder-7B &middot; project status</div>
+    <h1>Self-improve works on 7B &mdash; once you measure it where the headroom is.</h1>
+    <p class="law">The operating law after the C3&ndash;C5 corrections: <strong>MR-SFT's worth = headroom &times; harvest, read at a non-saturated metric.</strong> RL (REINFORCE) matches SFT's mean but carries <strong>~3.3&times; the run-to-run variance</strong>, so SFT stays the deployment pick. <strong>pass@k</strong> is the orthogonal, training-free inference win.</p>
+    <div class="updated">last updated 2026-07-31 &middot; head <span style="color:var(--accent)">240c6f1</span> &middot; origin/master in sync</div>
+  </div>
+
+  <!-- FINDINGS -->
+  <section>
+    <div class="h-row"><h2>7B findings</h2><span class="count">6 results &middot; 3 confirmed &middot; 1 corrected &middot; 2 retracted-and-reversed</span></div>
+    <div class="grid">
+
+      <div class="card ok">
+        <div class="card-top"><span class="card-cat">SFT &middot; full HumanEval</span><span class="pill ok">confirmed</span></div>
+        <h3>Multi-round SFT lifts the full benchmark</h3>
+        <div class="metric">+0.106 <small>pass@1 &middot; 4/4 seeds</small></div>
+        <p>0.381 &rarr; 0.487 at pass@1. The base metric had real headroom the whole time.</p>
+        <div class="note">The earlier &ldquo;flat / saturated&rdquo; reading was a <b>pass@5-saturation artifact</b> &mdash; pass@5 sits near its ceiling (~0.64).</div>
+      </div>
+
+      <div class="card ok">
+        <div class="card-top"><span class="card-cat">SFT &middot; HumanEval+ (harder)</span><span class="pill ok">confirmed</span></div>
+        <h3>Wins on a genuinely harder external benchmark</h3>
+        <div class="metric">+0.088 <small>pass@1 &middot; ~10&sigma;</small></div>
+        <p>EvalPlus stricter tests (base pass@1 0.31 vs 0.37). 0.326 &rarr; 0.413, all 4 seeds tightly clustered.</p>
+        <div class="note">Zero-code <code style="font-family:var(--mono)">--jsonl</code> drop-in; pass@5 view showed only +0.051 (masked).</div>
+      </div>
+
+      <div class="card ok">
+        <div class="card-top"><span class="card-cat">Inference &middot; pass@k</span><span class="pill ok">confirmed</span></div>
+        <h3>Inference-time scaling &mdash; training-free</h3>
+        <div class="metric">+0.347 <small>pass@1&rarr;pass@10</small></div>
+        <p>Full-164 aggregate pass@1 0.366 &rarr; per-prompt pass@10 0.713 (&asymp;1.95&times;). Runs through the Pekko actor stack on 7B.</p>
+        <div class="note">Orthogonal to training &mdash; always available.</div>
+      </div>
+
+      <div class="card warn">
+        <div class="card-top"><span class="card-cat">SFT &middot; hard tail (idx 100&ndash;163)</span><span class="pill warn">corrected</span></div>
+        <h3>Self-improve where the model struggles</h3>
+        <div class="metric">+0.145 <small>pass@5 &middot; +0.203 pass@1</small></div>
+        <p>Still a robust win, but the headline is deflated: the original <b style="color:var(--bad)">+0.254</b> paired a mis-measured base with a fine r2.</p>
+        <div class="note"><b>Corrected</b> &mdash; base was 0.422, not 0.246 (truncation was off; see root cause).</div>
+      </div>
+
+      <div class="card bad">
+        <div class="card-top"><span class="card-cat">SFT &middot; harvest frontier</span><span class="pill bad">retracted</span></div>
+        <h3>How much to harvest (samples/prompt)</h3>
+        <div class="metric">6 &rarr; 16 helps<small>16 &rarr; 32 flat</small></div>
+        <p>6&rarr;16 is a real, paired gain (4/4 seeds); 16&rarr;32 is indistinguishable and 3&ndash;5&times; noisier. Keep 16 for <em>tightness</em>, not for a peak.</p>
+        <div class="note"><b>&ldquo;Inverted-U / interior optimum&rdquo; retracted</b> &mdash; it was the truncation artifact too.</div>
+      </div>
+
+      <div class="card bad">
+        <div class="card-top"><span class="card-cat">RL &middot; REINFORCE (posonly, 6 seeds)</span><span class="pill bad">reversed</span></div>
+        <h3>RL matches SFT &mdash; but noisier</h3>
+        <div class="metric">+0.159 <small>pass@5 &middot; +0.240 pass@1</small></div>
+        <p>Positive-advantage-only matches/edges SFT on the mean, but &sigma; is <b style="color:var(--bad)">~3.3&times; wider</b> (0.067 vs 0.020) &rarr; SFT wins deployment.</p>
+        <div class="note"><b>&ldquo;RL collapses on adapter sync&rdquo; retracted</b> &mdash; 8/8 runs rise once the reward is scored like the eval.</div>
+      </div>
+
+    </div>
+
+    <div class="rootcause">
+      <span class="tag">root&nbsp;cause</span>
+      <p><b>One tooling bug drove most of the corrections.</b> <code>FilteredDomain</code> never delegated <code>truncate_completion</code>, so every hard-tail experiment (all use <code>--prompt-skip-list</code>) ran with completion truncation <b>off</b>. That mis-measured the base (0.246 vs the true 0.422) and starved the RL reward (a 3&times; gap vs the evaluator), manufacturing both the &ldquo;inverted-U&rdquo; and the &ldquo;RL collapse.&rdquo; Fixed in <code>ad86e22</code>; everything above is re-scored on one consistent ruler.</p>
+    </div>
+  </section>
+
+  <!-- INFRASTRUCTURE -->
+  <section>
+    <div class="h-row"><h2>Migration &amp; infrastructure</h2><span class="count">all on origin/master</span></div>
+    <div class="infra">
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">C1 &middot; sharded-safetensors loader</div><div class="sub">dual-mode file/dir; 7B = 4 shards</div></div><span class="hash">cbbfeb5</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">C2 &middot; --model-dir / --model-id</div><div class="sub">point examples at a 7B snapshot</div></div><span class="hash">d954b98</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">C3 &middot; BF16 training path</div><div class="sub">fits 7B on 40GB, no NaN</div></div><span class="hash">fe63afd</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">candle patch &middot; frozen-operand grads</div><div class="sub">4&times;&rarr;1.2&times; peak &middot; PR #3773</div></div><span class="hash">41ed3ce</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">pipeline &middot; CPU merge + free-before-load</div><div class="sub">fits inference + trainer co-resident</div></div><span class="hash">0ca067f</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">--trainer-gpu &middot; two-card split</div><div class="sub">trainer &amp; sampler on separate GPUs</div></div><span class="hash">d0b058c</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">RL infra port &middot; he_reinforce &rarr; 7B</div><div class="sub">model-id / bf16 / trainer-gpu / offset</div></div><span class="hash">160ccd6</span></div>
+    </div>
+    <p class="memnote"><b>Memory profile (bf16):</b> 7B inference <code>15.1 GB</code>; LoRA training <code>15.2 GB</code> after the candle patch (was OOM &gt;60 GB); working config <code>--trainer-gpu 1 + batch_size=2</code> &rarr; trainer 27.8 GB, model 15.1 GB. Candle fix upstreamed as <a href="https://github.com/huggingface/candle/pull/3773">huggingface/candle#3773</a> &mdash; drop the vendored <code>[patch.crates-io]</code> once it merges.</p>
+  </section>
+
+  <!-- PHASE LINEAGE -->
+  <section>
+    <div class="h-row"><h2>Phase lineage</h2><span class="count">11 infra + 11 measurement phases &middot; 2026-05 &rarr; 2026-07</span></div>
+    <div class="rail">
+      <div class="ph"><span class="pn">P1&ndash;4</span><span class="pd"><b>Foundation.</b> 12-axis nanoGPT + KoWiki; 6-actor self-improve loop; evolutionary NAS <b>independently rediscovers the Llama recipe</b>; tools + agent loop + EWC + LoRA.</span></div>
+      <div class="ph"><span class="pn">P5&ndash;9</span><span class="pd"><b>Measurement discipline.</b> Ensembles &amp; specialists (honest negatives); Shape-C LogitCritic AUC 0.727; external Qwen validation; 1-round LoRA 0.40&rarr;0.73.</span></div>
+      <div class="ph"><span class="pn">P10&ndash;16</span><span class="pd"><b>Paper-ports fail at LoRA scale.</b> JEPA, DPO, Muon, OPD &mdash; <b>DeepSeek-V4's 3 techniques all lose</b> on the quiet Qwen+HumanEval substrate; variance floor mapped.</span></div>
+      <div class="ph"><span class="pn">P17&ndash;20</span><span class="pd"><b>First algorithmic wins.</b> Multi-round SFT + inference pass@k saturation curve; r=6 reaches 0.581, seed record 0.645 (3&times; base).</span></div>
+      <div class="ph"><span class="pn">P21</span><span class="pd"><b>Pekko-native bridge.</b> Candle-native Qwen2 inference + LoRA training + REINFORCE, 10 stages &mdash; no Python sidecar.</span></div>
+      <div class="ph"><span class="pn">P22</span><span class="pd"><b>Real benchmarks + 7B.</b> HumanEval/MBPP as Rust domains; 0.5B&rarr;7B migration; <b>C3&ndash;C5 corrections</b> re-frame the SFT/RL findings above.</span></div>
+    </div>
+  </section>
+
+  <!-- NEXT STEPS -->
+  <section>
+    <div class="h-row"><h2>Open threads &amp; next steps</h2><span class="count">for planning</span></div>
+    <div class="steps">
+      <div class="step">
+        <div class="st-top"><span class="prio p1">next</span><h3>RL variance reduction</h3></div>
+        <p>RL ties SFT on the mean; its only weakness is &sigma; (3.3&times;). Ref-policy KL penalty, larger RLOO group, or more seeds &mdash; can RL actually <em>beat</em> SFT, not just tie it? The one open scientific question. (~hours GPU.)</p>
+      </div>
+      <div class="step">
+        <div class="st-top"><span class="prio p2">later</span><h3>Harder external benchmarks</h3></div>
+        <p>HumanEval+ confirmed the headroom&times;harvest law. LiveCodeBench / BigCodeBench give more headroom to map where the recipe's ceiling actually is.</p>
+      </div>
+      <div class="step">
+        <div class="st-top"><span class="prio p2">later</span><h3>Re-consolidate on one ruler</h3></div>
+        <p>The docs carry layered retraction notes. A single clean writeup, everything scored with truncation on at pass@1, would make the corrected story canonical.</p>
+      </div>
+      <div class="step">
+        <div class="st-top"><span class="prio p2">watch</span><h3>candle #3773 merge</h3></div>
+        <p>When the upstream frozen-operand-grad fix merges, drop the vendored <code style="font-family:var(--mono)">[patch.crates-io]</code> + <code style="font-family:var(--mono)">vendor/</code> dir and depend on the release.</p>
+      </div>
+    </div>
+    <div class="rootcause" style="margin-top:20px;background:var(--info-bg);border-color:color-mix(in srgb,var(--info) 40%,var(--line))">
+      <span class="tag" style="color:var(--info)">meta</span>
+      <p style="color:var(--ink)"><b>Reusable lesson.</b> A &ldquo;flat / negative&rdquo; result must be checked against <b>metric saturation</b> (pass@5 vs pass@1) and <b>tooling bugs</b> (FilteredDomain truncation) before it's trusted. The same falsifier-test discipline that killed the paper-ports in P10&ndash;16 reversed two of this project's own headline findings.</p>
+    </div>
+  </section>
+
+  <div class="foot">
+    Generated from the workLLM repo (<code>docs/phase22-7b-results.md</code>, <code>docs/phase22-c4-c5-rl-vs-sft.md</code>) &middot; a point-in-time snapshot for review &amp; planning.
+    <span class="cmd">deploy to llm.coreon.build:  scp docs/dashboard.html &lt;host&gt;:/var/www/llm.coreon.build/index.html</span>
+  </div>
+</div>
+
+<script>
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('tg');
+    function cur(){ if(root.dataset.theme) return root.dataset.theme;
+      return matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'; }
+    btn.addEventListener('click',function(){ root.dataset.theme = cur()==='dark'?'light':'dark'; });
+  })();
+</script>
+</body>
+</html>
