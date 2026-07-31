@@ -401,6 +401,27 @@ async fn main() -> Result<()> {
         let total_pass: usize = prompt_passes.iter().sum();
         let total_samples = prompts.len() * args.k_per_prompt;
 
+        // Phase 22 RL variance calibration — per-prompt pass-count histogram.
+        // For binary rewards over k samples every advantage value depends only
+        // on p (passes/k): p=0 and p=k are zero-advantage (skipped); the
+        // interior p ∈ 1..k sets the GRPO advantage magnitude. So this
+        // histogram fully determines the advantage spread and is what
+        // `--advantage-clip` should be calibrated on. `rl_step == 0` (before
+        // any training) is the base-policy reward distribution.
+        {
+            let k = args.k_per_prompt;
+            let mut hist = vec![0usize; k + 1];
+            for &p in &prompt_passes {
+                hist[p.min(k)] += 1;
+            }
+            let signal = prompt_passes.iter().filter(|&&p| p > 0 && p < k).count();
+            println!(
+                "[Phase22E] rl_step {rl_step}  pass-count hist p=0..={k}: {hist:?}  \
+                 (signal prompts 0<p<k = {signal}/{})",
+                prompts.len()
+            );
+        }
+
         // Send TrainPolicyGradient to the trainer.
         let (tx, rx) = oneshot::channel();
         trainer_ref
