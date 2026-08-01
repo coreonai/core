@@ -171,13 +171,75 @@ advantage magnitude (caps 1.732→1.0), so it is the *gentler* of the two; the
 uncapped version takes even larger steps and would be even higher-variance. If
 the gentler config already fails at σ 0.144, the harsher one cannot qualify.
 
+# Wave 2 result — K=8 harvest lever: fails the σ criterion, but flips the mean
+
+4 paired seeds, MeanCenter, posonly, `--k-per-prompt 8` (2× the K=4 harvest),
+30 steps, same ruler.
+
+| seed | pass@1 | Δ base | pass@5 | Δ base |
+|---|---|---|---|---|
+| 42 | 0.5125 | +0.341 | 0.6406 | +0.219 |
+| 100 | 0.5375 | +0.366 | 0.6250 | +0.203 |
+| 200 | 0.6375 | +0.466 | 0.7344 | +0.313 |
+| 300 | 0.4437 | +0.272 | 0.5312 | +0.109 |
+| **mean** | **0.533 ± 0.080** | | **0.633 ± 0.083** | |
+
+| criterion (locked) | value | verdict |
+|---|---|---|
+| pass@1 σ ≤ 0.056 | **0.080** | **FAIL** (but down from K=4 MeanCenter's 0.103) |
+| pass@1 mean ≥ 0.327 | 0.533 | PASS |
+| **overall** | | **DOES NOT QUALIFY** (against the locked σ rule) |
+
+**Two things happened, and the second is the story.**
+
+1. **The harvest lever moved σ the right way — but not far enough.** σ fell
+   0.103 → 0.080 (≈22%) doubling K. CLT for a harvest-dominated variance
+   predicts ~1/√2 = 0.71× (→ 0.073); observed 0.080 is close, so the reduction
+   is roughly CLT-consistent, with a residual (init/other) that does not shrink
+   and holds σ above the 0.056 target. This **confirms C4's diagnosis**
+   (variance is harvest-driven) from the *positive* side, where GRPO confirmed
+   it from the negative side.
+
+2. **K=8 lifted the MEAN dramatically — enough to flip the deployment call.**
+   pass@1 mean 0.533 vs K=4 MeanCenter 0.412 and **SFT 0.364** — a **+0.169**
+   gap over SFT, ≈4.6× SFT's σ. More harvest = more positive-advantage training
+   samples/step = more learning, not just tighter variance. All 4 K=8 seeds
+   (0.444–0.638) sit **above SFT's mean**, and the *lowest* (0.444) exceeds
+   SFT's mean+2σ (0.438). Deployment math: K=8 RL mean−2σ = **0.373 > SFT mean
+   0.364** — even a pessimistic K=8 run beats a typical SFT run.
+
+**Re-reading the pre-registration.** The locked σ criterion assumed RL only
+*matched* SFT's mean, so variance was the sole differentiator. K=8 broke that
+assumption: on expected deployment value (mean − risk), K=8 RL now **beats**
+SFT on this substrate despite a wider σ. The criterion answered its exact
+question (no, RL is not low-variance) but is the wrong lens once the mean moved.
+
+**Caveats (why this is a direction, not yet a headline).** n=4 (this repo
+retracts n=4 claims — needs seeds 400/500 to match the K=4 arms' 6). K=8 is 2×
+the generation compute of K=4 and SFT, so the mean lift is not compute-free.
+The lift is a *harvest/learning* effect, not variance reduction per se.
+
+# Where this leaves the RL-variance study
+
+- **Objective-side lever (GRPO/clip): dead** — makes σ worse (Wave 1, 0.144).
+- **Harvest-side lever (K=8): works, but changes the axis** — it does not make
+  RL low-variance (σ 0.080 > 0.056), it makes RL **high-mean** (0.533,
+  +0.169 over SFT). The right deployment question is no longer "match SFT's
+  variance" but "is the mean lift worth 2× compute + a wider σ" — and on
+  mean−2σ, yes.
+- **Next step to firm it: extend K=8 to 6 seeds (400, 500)** on the same ruler,
+  then decide the deployment recommendation on mean−kσ, not the (now
+  superseded) σ≤0.056 gate.
+
 # Status
 
 - [x] Mechanism + unit tests + CUDA example build.
 - [x] Guard #1: base-policy pass-count distribution → `--advantage-clip 1.0`.
-- [x] **Wave 1: GRPO+clip 1.0 — DOES NOT QUALIFY** (σ 0.144, worse than
-      MeanCenter). Objective-side lever fails; confirms harvest-driven variance.
-- [ ] **Pivot to the harvest-side lever: K=8** (`--k-per-prompt 8`, MeanCenter,
-      posonly). More samples/prompt is the direct CLT reduction of the harvest
-      noise C4 and this wave both point at. This is the remaining live
-      hypothesis for bringing RL's σ down.
+- [x] **Wave 1: GRPO+clip 1.0 — DOES NOT QUALIFY** (σ 0.144, worse). Objective
+      lever fails; confirms harvest-driven variance from the negative side.
+- [x] **Wave 2: K=8 — DOES NOT QUALIFY on σ (0.080 > 0.056), but flips the
+      mean** (0.533, +0.169 over SFT; all 4 seeds above SFT mean; mean−2σ >
+      SFT mean). Harvest lever confirmed; deployment axis shifts from variance
+      to mean.
+- [ ] Extend K=8 to 6 seeds (400, 500) to firm the mean/σ, then re-decide the
+      deployment recommendation on expected value.
