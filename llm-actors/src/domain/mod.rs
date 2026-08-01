@@ -9,6 +9,7 @@ use rand::rngs::StdRng;
 use crate::types::Verdict;
 
 pub mod arithmetic;
+pub mod bigcodebench;
 #[cfg(test)]
 pub(crate) mod delegation_probe;
 #[cfg(test)]
