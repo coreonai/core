@@ -12,7 +12,7 @@
 //!   *not* the wrapper's reason to exist (everything except the transformed
 //!   prompt-selection methods) still equals the inner.
 //!
-//! The harness iterates **all 7** `Domain` methods (100% coverage). If a method
+//! The harness iterates **all 8** `Domain` methods (100% coverage). If a method
 //! is added to `Domain`, add it here in the same commit — see
 //! `DOMAIN_METHOD_COUNT` and the enumeration in [`assert_all_methods_match`].
 //!
@@ -31,8 +31,8 @@ use crate::types::Verdict;
 /// [`assert_all_methods_match`] / [`assert_filter_invariant_methods_match`] —
 /// whenever a method is added, or the coverage claim in the skill is a lie.
 /// (sample_prompt, verify, charset, score, n_prompts, nth_prompt,
-/// truncate_completion.)
-pub const DOMAIN_METHOD_COUNT: usize = 7;
+/// truncate_completion, task_id.)
+pub const DOMAIN_METHOD_COUNT: usize = 8;
 
 /// A finite, fully-deterministic inner domain. Every method returns a value
 /// distinct from the trait default (so a missing delegation is observable) and
@@ -74,10 +74,13 @@ impl Domain for EquivProbeDomain {
     fn truncate_completion(&self, completion: &str) -> String {
         completion.split("CUT").next().unwrap_or("").to_string() // non-default (default is identity)
     }
+    fn task_id(&self, i: usize) -> Option<String> {
+        (i < self.n).then(|| format!("q{i}")) // non-default (default is None)
+    }
 }
 
 /// Property B set — methods that must equal the inner regardless of filtering.
-/// Covers charset, score, verify, truncate_completion (4 of 7). `pub(crate)`
+/// Covers charset, score, verify, truncate_completion (4 of 8). `pub(crate)`
 /// so a new wrapper's tests register here (skill step 5).
 pub(crate) fn assert_filter_invariant_methods_match(inner: &dyn Domain, wrapper: &dyn Domain) {
     assert_eq!(wrapper.charset(), inner.charset(), "charset");
@@ -111,7 +114,7 @@ pub(crate) fn assert_filter_invariant_methods_match(inner: &dyn Domain, wrapper:
 
 /// Property A set — EVERY method matches the inner (valid only for identity
 /// construction). Extends property B with the 3 prompt-selection methods
-/// (n_prompts, nth_prompt, sample_prompt) → 7 of 7. `pub(crate)` so a new
+/// (n_prompts, nth_prompt, sample_prompt, task_id) → 8 of 8. `pub(crate)` so a new
 /// wrapper's tests register here (skill step 5).
 pub(crate) fn assert_all_methods_match(inner: &dyn Domain, wrapper: &dyn Domain, seed: u64) {
     assert_filter_invariant_methods_match(inner, wrapper);
@@ -124,6 +127,8 @@ pub(crate) fn assert_all_methods_match(inner: &dyn Domain, wrapper: &dyn Domain,
             inner.nth_prompt(i),
             "nth_prompt({i})"
         );
+        // task_id is filter-transformed like nth_prompt: identity => matches.
+        assert_eq!(wrapper.task_id(i), inner.task_id(i), "task_id({i})");
     }
     let mut r_inner = StdRng::seed_from_u64(seed);
     let mut r_wrap = StdRng::seed_from_u64(seed);
@@ -138,16 +143,16 @@ pub(crate) fn assert_all_methods_match(inner: &dyn Domain, wrapper: &dyn Domain,
 mod tests {
     use super::*;
 
-    /// The coverage claim in one place: the harness iterates all 7 `Domain`
+    /// The coverage claim in one place: the harness iterates all 8 `Domain`
     /// methods. If `Domain` grows and this fails, update the harness and the
     /// count together (skill step 4), don't just bump the number.
     #[test]
     fn covers_every_domain_method() {
-        assert_eq!(DOMAIN_METHOD_COUNT, 7);
+        assert_eq!(DOMAIN_METHOD_COUNT, 8);
     }
 
     /// Property A — an empty-skip `FilteredDomain` is observationally identical
-    /// to its inner across all 7 methods, over several RNG seeds.
+    /// to its inner across all 8 methods, over several RNG seeds.
     #[test]
     fn filtered_domain_identity_equivalence() {
         let inner = Arc::new(EquivProbeDomain { n: 5 });

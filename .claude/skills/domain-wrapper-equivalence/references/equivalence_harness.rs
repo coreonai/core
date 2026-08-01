@@ -62,6 +62,9 @@ impl Domain for EquivProbeDomain {
     fn truncate_completion(&self, completion: &str) -> String {
         completion.split("CUT").next().unwrap_or("").to_string()
     }
+    fn task_id(&self, i: usize) -> Option<String> {
+        (i < self.n).then(|| format!("q{i}"))
+    }
 }
 
 /// Methods that must equal the inner REGARDLESS of filtering (property B).
@@ -95,6 +98,8 @@ fn assert_all_methods_match(inner: &dyn Domain, wrapper: &dyn Domain, seed: u64)
     for i in 0..=n {
         // include the out-of-range index n
         assert_eq!(wrapper.nth_prompt(i), inner.nth_prompt(i), "nth_prompt({i})");
+        // task_id is filter-transformed like nth_prompt: identity => matches.
+        assert_eq!(wrapper.task_id(i), inner.task_id(i), "task_id({i})");
     }
     let mut r_inner = StdRng::seed_from_u64(seed);
     let mut r_wrap = StdRng::seed_from_u64(seed);

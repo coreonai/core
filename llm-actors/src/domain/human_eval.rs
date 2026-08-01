@@ -217,6 +217,10 @@ impl Domain for HumanEvalDomain {
         self.problems.get(i).map(|p| p.prompt.clone())
     }
 
+    fn task_id(&self, i: usize) -> Option<String> {
+        self.problems.get(i).map(|p| p.task_id.clone())
+    }
+
     fn truncate_completion(&self, completion: &str) -> String {
         crate::domain::truncate_python_completion(completion)
     }

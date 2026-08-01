@@ -317,6 +317,14 @@ impl Domain for MbppDomain {
         self.challenges.get(i).map(|c| c.prompt.clone())
     }
 
+    fn task_id(&self, i: usize) -> Option<String> {
+        // MBPP's native id is the integer task number; stringify for the
+        // standard export ("Mbpp/11" keeps it self-describing across harnesses).
+        self.challenges
+            .get(i)
+            .map(|c| format!("Mbpp/{}", c.task_id))
+    }
+
     fn truncate_completion(&self, completion: &str) -> String {
         crate::domain::truncate_python_completion(completion)
     }

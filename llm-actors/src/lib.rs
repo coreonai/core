@@ -8,6 +8,7 @@
 //! - `supervisor::run_round` — Gen → Verify → Curate → Train → Reload → Eval
 
 pub mod agentic_generator_actor;
+pub mod bench_export;
 pub mod critic;
 pub mod curator_actor;
 pub mod domain;

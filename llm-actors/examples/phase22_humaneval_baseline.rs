@@ -34,7 +34,7 @@ use candle_core::{DType, Device};
 use clap::Parser;
 use llm_actors::{
     domain::{filtered::FilteredDomain, human_eval::HumanEvalDomain, Domain},
-    EvaluatorActor, EvaluatorMessage, QwenModelActor,
+    EvaluatorActor, EvaluatorMessage, ModelMessage, QwenModelActor,
 };
 use nanogpt_rs::{generate::GenerateConfig, Tokenizer as NgptTokenizer};
 use pekko_actor::ActorSystem;
@@ -109,6 +109,14 @@ struct Args {
     /// default (the check still prints an informational `[SANITY]` line).
     #[arg(long, default_value_t = false)]
     sanity_strict: bool,
+    /// Phase 22 §6.5 — instead of scoring in Rust, GENERATE completions and
+    /// write them in LiveCodeBench custom-eval format
+    /// (`[{question_id, code_list}]`, `bench_export`) to this path, then exit.
+    /// Scoring is delegated to the official harness (`generate in Rust, score
+    /// with the official harness`). Uses the same per-(prompt, k) seed scheme
+    /// as `--sequential --aggregate`, so the dumped generations match the eval.
+    #[arg(long)]
+    dump_completions: Option<PathBuf>,
 }
 
 fn pick_device() -> Device {
@@ -211,6 +219,68 @@ async fn main() -> Result<()> {
 
     let system = ActorSystem::new("phase22-a");
     let model_ref = system.spawn(qwen, "qwen-model").await?;
+
+    // Phase 22 §6.5 — standard-format export. Generate completions in Rust and
+    // write LiveCodeBench custom-eval JSON; scoring is delegated to the
+    // official harness (bench_export). Mirrors EvalSequential's per-(prompt, k)
+    // seed so the dump matches what `--sequential --aggregate` would score.
+    if let Some(dump_path) = args.dump_completions.clone() {
+        use llm_actors::bench_export::{group_lcb_entries, write_lcb};
+        let (temperature, top_k, top_p) = if args.passk > 1 {
+            (0.8, Some(40usize), Some(0.95f64))
+        } else {
+            (0.0, Some(1usize), None)
+        };
+        let mut samples: Vec<(Option<String>, String)> = Vec::new();
+        for prompt_idx in args.offset..args.offset + args.n_problems {
+            let Some(prompt) = domain.nth_prompt(prompt_idx) else {
+                break;
+            };
+            let question_id = domain.task_id(prompt_idx);
+            let prompt_ids = tk.encode(&prompt).map_err(|e| anyhow!("encode: {e}"))?;
+            for k in 0..args.passk {
+                let k_seed = (prompt_idx as u64)
+                    .wrapping_mul(args.passk as u64)
+                    .wrapping_add(k as u64);
+                let cfg = GenerateConfig {
+                    max_new_tokens: args.max_new_tokens,
+                    temperature,
+                    top_k,
+                    top_p,
+                    seed: Some(k_seed),
+                };
+                let (tx, rx) = oneshot::channel();
+                model_ref
+                    .tell(ModelMessage::GenerateTokens {
+                        prompt_ids: prompt_ids.clone(),
+                        cfg,
+                        reply: tx,
+                    })
+                    .map_err(|e| anyhow!("{e:?}"))?;
+                let tokens = rx.await??;
+                let comp_ids = if tokens.len() > prompt_ids.len() {
+                    &tokens[prompt_ids.len()..]
+                } else {
+                    &[][..]
+                };
+                let raw = tk.decode(comp_ids).map_err(|e| anyhow!("decode: {e}"))?;
+                // Same truncation the eval applies, so the dumped code is what
+                // was (or would be) scored — one ruler.
+                let code = domain.truncate_completion(&raw);
+                samples.push((question_id.clone(), code));
+            }
+        }
+        let entries = group_lcb_entries(samples);
+        write_lcb(&entries, &dump_path)?;
+        println!(
+            "[Phase22A] dumped {} problems x passk={} to {} (LiveCodeBench custom-eval format)",
+            entries.len(),
+            args.passk,
+            dump_path.display()
+        );
+        return Ok(());
+    }
+
     let evaluator = EvaluatorActor::<QwenModelActor>::new(model_ref.clone(), tk, domain, None);
     let evaluator_ref = system.spawn(evaluator, "evaluator").await?;
 

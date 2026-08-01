@@ -75,6 +75,18 @@ pub trait Domain: Send + Sync {
     fn truncate_completion(&self, completion: &str) -> String {
         completion.to_string()
     }
+
+    /// Benchmark-standard identifier for the prompt at index `i` — e.g.
+    /// `"HumanEval/3"`, an MBPP task number, a LiveCodeBench `question_id`.
+    /// Keys the standard-format export (`crate::bench_export`) that official
+    /// grading harnesses ingest, so generation can stay in Rust while scoring
+    /// is delegated. Default is `None` (no stable id); fixed-benchmark domains
+    /// override, and **wrappers must re-index it exactly like `nth_prompt`** —
+    /// a defaulted method a wrapper forgets is a silent-failure surface (see
+    /// the `domain-wrapper-equivalence` skill).
+    fn task_id(&self, _i: usize) -> Option<String> {
+        None
+    }
 }
 
 /// Phase 22 Stage D G9 — port of Phase 17's `truncate_completion`

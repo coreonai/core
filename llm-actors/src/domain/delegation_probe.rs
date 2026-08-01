@@ -2,7 +2,7 @@
 //!
 //! A wrapper type that implements `Domain` by holding another `Domain` and
 //! forgetting to delegate one of the **defaulted** methods (`score`,
-//! `n_prompts`, `nth_prompt`, `truncate_completion`) silently inherits the
+//! `n_prompts`, `nth_prompt`, `truncate_completion`, `task_id`) silently inherits the
 //! trait default — and the compiler cannot catch it, because a defaulted
 //! method needs no `impl`. That is exactly the bug that switched
 //! `truncate_completion` OFF for the entire Phase 22 hard-tail series and
@@ -52,6 +52,10 @@ impl Domain for ProbeDomain {
     fn truncate_completion(&self, completion: &str) -> String {
         completion.split("CUT").next().unwrap_or("").to_string()
     }
+    /// Default is `None`; return `Some("q{i}")` for `i < 3`.
+    fn task_id(&self, i: usize) -> Option<String> {
+        (i < 3).then(|| format!("q{i}"))
+    }
 }
 
 /// Assert that a `Domain` wrapper delegates **every** defaulted method — i.e.
@@ -63,7 +67,7 @@ impl Domain for ProbeDomain {
 /// ```
 ///
 /// A forgotten delegation falls back to the default and trips exactly one of
-/// the four checks below.
+/// the five checks below.
 macro_rules! assert_domain_fully_delegates {
     ($ctor:expr) => {{
         let inner: std::sync::Arc<dyn $crate::domain::Domain> =
@@ -93,6 +97,11 @@ macro_rules! assert_domain_fully_delegates {
             $crate::domain::Domain::nth_prompt(&wrapper, 0).is_some(),
             "Domain::nth_prompt not delegated — wrapper fell back to the None default"
         );
+        // task_id: trait default is None; the probe returns Some(_).
+        assert!(
+            $crate::domain::Domain::task_id(&wrapper, 0).is_some(),
+            "Domain::task_id not delegated — wrapper fell back to the None default"
+        );
     }};
 }
 pub(crate) use assert_domain_fully_delegates;
@@ -110,6 +119,7 @@ mod tests {
         assert_eq!(p.n_prompts(), Some(3));
         assert_eq!(p.nth_prompt(0).as_deref(), Some("probe0"));
         assert_eq!(p.truncate_completion("keepCUTdrop"), "keep");
+        assert_eq!(p.task_id(0).as_deref(), Some("q0"));
     }
 
     /// A correct pass-through wrapper passes the guard.
@@ -137,6 +147,9 @@ mod tests {
             }
             fn truncate_completion(&self, c: &str) -> String {
                 self.0.truncate_completion(c)
+            }
+            fn task_id(&self, i: usize) -> Option<String> {
+                self.0.task_id(i)
             }
         }
         assert_domain_fully_delegates!(FullDelegator);

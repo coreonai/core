@@ -111,6 +111,16 @@ impl Domain for FilteredDomain {
         self.inner.nth_prompt(inner_idx)
     }
 
+    // override: re-index into the kept set, exactly like `nth_prompt` — the
+    // exported `question_id` must be the inner's id for the surviving prompt,
+    // not the renumbered wrapper index. (A straight delegation would return the
+    // wrong problem's id; the identity default would return None and silently
+    // drop ids from every filtered export.)
+    fn task_id(&self, i: usize) -> Option<String> {
+        let &inner_idx = self.valid_indices.get(i)?;
+        self.inner.task_id(inner_idx)
+    }
+
     /// Phase 22 C5 follow-up — **must** delegate. This wrapper previously
     /// inherited the trait's identity default, so wrapping a code domain
     /// silently switched OFF `truncate_python_completion` at every
