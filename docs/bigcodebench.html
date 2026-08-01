@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="workLLM §6.5 — BigCodeBench + Docker sandbox investigation: role, custom-generation format, sandbox availability, public numbers, and sequencing.">
+<title>workLLM · BigCodeBench + Docker sandbox</title>
+</head>
+<body>
+<style>
+  :root{
+    --ground:#f3f5f8; --surface:#ffffff; --surface-2:#eef1f5; --line:#d9dfe7;
+    --ink:#141b23; --muted:#5a6b7b; --faint:#8496a6;
+    --accent:#1f8bab; --accent-soft:#e2f0f5;
+    --ok:#3f9d6e; --ok-bg:#e7f4ec; --warn:#b77a1f; --warn-bg:#faf0dd;
+    --bad:#c3554f; --bad-bg:#fae8e6; --info:#5c74a0; --info-bg:#e8eef7;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --ground:#0e151e; --surface:#151f2b; --surface-2:#1b2733; --line:#26333f;
+      --ink:#e6edf4; --muted:#93a3b3; --faint:#6b7d8d;
+      --accent:#45b2d1; --accent-soft:#16323d;
+      --ok:#5bb98a; --ok-bg:#132a20; --warn:#d39a52; --warn-bg:#2c2213;
+      --bad:#cf6b6b; --bad-bg:#2c1817; --info:#8ba6c9; --info-bg:#16202f;
+    }
+  }
+  :root[data-theme="light"]{
+    --ground:#f3f5f8; --surface:#ffffff; --surface-2:#eef1f5; --line:#d9dfe7;
+    --ink:#141b23; --muted:#5a6b7b; --faint:#8496a6; --accent:#1f8bab; --accent-soft:#e2f0f5;
+    --ok:#3f9d6e; --ok-bg:#e7f4ec; --warn:#b77a1f; --warn-bg:#faf0dd;
+    --bad:#c3554f; --bad-bg:#fae8e6; --info:#5c74a0; --info-bg:#e8eef7;
+  }
+  :root[data-theme="dark"]{
+    --ground:#0e151e; --surface:#151f2b; --surface-2:#1b2733; --line:#26333f;
+    --ink:#e6edf4; --muted:#93a3b3; --faint:#6b7d8d; --accent:#45b2d1; --accent-soft:#16323d;
+    --ok:#5bb98a; --ok-bg:#132a20; --warn:#d39a52; --warn-bg:#2c2213;
+    --bad:#cf6b6b; --bad-bg:#2c1817; --info:#8ba6c9; --info-bg:#16202f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
+    line-height:1.6;-webkit-font-smoothing:antialiased;font-size:15px}
+  .wrap{max-width:900px;margin:0 auto;padding:0 24px 96px}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  h1,h2,h3{text-wrap:balance;margin:0}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+
+  header.bar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 88%,transparent);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .bar-in{max-width:900px;margin:0 auto;padding:13px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .logo{font-family:var(--mono);font-weight:600;letter-spacing:-.01em;font-size:14px;color:var(--ink)}
+  .logo b{color:var(--accent)}
+  .bar-links{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:13px}
+  .bar-links a{color:var(--muted)}
+  button.theme{font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--surface);
+    border:1px solid var(--line);border-radius:7px;padding:5px 10px;cursor:pointer}
+  button.theme:hover{color:var(--ink);border-color:var(--accent)}
+  button.theme:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .hero{padding:44px 0 20px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  h1{font-size:clamp(26px,4vw,38px);letter-spacing:-.02em;line-height:1.12;margin:12px 0 14px}
+  .lede{color:var(--muted);font-size:16px;max-width:64ch}
+  .lede b{color:var(--ink);font-weight:600}
+  .meta{margin-top:16px;font-family:var(--mono);font-size:12px;color:var(--faint)}
+
+  section{padding-top:34px}
+  h2{font-size:20px;letter-spacing:-.01em;margin-bottom:6px}
+  h2 .n{font-family:var(--mono);color:var(--accent);font-size:15px;margin-right:8px}
+  section > p{color:var(--muted);margin:10px 0}
+  section > p b, li b{color:var(--ink);font-weight:600}
+  ul{margin:10px 0;padding-left:20px;color:var(--muted)}
+  li{margin:6px 0}
+  code{font-family:var(--mono);font-size:.88em;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:5px;padding:1px 5px;color:var(--ink)}
+  pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+    overflow-x:auto;margin:14px 0}
+  pre code{background:none;border:none;padding:0;font-size:12.5px;line-height:1.6;color:var(--ink)}
+
+  .pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;
+    font-weight:600;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:3px 10px;border:1px solid transparent}
+  .pill.ok{color:var(--ok);background:var(--ok-bg);border-color:color-mix(in srgb,var(--ok) 30%,transparent)}
+  .pill.info{color:var(--info);background:var(--info-bg);border-color:color-mix(in srgb,var(--info) 30%,transparent)}
+  .pill.warn{color:var(--warn);background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
+
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  @media (max-width:640px){.cards{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .card h3{font-size:15px;margin-bottom:6px}
+  .card .tag{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.08em;text-transform:uppercase}
+  .card p{color:var(--muted);font-size:13.5px;margin:8px 0 0}
+
+  .callout{display:flex;gap:12px;background:var(--ok-bg);border:1px solid color-mix(in srgb,var(--ok) 30%,transparent);
+    border-radius:12px;padding:15px 17px;margin:16px 0}
+  .callout .k{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ok);flex:none;padding-top:2px}
+  .callout p{margin:0;color:var(--ink);font-size:14px}
+  .callout.info{background:var(--info-bg);border-color:color-mix(in srgb,var(--info) 30%,transparent)}
+  .callout.info .k{color:var(--info)}
+
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}
+  th{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600}
+  td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--ink)}
+  tr:last-child td{border-bottom:none}
+  .muted{color:var(--faint)}
+
+  ol.steps{counter-reset:s;list-style:none;padding:0;margin:14px 0}
+  ol.steps li{position:relative;padding:2px 0 12px 40px;color:var(--muted)}
+  ol.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:0;
+    width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);
+    font-family:var(--mono);font-size:12px;font-weight:700;display:grid;place-items:center;
+    border:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
+  footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:13px}
+  footer a{color:var(--muted)}
+</style>
+
+<header class="bar">
+  <div class="bar-in">
+    <span class="logo">workLLM<b>/</b>benchmarking</span>
+    <div class="bar-links">
+      <a href="/">&larr; dashboard</a>
+      <button class="theme" id="tg" type="button">theme</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Phase 22 · §6.5 · investigation</div>
+    <h1>BigCodeBench + Docker sandbox</h1>
+    <p class="lede">The <b>ceiling</b> instrument — harder, library-using,
+    instruction-following tasks that HumanEval's ceiling hides. Complementary to
+    LiveCodeBench (the <b>contamination</b> instrument): LCB adds a temporal
+    axis, BigCodeBench a difficulty/realism axis. This is the stand-up
+    investigation — not yet wired.</p>
+    <div class="meta">2026-08-01 · generate in Rust, score with the official Docker harness · one ruler</div>
+  </div>
+
+  <section>
+    <h2><span class="n">01</span>Two bottlenecks, two instruments</h2>
+    <div class="cards">
+      <div class="card">
+        <div class="tag">Contamination</div>
+        <h3>LiveCodeBench</h3>
+        <p>Temporal cutoff filtering (<code>--start_date</code>/<code>--end_date</code>). Is a self-improve gain real generalization, or polished pretraining recall? Adapter already built (<code>--dump-completions</code>).</p>
+      </div>
+      <div class="card">
+        <div class="tag">Ceiling / realism</div>
+        <h3>BigCodeBench <span class="pill info">this note</span></h3>
+        <p>Real-library calls + complex instructions. How far can the recipe go on tasks HumanEval's ceiling hides? Different axis — <b>complementary, not redundant</b>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">02</span>What it measures</h2>
+    <ul>
+      <li>Self-contained functions calling <b>real libraries</b> (numpy, pandas, requests, …) under <b>complex instructions</b> — much higher ceiling than HumanEval.</li>
+      <li><b>Splits</b>: <code>Complete</code> (docstring-based, <b>completion-style</b> — suits a base model) vs <code>Instruct</code> (natural language).</li>
+      <li><b>Subsets</b>: <code>Full</code> = <b>1140 tasks</b>, <code>Hard</code> = <b>148 tasks</b>.</li>
+      <li><b>Metric</b>: <b>calibrated pass@1</b> — adds back setup (imports, globals) the model skipped on long prompts before executing. Same class of concern as our <code>truncate_completion</code>, handled harness-side.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="n">03</span>Custom-generation format <span class="pill warn">differs from LCB</span></h2>
+    <p>BigCodeBench ingests <b>JSONL</b> (one sample per line), not LCB's <code>[{question_id, code_list}]</code> array:</p>
+    <pre><code>{"task_id": "BigCodeBench/N", "solution": "def task_func(...):\n    ...", "raw_solution": "&lt;optional raw output&gt;"}</code></pre>
+    <ul>
+      <li><code>task_id</code> from <code>get_bigcodebench()</code> order → our <code>Domain::task_id</code> emits <code>"BigCodeBench/N"</code> (reuses the <code>task_id</code> infra already added for LCB).</li>
+      <li><b>Adapter implication</b>: <code>bench_export</code> needs a <b>second emitter</b> (<code>write_bigcodebench_jsonl</code>) alongside <code>write_lcb</code> — different shape (JSONL lines vs array; <code>task_id/solution</code> vs <code>question_id/code_list</code>).</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="n">04</span>Docker sandbox — required, and available here</h2>
+    <p><b>Why Docker</b>: generated code executes arbitrary libraries (filesystem, network) — isolation is mandatory. Scoring is <b>CPU-bound</b> (running the tests), so it <b>does not compete with GPU training</b>; only generation needs the GPUs.</p>
+    <div class="callout">
+      <span class="k">Cluster check</span>
+      <p>Docker <b>26.1.3</b> daemon accessible, user is in the <code>docker</code> group (<b>no sudo</b>), storage <code>overlay2</code>, <b>4.4 T free on /raid</b>. The official sandbox image runs as-is.</p>
+    </div>
+    <pre><code># 1. sanitize / calibrate
+bigcodebench.syncheck --samples samples.jsonl        # -&gt; samples-sanitized-calibrated.jsonl
+
+# 2. score inside the official sandbox image
+docker run -v $(pwd):/app bigcodebench/bigcodebench-evaluate:latest \
+  --execution local --split complete --subset hard \
+  --samples samples-sanitized-calibrated.jsonl</code></pre>
+    <p>Alternatives: <code>--execution gradio</code> (remote HF space, ~6–7 min Full / ~4–5 min Hard, no key) or <code>--execution e2b</code> (needs <code>E2B_API_KEY</code>). Local Docker is best for reproducibility and offline runs.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">05</span>Public numbers → a plausibility band, not a point</h2>
+    <p>The leaderboard is <b>instruct-centric</b> — no clean base+completion score, the same situation as LiveCodeBench. So <code>eval_sanity</code> uses a <code>PlausibilityBand</code> (catches a broken harness ≈0 or an implausible score), not a cited <code>Point</code>.</p>
+    <table>
+      <thead><tr><th>model</th><th>split / subset</th><th>calibrated pass@1</th></tr></thead>
+      <tbody>
+        <tr><td>Qwen2.5-Coder-7B-<b>Instruct</b></td><td>Complete / Full</td><td class="num">41.0%</td></tr>
+        <tr><td>Qwen2.5-Coder-7B-<b>Instruct</b></td><td>Complete / Hard</td><td class="num">18.2%</td></tr>
+        <tr><td>Qwen2.5-Coder-7B-<b>Base</b> (ours)</td><td>Complete</td><td class="num muted">not published</td></tr>
+      </tbody>
+    </table>
+    <p><code>Complete</code> is docstring/completion-style, so a <b>base</b> model is likely <i>less</i> depressed than on LCB's chat format — but still below the instruct neighbourhood. Band uses 41.0% / 18.2% as the upper neighbourhood; tighten after the first calibrated run.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">06</span>Recommended sequencing</h2>
+    <ol class="steps">
+      <li><b>Complete / Hard (148 tasks) first</b> — a cheap ceiling probe (far lighter than Full 1140), docstring split suits a base model.</li>
+      <li><b>Infra</b>: <code>docker pull bigcodebench/bigcodebench-evaluate:latest</code> → smoke the eval on a tiny hand-made samples file → confirm the results-JSON shape.</li>
+      <li><b>Adapter</b>: <code>bench_export::write_bigcodebench_jsonl</code> + a BigCodeBench prompt-source in Rust (loads <code>task_id</code> + docstring prompt).</li>
+      <li><b>Sanity</b>: add BigCodeBench <code>PlausibilityBand</code> rows to <code>eval_sanity</code> (per subset), tighten after the first run.</li>
+      <li>If promising on Hard, extend to <b>Full 1140</b>.</li>
+    </ol>
+    <div class="callout info">
+      <span class="k">GPU-free now</span>
+      <p>The emitter, the sanity band, and <code>docker pull</code> + a Docker smoke all run while a GPU wave holds the cards. Only the generation run (Rust → JSONL) needs the GPUs; scoring (Docker) does not.</p>
+    </div>
+  </section>
+
+  <footer>
+    Sources:
+    <a href="https://github.com/bigcode-project/bigcodebench">BigCodeBench repo</a> ·
+    <a href="https://github.com/bigcode-project/bigcodebench/blob/main/ADVANCED_USAGE.md">ADVANCED_USAGE.md</a> ·
+    <a href="https://pypi.org/project/bigcodebench/">PyPI</a> ·
+    <a href="https://bigcode-bench.github.io/">leaderboard</a> ·
+    <a href="https://github.com/huggingface/blog/blob/main/leaderboard-bigcodebench.md">HF blog</a>
+    <br>Mirror of <span class="mono">docs/phase22-bigcodebench-notes.md</span> · workLLM
+  </footer>
+</div>
+
+<script>
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('tg');
+    function cur(){ if(root.dataset.theme) return root.dataset.theme;
+      return matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'; }
+    btn.addEventListener('click',function(){ root.dataset.theme = cur()==='dark'?'light':'dark'; });
+  })();
+</script>
+</body>
+</html>
