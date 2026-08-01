@@ -121,15 +121,31 @@ calibrated run.
    (per subset), tighten after the first calibrated run.
 5. If promising on Hard, extend to **Full 1140**.
 
-# GPU-free next code steps (can run while a GPU wave holds the cards)
+# Implementation status
 
-- `bench_export` BigCodeBench JSONL emitter (+ unit tests, exact-schema-keys
-  assertion like the LCB one).
-- `eval_sanity` BigCodeBench band rows.
-- `docker pull` + a Docker eval smoke on a 2–3 line samples file.
+GPU-free code — **done** (Phase 22 §6.5 commits):
 
-The generation run itself (Rust → JSONL) needs the GPUs; scoring (Docker) does
-not.
+- [x] `bench_export::write_bigcodebench_jsonl` + `bigcodebench_entries`
+      (`BcbEntry {task_id, solution, raw_solution?}`), unit-tested.
+- [x] `domain::bigcodebench::BigCodeBenchDomain` — generation-only prompt
+      source (Complete/Instruct split; `verify` is an external-scoring stub;
+      `task_id → "BigCodeBench/N"`).
+- [x] `phase22_dump_completions` example — `--benchmark bigcodebench
+      --format bigcodebench` generates + writes the JSONL.
+- [x] `eval_sanity` BigCodeBench `PlausibilityBand` rows, keyed
+      `BigCodeBench-Complete-{Full,Hard}` (instruct neighbourhood 41.0% / 18.2%
+      as the upper guard).
+
+Needs data / Docker / GPU:
+
+- [ ] Export HF `bigcode/bigcodebench` → `data/bigcodebench/*.jsonl`
+      (Complete split, Hard subset first).
+- [ ] `docker pull bigcodebench/bigcodebench-evaluate:latest` + a Docker eval
+      smoke on a 2–3 line samples file.
+- [ ] Generation run (Rust → JSONL) on a free GPU → `bigcodebench.syncheck`
+      → Docker `--execution local` → first calibrated number → tighten the band.
+
+The generation run needs the GPUs; scoring (Docker) is CPU-bound and does not.
 
 # Sources
 

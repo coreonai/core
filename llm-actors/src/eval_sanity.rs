@@ -138,6 +138,32 @@ pub const PUBLIC_BASELINES: &[PublicBaseline] = &[
         tol: 0.11,
         source: "plausibility guard — no public base LCB point; calibrate on first run",
     },
+    // BigCodeBench (calibrated pass@1) — like LCB, the board is
+    // instruct-centric, no clean base+completion point. Reference neighbourhood
+    // (Qwen2.5-Coder-7B-*Instruct*, Complete split): Full 41.0%, Hard 18.2%.
+    // `Complete` is docstring/completion-style so a base model is *less*
+    // depressed than on LCB's chat format, but still below the instruct
+    // neighbourhood. Bands guard against a broken Docker harness (≈0 on Full,
+    // where a 7B base should score meaningfully) and an implausibly-high score
+    // (above the instruct neighbourhood → wrong subset/split). Tighten after
+    // the first calibrated run; the benchmark key encodes split+subset because
+    // the score depends on both.
+    PublicBaseline {
+        model_id: "Qwen2.5-Coder-7B",
+        benchmark: "BigCodeBench-Complete-Full",
+        kind: AnchorKind::PlausibilityBand,
+        published_pass1: 0.225, // band midpoint of [0.03, 0.42]
+        tol: 0.195,
+        source: "plausibility guard — instruct neighbourhood 41.0% (bigcode-bench.github.io)",
+    },
+    PublicBaseline {
+        model_id: "Qwen2.5-Coder-7B",
+        benchmark: "BigCodeBench-Complete-Hard",
+        kind: AnchorKind::PlausibilityBand,
+        published_pass1: 0.11, // band midpoint of [0.0, 0.22]
+        tol: 0.11,
+        source: "plausibility guard — instruct neighbourhood 18.2% (bigcode-bench.github.io)",
+    },
 ];
 
 /// Outcome of comparing a measured base pass@1 to the published number.
@@ -337,5 +363,36 @@ mod tests {
         assert!(b
             .describe("Qwen2.5-Coder-7B", "LiveCodeBench", 0.15)
             .contains("guard band"));
+    }
+
+    #[test]
+    fn bigcodebench_bands_are_split_subset_keyed_and_guard_extremes() {
+        // Broken Docker harness ≈0 on Full flags (a 7B base should score > 0.03).
+        let broken = check_public_baseline("Qwen2.5-Coder-7B", "BigCodeBench-Complete-Full", 0.0);
+        assert!(broken.is_drift(), "{broken:?}");
+        // Plausible base score inside the Full band.
+        let ok = check_public_baseline("Qwen2.5-Coder-7B", "BigCodeBench-Complete-Full", 0.20);
+        assert!(
+            matches!(
+                ok,
+                SanityVerdict::Ok {
+                    kind: AnchorKind::PlausibilityBand,
+                    ..
+                }
+            ),
+            "{ok:?}"
+        );
+        // Above the instruct neighbourhood (>0.42) → implausible (wrong subset?).
+        let high = check_public_baseline("Qwen2.5-Coder-7B", "BigCodeBench-Complete-Full", 0.55);
+        assert!(high.is_drift(), "{high:?}");
+        // Hard has its OWN key/band; 0.35 is fine on Full but above Hard's 0.22.
+        let hard_ok = check_public_baseline("Qwen2.5-Coder-7B", "BigCodeBench-Complete-Hard", 0.10);
+        assert!(matches!(hard_ok, SanityVerdict::Ok { .. }), "{hard_ok:?}");
+        let hard_high =
+            check_public_baseline("Qwen2.5-Coder-7B", "BigCodeBench-Complete-Hard", 0.35);
+        assert!(
+            hard_high.is_drift(),
+            "Hard key must use Hard band: {hard_high:?}"
+        );
     }
 }
