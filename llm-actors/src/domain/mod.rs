@@ -11,6 +11,8 @@ use crate::types::Verdict;
 pub mod arithmetic;
 #[cfg(test)]
 pub(crate) mod delegation_probe;
+#[cfg(test)]
+pub(crate) mod equivalence;
 pub mod filtered;
 pub mod human_eval;
 pub mod korean_completion;
