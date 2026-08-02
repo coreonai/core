@@ -219,27 +219,68 @@ retracts n=4 claims — needs seeds 400/500 to match the K=4 arms' 6). K=8 is 2�
 the generation compute of K=4 and SFT, so the mean lift is not compute-free.
 The lift is a *harvest/learning* effect, not variance reduction per se.
 
-# Where this leaves the RL-variance study
+## Wave 2 extension — 6 seeds confirm and sharpen
 
-- **Objective-side lever (GRPO/clip): dead** — makes σ worse (Wave 1, 0.144).
-- **Harvest-side lever (K=8): works, but changes the axis** — it does not make
-  RL low-variance (σ 0.080 > 0.056), it makes RL **high-mean** (0.533,
-  +0.169 over SFT). The right deployment question is no longer "match SFT's
-  variance" but "is the mean lift worth 2× compute + a wider σ" — and on
-  mean−2σ, yes.
-- **Next step to firm it: extend K=8 to 6 seeds (400, 500)** on the same ruler,
-  then decide the deployment recommendation on mean−kσ, not the (now
-  superseded) σ≤0.056 gate.
+Seeds 400/500 added (same ruler), 6 seeds total:
+
+| | pass@1 | pass@5 |
+|---|---|---|
+| **K=8 posonly (6 seeds)** | **0.538 ± 0.076** | **0.656 ± 0.077** |
+| K=8 posonly (4 seeds) | 0.533 ± 0.080 | 0.633 ± 0.083 |
+| SFT samples=16 r2 (4 seeds) | 0.364 ± 0.037 | 0.566 ± 0.020 |
+| K=4 MeanCenter RL (6 seeds) | 0.412 ± 0.103 | 0.581 ± 0.067 |
+| base | 0.172 | 0.422 |
+
+New per-seed pass@1 — 400 = 0.600, 500 = 0.491. The reading **firms**: mean
+0.533 → 0.538 (stable), σ 0.080 → 0.076 (slightly tighter, still > 0.056).
+
+- **Mean dominance is robust, not a 4-seed fluke.** pass@1 0.538 vs SFT 0.364 =
+  **+0.174**; all 6 seeds (0.447–0.653) sit above SFT's mean, and the lowest
+  (0.447) still exceeds SFT mean+2σ (0.438).
+- **σ 0.076** — 2.05× SFT's 0.037, 1.36× the 0.056 gate. Still FAILS the locked
+  criterion. Doubling K bought a ~26% σ reduction (0.103 → 0.076) and no more;
+  the residual is the non-harvest floor.
+- **Deployment math (6 seeds): K=8 RL mean−2σ = 0.386 > SFT mean 0.364**, and
+  mean−1σ = 0.462 > SFT mean+2σ (0.438). Even a 2σ-pessimistic K=8 run beats a
+  typical SFT run.
+
+# Conclusion
+
+**The pre-registered question — "can RL be made low-variance to match SFT?" —
+is answered NO.** Neither lever reaches σ ≤ 0.056: the objective-side (GRPO)
+makes it *worse* (0.144), the harvest-side (K=8) improves it but plateaus at
+0.076. Variance is harvest-driven (confirmed from both directions), with a
+residual floor that more harvest doesn't clear.
+
+**But the harvest lever surfaced a better recipe.** K=8 posonly RL lifts the
+*mean* to 0.538 (+0.174 over SFT, 6 seeds), because more harvest = more
+positive-advantage (RAFT-style) training samples per step = more learning, not
+just tighter variance. On expected deployment value (mean−2σ), **K=8 RL now
+beats SFT on this substrate** despite the wider σ — the σ gate was the right
+question under the old assumption (RL only matches SFT's mean) and the wrong
+lens once the mean moved.
+
+**Deployment recommendation (revised, mean−kσ not σ-gate):**
+- **Best expected pass@1: K=8 posonly RL — 0.538 ± 0.076** (+0.174 over SFT),
+  if you can afford ~2× the generation compute of K=4/SFT.
+- **Tightest per-GPU-hour: SFT — 0.364 ± 0.037** (low variance, low compute).
+- pass@k inference scaling remains the training-free, orthogonal win.
+
+**Honest open control (attribution).** K=8 RL's win could be "RL + more harvest"
+or just "more harvest." The clean test is **SFT with matched harvest**
+(samples≈2×) — if that also lifts to ~0.53, the credit is harvest, not RL.
+Worth one wave before calling K=8 RL *the* recipe.
 
 # Status
 
 - [x] Mechanism + unit tests + CUDA example build.
 - [x] Guard #1: base-policy pass-count distribution → `--advantage-clip 1.0`.
 - [x] **Wave 1: GRPO+clip 1.0 — DOES NOT QUALIFY** (σ 0.144, worse). Objective
-      lever fails; confirms harvest-driven variance from the negative side.
-- [x] **Wave 2: K=8 — DOES NOT QUALIFY on σ (0.080 > 0.056), but flips the
-      mean** (0.533, +0.169 over SFT; all 4 seeds above SFT mean; mean−2σ >
-      SFT mean). Harvest lever confirmed; deployment axis shifts from variance
-      to mean.
-- [ ] Extend K=8 to 6 seeds (400, 500) to firm the mean/σ, then re-decide the
-      deployment recommendation on expected value.
+      lever dead; confirms harvest-driven variance from the negative side.
+- [x] **Wave 2: K=8 (6 seeds) — DOES NOT QUALIFY on σ (0.076 > 0.056), but the
+      mean flips deployment** (0.538, +0.174 over SFT; all 6 seeds above SFT
+      mean; mean−2σ > SFT mean). Harvest lever confirmed; axis shifts to mean.
+- [x] **Study concluded.** RL can't be made low-variance here, but K=8 posonly
+      is the best-mean recipe; deploy on mean−kσ, not the σ gate.
+- [ ] Optional control: SFT with matched (~2×) harvest, to attribute the K=8
+      win to RL vs harvest before adopting it as *the* recipe.
