@@ -194,7 +194,7 @@
     <div class="eyebrow">Rust &times; Pekko &middot; Qwen2.5-Coder-7B &middot; project status</div>
     <h1>Self-improve works on 7B &mdash; once you measure it where the headroom is.</h1>
     <p class="law">The operating law after the C3&ndash;C5 corrections: <strong>MR-SFT's worth = headroom &times; harvest, read at a non-saturated metric.</strong> RL (REINFORCE) matches SFT's mean but carries <strong>~3.3&times; the run-to-run variance</strong>, so SFT stays the deployment pick. <strong>pass@k</strong> is the orthogonal, training-free inference win.</p>
-    <div class="updated">head <span style="color:var(--accent)" id="hero-head">240c6f1</span> &middot; <span id="hero-updated">snapshot 2026-07-31</span></div>
+    <div class="updated">head <span style="color:var(--accent)" id="hero-head">240c6f1</span> &middot; <span id="hero-updated">snapshot 2026-08</span></div>
   </div>
 
   <!-- LIVE -->
@@ -214,7 +214,7 @@
 
   <!-- FINDINGS -->
   <section>
-    <div class="h-row"><h2>7B findings</h2><span class="count">6 results &middot; 3 confirmed &middot; 1 corrected &middot; 2 retracted-and-reversed</span></div>
+    <div class="h-row"><h2>7B findings</h2><span class="count">7 results &middot; 4 confirmed &middot; 1 corrected &middot; 2 retracted-and-reversed</span></div>
     <div class="grid">
 
       <div class="card ok">
@@ -265,6 +265,14 @@
         <div class="note"><b>&ldquo;RL collapses on adapter sync&rdquo; retracted</b> &mdash; 8/8 runs rise once the reward is scored like the eval.</div>
       </div>
 
+      <div class="card ok">
+        <div class="card-top"><span class="card-cat">RL &middot; K=8 harvest (6 seeds)</span><span class="pill ok">confirmed</span></div>
+        <h3>More harvest flips RL past SFT</h3>
+        <div class="metric">0.538 <small>pass@1 &middot; +0.174 vs SFT</small></div>
+        <p>K=8 doesn&rsquo;t make RL low-variance (&sigma; 0.076 &gt; 0.056 gate) &mdash; it makes RL <b>high-mean</b>. All 6 seeds above SFT&rsquo;s mean; on mean&minus;2&sigma; K=8 RL beats SFT. GRPO (objective lever) made &sigma; worse.</p>
+        <div class="note">Attribution: <b>RL, not harvest</b> &mdash; SFT samples=32 (2&times; harvest, 6 seeds) only reaches 0.329. <a href="/rl-variance.html" style="color:var(--accent)">Full study &rarr;</a></div>
+      </div>
+
     </div>
 
     <div class="rootcause">
@@ -284,13 +292,17 @@
       <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">pipeline &middot; CPU merge + free-before-load</div><div class="sub">fits inference + trainer co-resident</div></div><span class="hash">0ca067f</span></div>
       <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">--trainer-gpu &middot; two-card split</div><div class="sub">trainer &amp; sampler on separate GPUs</div></div><span class="hash">d0b058c</span></div>
       <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">RL infra port &middot; he_reinforce &rarr; 7B</div><div class="sub">model-id / bf16 / trainer-gpu / offset</div></div><span class="hash">160ccd6</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">&sect;6.5 &middot; rust-guardrails skill + delegation guard + eval_sanity</div><div class="sub">the two hardening fixes for the FilteredDomain bug class</div></div><span class="hash">cdd8411</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">&sect;6.5 &middot; domain-wrapper-equivalence skill + harness</div><div class="sub">wrapper &equiv; inner, 8-method 100% coverage, CI-enforced</div></div><span class="hash">fd19b38</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">&sect;6.5 &middot; benchmark export adapter (LCB) + Domain::task_id</div><div class="sub">generate in Rust, score with the official harness</div></div><span class="hash">0ce30e3</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">&sect;6.5 &middot; BigCodeBench pipeline &middot; emitter / domain / dumper / sanity band</div><div class="sub">GPU-free complete; Docker sandbox ready on-cluster &middot; <a href="/bigcodebench.html" style="color:var(--accent)">notes &rarr;</a></div></div><span class="hash">cfc6466</span></div>
     </div>
     <p class="memnote"><b>Memory profile (bf16):</b> 7B inference <code>15.1 GB</code>; LoRA training <code>15.2 GB</code> after the candle patch (was OOM &gt;60 GB); working config <code>--trainer-gpu 1 + batch_size=2</code> &rarr; trainer 27.8 GB, model 15.1 GB. Candle fix upstreamed as <a href="https://github.com/huggingface/candle/pull/3773">huggingface/candle#3773</a> &mdash; drop the vendored <code>[patch.crates-io]</code> once it merges.</p>
   </section>
 
   <!-- PHASE LINEAGE -->
   <section>
-    <div class="h-row"><h2>Phase lineage</h2><span class="count">11 infra + 11 measurement phases &middot; 2026-05 &rarr; 2026-07</span></div>
+    <div class="h-row"><h2>Phase lineage</h2><span class="count">11 infra + 11 measurement phases &middot; 2026-05 &rarr; 2026-08</span></div>
     <div class="rail">
       <div class="ph"><span class="pn">P1&ndash;4</span><span class="pd"><b>Foundation.</b> 12-axis nanoGPT + KoWiki; 6-actor self-improve loop; evolutionary NAS <b>independently rediscovers the Llama recipe</b>; tools + agent loop + EWC + LoRA.</span></div>
       <div class="ph"><span class="pn">P5&ndash;9</span><span class="pd"><b>Measurement discipline.</b> Ensembles &amp; specialists (honest negatives); Shape-C LogitCritic AUC 0.727; external Qwen validation; 1-round LoRA 0.40&rarr;0.73.</span></div>
