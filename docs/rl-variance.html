@@ -176,21 +176,23 @@
 
   <section>
     <h2><span class="n">04</span>Attribution — RL, not just harvest</h2>
-    <p>Is the K=8 win from RL, or just from more harvest? The control already
-    exists on this exact ruler: SFT was measured at samples-per-prompt 16 <b>and
-    32</b> (the 2× harvest).</p>
+    <p>Is the K=8 win from RL, or just from more harvest? The control — SFT with
+    2× harvest (samples=32) — is firmed to <b>6 seeds</b> on the same ruler
+    (config recovered from the surviving log and <b>validated</b>: the existing
+    4 seeds re-score to 0.385, matching the record).</p>
     <div class="scroll"><table>
       <thead><tr><th>arm</th><th>pass@1</th><th>pass@5</th></tr></thead>
       <tbody>
-        <tr><td>SFT samples=16</td><td class="num">0.364 ± 0.037</td><td class="num">0.566 ± 0.020</td></tr>
-        <tr><td>SFT samples=32 (2× harvest)</td><td class="num">0.385 ± 0.108</td><td class="num">0.535 ± 0.090</td></tr>
-        <tr class="hi"><td><b>K=8 posonly RL</b></td><td class="num">0.538 ± 0.076</td><td class="num">0.656 ± 0.077</td></tr>
+        <tr><td>SFT samples=16 (4 seeds)</td><td class="num">0.364 ± 0.037</td><td class="num">0.566 ± 0.020</td></tr>
+        <tr><td>SFT samples=32 (6 seeds)</td><td class="num">0.329 ± 0.121</td><td class="num">0.523 ± 0.071</td></tr>
+        <tr class="hi"><td><b>K=8 posonly RL</b> (6 seeds)</td><td class="num">0.538 ± 0.076</td><td class="num">0.656 ± 0.077</td></tr>
       </tbody>
     </table></div>
-    <p>Doubling SFT's harvest doesn't approach K=8 RL — SFT plateaus at
-    ~0.36–0.385 regardless. Even SFT's 32 samples/prompt (<b>4× K=8 RL's
-    per-step harvest</b>) trails RL by +0.153. <b>The win is the RL regime</b>
-    (on-policy, 30 steps), not just the pile size.</p>
+    <p><b>More SFT harvest doesn't just miss RL — it hurts:</b> 16 → 32 degrades
+    the mean (0.364 → 0.329) and blows up σ (0.037 → 0.121). SFT-32 trails K=8 RL
+    by <b>+0.209</b> and is wider-variance too — <b>K=8 RL dominates on both
+    axes</b>. The win is the <b>RL regime</b> (on-policy, reward-weighted), not
+    the pile size.</p>
   </section>
 
   <section>

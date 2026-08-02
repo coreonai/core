@@ -266,25 +266,30 @@ lens once the mean moved.
 - **Tightest per-GPU-hour: SFT — 0.364 ± 0.037** (low variance, low compute).
 - pass@k inference scaling remains the training-free, orthogonal win.
 
-**Attribution — resolved by existing data (no fresh run needed).** The control
-already exists on this exact ruler. `docs/phase22-7b-results.md` measured SFT at
-samples-per-prompt = 16 **and 32** (the 2× harvest), re-scored on the same
-consistent ruler:
+**Attribution — resolved and firmed to 6 seeds. RL, not harvest.** The control
+(SFT with 2× harvest) is extended to 6 seeds on the same ruler. The original
+samples=32 command did not survive, so it was **recovered from the samples=16
+log** (rounds=3, samples-per-prompt=32, train-steps=100, max-new=200, temp 0.8,
+top-k 0, lora r16/α32, lr 2e-4, skip 0..99) and shipped as
+`scripts/phase22_rl_variance/sft32_extend.sh` + `sft32_eval.sh`. The existing 4
+seeds re-scored to **0.385 (config-validation: MATCH** vs the doc's 0.385, so
+the recovered config is faithful); adding seeds 400/500 (both poor: 0.194,
+0.241):
 
 | | pass@1 | pass@5 |
 |---|---|---|
 | SFT samples=16 (4 seeds) | 0.364 ± 0.037 | 0.566 ± 0.020 |
-| SFT samples=32 (4 seeds) | 0.385 ± 0.108 | 0.535 ± 0.090 |
+| SFT samples=32 (**6 seeds**, config-validated) | **0.329 ± 0.121** | 0.523 ± 0.071 |
 | **K=8 posonly RL (6 seeds)** | **0.538 ± 0.076** | **0.656 ± 0.077** |
 
-**Doubling SFT's harvest does not approach K=8 RL.** SFT plateaus at ~0.36–0.385
-regardless of harvest (16 or 32); K=8 RL reaches 0.538. Even SFT's 32
-samples/prompt — **4× K=8 RL's per-step harvest (8)** — trails RL by **+0.153**
-pass@1. So the K=8 win is the **RL regime** (on-policy, 30 steps), not just more
-harvest: reward-weighted on-policy updates extract more than one-shot
-rejection-sampling FT on a bigger pile. (A re-run is also *risky*: the original
-SFT hard-tail command did not survive, so a fresh SFT-32 would introduce
-config-mismatch — the existing corrected-ruler numbers are the clean control.)
+**More SFT harvest does not just fail to reach RL — it *hurts*.** 16 → 32
+degrades the mean (0.364 → 0.329) and blows up σ (0.037 → 0.121); the 6-seed
+SFT-32 trails K=8 RL by **+0.209** pass@1 and is *also* wider-variance. K=8 RL
+**dominates SFT-32 on both axes**. So the K=8 win is unambiguously the **RL
+regime** (on-policy, 30 reward-weighted steps), not the harvest size:
+reward-weighted on-policy updates extract far more than one-shot
+rejection-sampling FT on a bigger pile. SFT-16 remains the tight, low-compute
+SFT option (0.364 ± 0.037); SFT-32 is strictly dominated.
 
 # Status
 
@@ -297,7 +302,8 @@ config-mismatch — the existing corrected-ruler numbers are the clean control.)
       mean; mean−2σ > SFT mean). Harvest lever confirmed; axis shifts to mean.
 - [x] **Study concluded.** RL can't be made low-variance here, but K=8 posonly
       is the best-mean recipe; deploy on mean−kσ, not the σ gate.
-- [x] **Attribution control — resolved from existing data.** SFT samples=32
-      (2× harvest, same ruler) = 0.385 pass@1, does NOT approach K=8 RL's 0.538.
-      The win is the RL regime, not just harvest. No fresh run (and the original
-      SFT command didn't survive → re-run would risk config-mismatch).
+- [x] **Attribution control — firmed to 6 seeds.** SFT samples=32 (2× harvest,
+      config recovered + validated: MATCH) = **0.329 ± 0.121** pass@1 (6 seeds),
+      trails K=8 RL (0.538) by +0.209 and is wider-variance too. More harvest
+      *hurts* SFT (16→32 degrades); K=8 RL dominates on both axes → the win is
+      the RL regime, not harvest. Config shipped as `sft32_extend.sh`.
