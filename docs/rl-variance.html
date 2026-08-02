@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="workLLM Phase 22 — RL variance study: can REINFORCE be made low-variance to match SFT? Concluded — no, but the K=8 harvest lever flips the mean.">
+<title>workLLM · RL variance study</title>
+</head>
+<body>
+<style>
+  :root{
+    --ground:#f3f5f8; --surface:#ffffff; --surface-2:#eef1f5; --line:#d9dfe7;
+    --ink:#141b23; --muted:#5a6b7b; --faint:#8496a6;
+    --accent:#1f8bab; --accent-soft:#e2f0f5;
+    --ok:#3f9d6e; --ok-bg:#e7f4ec; --warn:#b77a1f; --warn-bg:#faf0dd;
+    --bad:#c3554f; --bad-bg:#fae8e6; --info:#5c74a0; --info-bg:#e8eef7;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --ground:#0e151e; --surface:#151f2b; --surface-2:#1b2733; --line:#26333f;
+      --ink:#e6edf4; --muted:#93a3b3; --faint:#6b7d8d;
+      --accent:#45b2d1; --accent-soft:#16323d;
+      --ok:#5bb98a; --ok-bg:#132a20; --warn:#d39a52; --warn-bg:#2c2213;
+      --bad:#cf6b6b; --bad-bg:#2c1817; --info:#8ba6c9; --info-bg:#16202f;
+    }
+  }
+  :root[data-theme="light"]{
+    --ground:#f3f5f8; --surface:#ffffff; --surface-2:#eef1f5; --line:#d9dfe7;
+    --ink:#141b23; --muted:#5a6b7b; --faint:#8496a6; --accent:#1f8bab; --accent-soft:#e2f0f5;
+    --ok:#3f9d6e; --ok-bg:#e7f4ec; --warn:#b77a1f; --warn-bg:#faf0dd;
+    --bad:#c3554f; --bad-bg:#fae8e6; --info:#5c74a0; --info-bg:#e8eef7;
+  }
+  :root[data-theme="dark"]{
+    --ground:#0e151e; --surface:#151f2b; --surface-2:#1b2733; --line:#26333f;
+    --ink:#e6edf4; --muted:#93a3b3; --faint:#6b7d8d; --accent:#45b2d1; --accent-soft:#16323d;
+    --ok:#5bb98a; --ok-bg:#132a20; --warn:#d39a52; --warn-bg:#2c2213;
+    --bad:#cf6b6b; --bad-bg:#2c1817; --info:#8ba6c9; --info-bg:#16202f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
+    line-height:1.6;-webkit-font-smoothing:antialiased;font-size:15px}
+  .wrap{max-width:900px;margin:0 auto;padding:0 24px 96px}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  h1,h2,h3{text-wrap:balance;margin:0}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+
+  header.bar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 88%,transparent);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .bar-in{max-width:900px;margin:0 auto;padding:13px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .logo{font-family:var(--mono);font-weight:600;letter-spacing:-.01em;font-size:14px;color:var(--ink)}
+  .logo b{color:var(--accent)}
+  .bar-links{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:13px}
+  .bar-links a{color:var(--muted)}
+  button.theme{font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--surface);
+    border:1px solid var(--line);border-radius:7px;padding:5px 10px;cursor:pointer}
+  button.theme:hover{color:var(--ink);border-color:var(--accent)}
+  button.theme:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .hero{padding:44px 0 20px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  h1{font-size:clamp(26px,4vw,38px);letter-spacing:-.02em;line-height:1.12;margin:12px 0 14px}
+  .lede{color:var(--muted);font-size:16px;max-width:64ch}
+  .lede b{color:var(--ink);font-weight:600}
+  .meta{margin-top:16px;font-family:var(--mono);font-size:12px;color:var(--faint)}
+
+  section{padding-top:34px}
+  h2{font-size:20px;letter-spacing:-.01em;margin-bottom:6px}
+  h2 .n{font-family:var(--mono);color:var(--accent);font-size:15px;margin-right:8px}
+  section > p{color:var(--muted);margin:10px 0}
+  section > p b, li b, td b{color:var(--ink);font-weight:600}
+  ul{margin:10px 0;padding-left:20px;color:var(--muted)}
+  li{margin:6px 0}
+  code{font-family:var(--mono);font-size:.88em;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:5px;padding:1px 5px;color:var(--ink)}
+
+  .pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;
+    font-weight:600;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:3px 10px;border:1px solid transparent}
+  .pill.ok{color:var(--ok);background:var(--ok-bg);border-color:color-mix(in srgb,var(--ok) 30%,transparent)}
+  .pill.bad{color:var(--bad);background:var(--bad-bg);border-color:color-mix(in srgb,var(--bad) 30%,transparent)}
+  .pill.info{color:var(--info);background:var(--info-bg);border-color:color-mix(in srgb,var(--info) 30%,transparent)}
+
+  .callout{display:flex;gap:12px;background:var(--ok-bg);border:1px solid color-mix(in srgb,var(--ok) 30%,transparent);
+    border-radius:12px;padding:15px 17px;margin:16px 0}
+  .callout .k{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ok);flex:none;padding-top:2px}
+  .callout p{margin:0;color:var(--ink);font-size:14px}
+  .callout.info{background:var(--info-bg);border-color:color-mix(in srgb,var(--info) 30%,transparent)}
+  .callout.info .k{color:var(--info)}
+
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+  .scroll{overflow-x:auto}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600}
+  td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--ink)}
+  tr:last-child td{border-bottom:none}
+  tr.hi td{background:var(--accent-soft)}
+  .muted{color:var(--faint)}
+
+  footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:13px}
+  footer a{color:var(--muted)}
+</style>
+
+<header class="bar">
+  <div class="bar-in">
+    <span class="logo">workLLM<b>/</b>RL variance</span>
+    <div class="bar-links">
+      <a href="/">&larr; dashboard</a>
+      <button class="theme" id="tg" type="button">theme</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Phase 22 · RL variance study · concluded</div>
+    <h1>RL can't be made low-variance here — but more harvest flips the mean.</h1>
+    <p class="lede">Pre-registered question: <b>can REINFORCE be made
+    low-variance to match SFT?</b> Answer, both levers tested: <b>no</b>. But the
+    harvest lever (K=8) lifts RL's <b>mean</b> so far above SFT that, on
+    expected value, <b>K=8 RL now beats SFT on this substrate</b> despite a wider
+    σ — the variance gate was the wrong lens once the mean moved.</p>
+    <div class="meta">7B · HumanEval hard tail (idx 100–163) · passk=5 · pre-registered σ gate ≤ 0.056</div>
+  </div>
+
+  <section>
+    <h2><span class="n">01</span>The setup</h2>
+    <p>After the C4/C5 corrections, RL matched SFT's <i>mean</i> but carried
+    ~3.3× the σ. The study pre-registered a locked criterion — <b>pass@1 σ ≤
+    1.5× SFT (≤ 0.056) AND no mean regression</b> — then tested two levers on
+    the exact same 64-problem ruler, with paired seeds and a base-vs-published
+    sanity anchor to prevent another mis-measurement.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">02</span>Two levers, both fail the σ gate</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>arm</th><th>lever</th><th>pass@1</th><th>σ</th><th>σ gate</th><th>verdict</th></tr></thead>
+      <tbody>
+        <tr><td>Wave 1 · GRPO+clip 1.0</td><td>objective</td><td class="num">0.359</td><td class="num">0.144</td><td><span class="pill bad">fail</span></td><td>σ <b>worse</b> — dead</td></tr>
+        <tr class="hi"><td>Wave 2 · K=8</td><td>harvest</td><td class="num">0.538</td><td class="num">0.076</td><td><span class="pill bad">fail</span></td><td>σ better, <b>mean flips</b></td></tr>
+        <tr><td class="muted">K=4 MeanCenter RL</td><td class="muted">baseline</td><td class="num muted">0.412</td><td class="num muted">0.103</td><td>—</td><td class="muted">reference</td></tr>
+      </tbody>
+    </table></div>
+    <p>The objective-side lever (GRPO's std-normalization) made σ <b>worse</b>
+    (0.103 → 0.144): its ~2.3× larger advantage scale takes bigger steps and
+    amplifies whatever the seed already controls. The harvest-side lever (K=8,
+    doubling samples/prompt) moved σ the right way (0.103 → 0.076, ~CLT) but
+    plateaus above 0.056 — a residual, non-harvest floor. <b>Variance is
+    harvest-driven, confirmed from both directions.</b></p>
+  </section>
+
+  <section>
+    <h2><span class="n">03</span>The mean flip <span class="pill ok">the story</span></h2>
+    <p>K=8 didn't just tighten variance — it lifted the mean, because more
+    harvest = more positive-advantage (RAFT-style) training samples per step =
+    more learning. 6 seeds, same ruler:</p>
+    <div class="scroll"><table>
+      <thead><tr><th>arm</th><th>pass@1</th><th>pass@5</th><th>Δ pass@1 vs base</th></tr></thead>
+      <tbody>
+        <tr class="hi"><td><b>K=8 posonly RL</b> (6 seeds)</td><td class="num">0.538 ± 0.076</td><td class="num">0.656 ± 0.077</td><td class="num">+0.366</td></tr>
+        <tr><td>SFT samples=16 (4 seeds)</td><td class="num">0.364 ± 0.037</td><td class="num">0.566 ± 0.020</td><td class="num">+0.192</td></tr>
+        <tr><td>K=4 MeanCenter RL (6 seeds)</td><td class="num">0.412 ± 0.103</td><td class="num">0.581 ± 0.067</td><td class="num">+0.240</td></tr>
+        <tr><td class="muted">base</td><td class="num muted">0.172</td><td class="num muted">0.422</td><td>—</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout">
+      <span class="k">Deployment math</span>
+      <p>K=8 RL is <b>+0.174 over SFT</b>; all 6 seeds sit above SFT's mean, and
+      the lowest (0.447) exceeds SFT mean+2σ (0.438). <b>K=8 RL mean−2σ = 0.386 &gt;
+      SFT mean 0.364</b> — even a pessimistic K=8 run beats a typical SFT run.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">04</span>Attribution — RL, not just harvest</h2>
+    <p>Is the K=8 win from RL, or just from more harvest? The control already
+    exists on this exact ruler: SFT was measured at samples-per-prompt 16 <b>and
+    32</b> (the 2× harvest).</p>
+    <div class="scroll"><table>
+      <thead><tr><th>arm</th><th>pass@1</th><th>pass@5</th></tr></thead>
+      <tbody>
+        <tr><td>SFT samples=16</td><td class="num">0.364 ± 0.037</td><td class="num">0.566 ± 0.020</td></tr>
+        <tr><td>SFT samples=32 (2× harvest)</td><td class="num">0.385 ± 0.108</td><td class="num">0.535 ± 0.090</td></tr>
+        <tr class="hi"><td><b>K=8 posonly RL</b></td><td class="num">0.538 ± 0.076</td><td class="num">0.656 ± 0.077</td></tr>
+      </tbody>
+    </table></div>
+    <p>Doubling SFT's harvest doesn't approach K=8 RL — SFT plateaus at
+    ~0.36–0.385 regardless. Even SFT's 32 samples/prompt (<b>4× K=8 RL's
+    per-step harvest</b>) trails RL by +0.153. <b>The win is the RL regime</b>
+    (on-policy, 30 steps), not just the pile size.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">05</span>Deployment recommendation</h2>
+    <p>Decided on <b>mean − kσ</b>, not the (now superseded) σ ≤ 0.056 gate:</p>
+    <ul>
+      <li><b>Best expected pass@1 — K=8 posonly RL, 0.538 ± 0.076</b> (+0.174
+        over SFT), if you can afford ~2× the generation compute of K=4/SFT.</li>
+      <li><b>Tightest per-GPU-hour — SFT, 0.364 ± 0.037</b> (low variance, low
+        compute).</li>
+      <li><b>pass@k inference scaling</b> remains the training-free, orthogonal
+        win, additive with either.</li>
+    </ul>
+    <div class="callout info">
+      <span class="k">What's settled</span>
+      <p>Objective-side lever (GRPO/clip) dead × Wave 1. Harvest-side lever
+      (K=8) doesn't make RL low-variance — it makes RL high-mean, and that's the
+      better recipe on this substrate. Attribution resolved: RL, not harvest.</p>
+    </div>
+  </section>
+
+  <footer>
+    Mirror of <span class="mono">docs/phase22-rl-variance.md</span> · pre-registration + waves + conclusion ·
+    reference numbers from <span class="mono">docs/phase22-c4-c5-rl-vs-sft.md</span> and
+    <span class="mono">docs/phase22-7b-results.md</span> · workLLM Phase 22
+  </footer>
+</div>
+
+<script>
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('tg');
+    function cur(){ if(root.dataset.theme) return root.dataset.theme;
+      return matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'; }
+    btn.addEventListener('click',function(){ root.dataset.theme = cur()==='dark'?'light':'dark'; });
+  })();
+</script>
+</body>
+</html>

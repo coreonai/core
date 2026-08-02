@@ -164,6 +164,7 @@
     padding:2px 7px;border-radius:5px}
   .prio.p1{color:var(--accent);background:var(--accent-soft)}
   .prio.p2{color:var(--muted);background:var(--surface-2)}
+  .prio.done{color:var(--ok);background:var(--ok-bg)}
   .step h3{font-size:14.5px;font-weight:620}
   .step p{margin:6px 0 0;font-size:13px;color:var(--muted)}
 
@@ -305,8 +306,8 @@
     <div class="h-row"><h2>Open threads &amp; next steps</h2><span class="count">for planning</span></div>
     <div class="steps">
       <div class="step">
-        <div class="st-top"><span class="prio p1">next</span><h3>RL variance reduction</h3></div>
-        <p>RL ties SFT on the mean; its only weakness is &sigma; (3.3&times;). Ref-policy KL penalty, larger RLOO group, or more seeds &mdash; can RL actually <em>beat</em> SFT, not just tie it? The one open scientific question. (~hours GPU.)</p>
+        <div class="st-top"><span class="prio done">done</span><h3>RL variance reduction &mdash; concluded</h3></div>
+        <p>Answered: RL <b>can't</b> be made low-variance here (GRPO worse, K=8 plateaus at &sigma; 0.076). But K=8 harvest flips the <b>mean</b> to <b>0.538</b> (+0.174 over SFT); on mean&minus;2&sigma; K=8 RL beats SFT, and it's the RL regime not just harvest (SFT samples=32 only reaches 0.385). <a href="/rl-variance.html" style="color:var(--accent)">Full study &rarr;</a></p>
       </div>
       <div class="step">
         <div class="st-top"><span class="prio p2">later</span><h3>Harder external benchmarks</h3></div>

@@ -266,10 +266,25 @@ lens once the mean moved.
 - **Tightest per-GPU-hour: SFT — 0.364 ± 0.037** (low variance, low compute).
 - pass@k inference scaling remains the training-free, orthogonal win.
 
-**Honest open control (attribution).** K=8 RL's win could be "RL + more harvest"
-or just "more harvest." The clean test is **SFT with matched harvest**
-(samples≈2×) — if that also lifts to ~0.53, the credit is harvest, not RL.
-Worth one wave before calling K=8 RL *the* recipe.
+**Attribution — resolved by existing data (no fresh run needed).** The control
+already exists on this exact ruler. `docs/phase22-7b-results.md` measured SFT at
+samples-per-prompt = 16 **and 32** (the 2× harvest), re-scored on the same
+consistent ruler:
+
+| | pass@1 | pass@5 |
+|---|---|---|
+| SFT samples=16 (4 seeds) | 0.364 ± 0.037 | 0.566 ± 0.020 |
+| SFT samples=32 (4 seeds) | 0.385 ± 0.108 | 0.535 ± 0.090 |
+| **K=8 posonly RL (6 seeds)** | **0.538 ± 0.076** | **0.656 ± 0.077** |
+
+**Doubling SFT's harvest does not approach K=8 RL.** SFT plateaus at ~0.36–0.385
+regardless of harvest (16 or 32); K=8 RL reaches 0.538. Even SFT's 32
+samples/prompt — **4× K=8 RL's per-step harvest (8)** — trails RL by **+0.153**
+pass@1. So the K=8 win is the **RL regime** (on-policy, 30 steps), not just more
+harvest: reward-weighted on-policy updates extract more than one-shot
+rejection-sampling FT on a bigger pile. (A re-run is also *risky*: the original
+SFT hard-tail command did not survive, so a fresh SFT-32 would introduce
+config-mismatch — the existing corrected-ruler numbers are the clean control.)
 
 # Status
 
@@ -282,5 +297,7 @@ Worth one wave before calling K=8 RL *the* recipe.
       mean; mean−2σ > SFT mean). Harvest lever confirmed; axis shifts to mean.
 - [x] **Study concluded.** RL can't be made low-variance here, but K=8 posonly
       is the best-mean recipe; deploy on mean−kσ, not the σ gate.
-- [ ] Optional control: SFT with matched (~2×) harvest, to attribute the K=8
-      win to RL vs harvest before adopting it as *the* recipe.
+- [x] **Attribution control — resolved from existing data.** SFT samples=32
+      (2× harvest, same ruler) = 0.385 pass@1, does NOT approach K=8 RL's 0.538.
+      The win is the RL regime, not just harvest. No fresh run (and the original
+      SFT command didn't survive → re-run would risk config-mismatch).
