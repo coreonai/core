@@ -1,7 +1,7 @@
 ---
 title: "Phase 22 §6.5 — BigCodeBench + Docker sandbox (investigation notes)"
 date: "2026-08-01"
-status: "investigation — not yet wired; adapter + prompt-source + sanity band are the next code steps"
+status: "base MEASURED — Complete/Hard calibrated pass@1 = 0.169 (gt 0.973), pipeline validated end-to-end"
 ---
 
 # Why BigCodeBench, and where it sits
@@ -19,6 +19,34 @@ different instruments:
 They are **complementary, not redundant**: LCB adds a *temporal* axis
 (before/after cutoff), BigCodeBench adds a *difficulty/realism* axis. This note
 is the investigation for standing BigCodeBench up.
+
+# Base result (MEASURED) — Complete / Hard, calibrated pass@1
+
+| model | split / subset | calibrated pass@1 | gt pass rate |
+|---|---|---|---|
+| **Qwen2.5-Coder-7B base** (ours) | Complete / Hard (148) | **0.169** | 0.973 |
+| Qwen2.5-Coder-7B-Instruct (ref) | Complete / Hard | 0.182 | — |
+
+- **Pipeline validated end-to-end.** Generate in Rust (F32, greedy, 148 tasks,
+  8-GPU) → merge to `{task_id, solution}` JSONL → official Docker sandbox
+  (`bigcodebench.evaluate complete hard --execution local --calibrated True`).
+  Bundled tool **bcb 0.2.4**, dataset **v0.1.4** (matches our export).
+- **Format confirmed by a known-correct smoke.** `solution` = the model's
+  completion *body*; `calibrated=True` prepends the prompt. Canonical solutions
+  fed as samples score **pass@1 1.000** — so our completion-body samples are the
+  right shape (the `--calibrated` convention, not full-program).
+- **Sane, not depressed.** 0.169 lands **just below the instruct neighbourhood
+  0.182** — exactly the notes' prediction (Complete is docstring/completion-style,
+  so a base model is *less* depressed than on LCB's chat format). Not ≈0 (harness
+  works), below instruct as expected. `eval_sanity` Hard band recalibrated to the
+  measured value: `[0.09, 0.25]` (was `[0.0, 0.22]`).
+- **4 groundtruth tasks fail in-sandbox** (590, 418, 509, 417 — network/env
+  deps like live FTP), so gt pass rate is 0.973, not 1.0; standard for Hard.
+- **Reference to beat**: base Hard calibrated pass@1 = **0.169**. A self-improve
+  recipe's Hard number is the ceiling probe (follow-up; base-first was the plan).
+
+Commands: `scripts/phase22_bench/bcb_run_base.sh` (generate),
+`bcb_score.sh` (Docker score), `bcb_smoke.py` (format smoke).
 
 # What BigCodeBench measures
 
@@ -136,16 +164,23 @@ GPU-free code — **done** (Phase 22 §6.5 commits):
       `BigCodeBench-Complete-{Full,Hard}` (instruct neighbourhood 41.0% / 18.2%
       as the upper guard).
 
-Needs data / Docker / GPU:
+Data / Docker / GPU — **done**:
 
-- [ ] Export HF `bigcode/bigcodebench` → `data/bigcodebench/*.jsonl`
-      (Complete split, Hard subset first).
-- [ ] `docker pull bigcodebench/bigcodebench-evaluate:latest` + a Docker eval
-      smoke on a 2–3 line samples file.
-- [ ] Generation run (Rust → JSONL) on a free GPU → `bigcodebench.syncheck`
-      → Docker `--execution local` → first calibrated number → tighten the band.
+- [x] Export HF `bigcode/bigcodebench-hard` v0.1.4 →
+      `data/bigcodebench/BigCodeBench-Hard.jsonl` (148 tasks, Complete).
+- [x] `docker pull bigcodebench/bigcodebench-evaluate:latest` (15.1 GB) + a
+      known-correct smoke (canonical solutions → pass@1 1.000) confirming the
+      completion-body + `--calibrated` format and the results JSON shape.
+- [x] Base generation (Rust → JSONL, F32, 8-GPU) → Docker `--execution local`
+      → **calibrated pass@1 0.169** → Hard band tightened to `[0.09, 0.25]`.
 
-The generation run needs the GPUs; scoring (Docker) is CPU-bound and does not.
+Docker gotcha: the eval image runs as `bigcodebenchuser`; pass
+`--user $(id -u):$(id -g) -e HOME=/app/.dockerhome` so results files are writable
+and the runtime dataset cache lands in the mount. The generation run needs the
+GPUs; scoring (Docker) is CPU-bound and does not.
+
+Follow-up (not yet run): score a self-improve recipe (full-set SFT and/or K=8 RL)
+on Hard for the ceiling probe; extend to Full 1140 if promising.
 
 # Sources
 

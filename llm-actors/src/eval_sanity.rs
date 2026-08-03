@@ -160,9 +160,9 @@ pub const PUBLIC_BASELINES: &[PublicBaseline] = &[
         model_id: "Qwen2.5-Coder-7B",
         benchmark: "BigCodeBench-Complete-Hard",
         kind: AnchorKind::PlausibilityBand,
-        published_pass1: 0.11, // band midpoint of [0.0, 0.22]
-        tol: 0.11,
-        source: "plausibility guard — instruct neighbourhood 18.2% (bigcode-bench.github.io)",
+        published_pass1: 0.17, // band [0.09, 0.25]; recalibrated to measured base 0.169
+        tol: 0.08,
+        source: "measured base 0.169 (calibrated pass@1, gt 0.973); instruct neighbourhood 18.2% (bigcode-bench.github.io)",
     },
 ];
 
@@ -385,7 +385,7 @@ mod tests {
         // Above the instruct neighbourhood (>0.42) → implausible (wrong subset?).
         let high = check_public_baseline("Qwen2.5-Coder-7B", "BigCodeBench-Complete-Full", 0.55);
         assert!(high.is_drift(), "{high:?}");
-        // Hard has its OWN key/band; 0.35 is fine on Full but above Hard's 0.22.
+        // Hard has its OWN key/band; 0.35 is fine on Full but above Hard's 0.25.
         let hard_ok = check_public_baseline("Qwen2.5-Coder-7B", "BigCodeBench-Complete-Hard", 0.10);
         assert!(matches!(hard_ok, SanityVerdict::Ok { .. }), "{hard_ok:?}");
         let hard_high =

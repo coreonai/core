@@ -50,12 +50,24 @@ scratch-7b-sft/tools/lcb-venv/bin/python scripts/phase22_bench/lcb_score.py \
 
 Cutoff `2024-09-01` (Qwen2.5-Coder-7B ~release). Detail: `phase22-livecodebench-notes.md`.
 
-# BigCodeBench (ceiling / real-library tasks) — infra ready, not yet run
+# BigCodeBench (ceiling / real-library tasks) — base measured
 
-JSONL `{task_id, solution}` (not LCB's array). Scoring in the official Docker
-sandbox (`bigcodebench/bigcodebench-evaluate:latest`, `--execution local`;
-this cluster has Docker 26.1.3 + the docker group). Complete/Hard first.
-Detail + commands: `phase22-bigcodebench-notes.md`,
+JSONL `{task_id, solution}` (not LCB's array); `solution` = completion body,
+`--calibrated True` prepends the prompt. Scoring in the official Docker sandbox
+(`bigcodebench/bigcodebench-evaluate:latest`, bcb 0.2.4 / dataset v0.1.4,
+`--execution local`; cluster has Docker 26.1.3 + the docker group).
+
+```bash
+# 1. export Hard v0.1.4 (148) + 2. generate base (F32, 8-GPU) + 3. Docker score:
+bash scripts/phase22_bench/bcb_run_base.sh      # -> bcb_hard_base_samples.jsonl
+bash scripts/phase22_bench/bcb_score.sh         # complete hard, --execution local
+# score any samples file:
+bash scripts/phase22_bench/bcb_score.sh <samples.jsonl>
+```
+
+Docker gotcha: image runs as `bigcodebenchuser` → pass
+`--user $(id -u):$(id -g) -e HOME=/app/.dockerhome` (writable results + runtime
+dataset cache). Complete/Hard first. Detail: `phase22-bigcodebench-notes.md`,
 `llm.coreon.build/bigcodebench.html`.
 
 # Findings (index)
@@ -72,6 +84,11 @@ Detail + commands: `phase22-bigcodebench-notes.md`,
   deployment verdict for the transfer objective. Greedy was the wrong ruler
   (looked like a loss). Detail: `phase22-livecodebench-notes.md`,
   `llm.coreon.build/livecodebench.html`.
+- **BigCodeBench base measured** (Complete/Hard, calibrated pass@1): base 7B
+  **0.169** (gt 0.973), just below the instruct neighbourhood 0.182 — pipeline
+  validated end-to-end via the Docker sandbox; format smoke-confirmed
+  (completion body + `--calibrated`). Recipe ceiling probe is the follow-up.
+  Detail: `phase22-bigcodebench-notes.md`, `llm.coreon.build/bigcodebench.html`.
 - **RL variance study** (separate, concluded): `phase22-rl-variance.md`,
   `llm.coreon.build/rl-variance.html`.
 
