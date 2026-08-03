@@ -238,6 +238,41 @@ in-domain compression, HF wins on coverage).
    recipe to Pekko, START by byte-comparing the inner training loop,
    not the orchestration layer.
 
+10. **BF16 silently corrupts `QwenModelActor` generation on LONG prompts.**
+    Past ~500 total tokens, greedy/sampled output degenerates into
+    token-doubling garbage after a few dozen clean tokens (`"return
+    return"`, `"== =="`, `"stripstripstrip"`). BF16's 7-bit mantissa
+    loses too much rotary/attention precision at length. It went
+    unnoticed through all of Phase 22 because HumanEval/MBPP prompts are
+    ~150 tokens with `max_new 192`; **LiveCodeBench/BigCodeBench prompts
+    (500–1000+ tokens) are the first to hit it.** Isolation proof: a
+    *diverse* (non-repetitive) long prompt corrupts in BF16 but is CLEAN
+    in F32, temperature- and prefill-independent. Fix: run long-prompt
+    generation in **F32** (`phase22_dump_completions --dtype f32`,
+    default; 7B F32 = 28GB, fits a 40GB card for inference). Proper
+    follow-up: F32 rotary in a vendored `candle-transformers` qwen2 to
+    keep BF16 weights (found `39f038e`).
+
+11. **Match the eval metric to where the training signal lives.** SFT
+    self-improve **sharpens the sampling distribution**: it lifts
+    aggregate pass@1 / pass@k but can *drop* the single greedy mode.
+    A full-set SFT checkpoint measured 0.756 vs base 0.656 at aggregate
+    pass@1 (+0.10) yet 0.439 vs 0.488 GREEDY (worse!). The first LCB
+    transfer runs used greedy and wrongly concluded "no transfer"; at
+    aggregate pass@1 the recipe generalizes (post-cutoff 0.041 → 0.057).
+    This repo's recurring theme (pass@5 saturation, aggregate-vs-greedy):
+    a "flat/negative" result must be checked against the metric where the
+    gain actually lives before it is trusted.
+
+**Benchmark scoring env (LiveCodeBench).** The official `lcb_runner` eval
+core (`codegen_metrics`) runs with **`datasets`+`numpy` only** — no
+torch/vllm/pyext — if you bypass the CLI wrapper (which imports torch via
+`parser.py`). Isolated venv at `scratch-7b-sft/tools/lcb-venv` (built from
+anaconda py3.12, which has `_bz2`; the pyenv 3.9 does not). `datasets`
+must be **2.x** (the LCB dataset uses a loading script that datasets 3.x+
+dropped). Generate in Rust (`phase22_dump_completions --benchmark
+livecodebench`, F32), score with `scripts/phase22_bench/lcb_score.py`.
+
 ## Testing strategy
 
 - 74 unit tests are exhaustive on what's deterministic (parsing,
