@@ -1,7 +1,7 @@
 ---
 title: "Phase 22 §6.5 — LiveCodeBench base-7B benchmarking"
 date: "2026-08-03"
-status: "base validated; recipe contamination run is the next step"
+status: "base validated; recipe GENERALIZES to post-cutoff — 6-seed confirmed (+2.5σ)"
 ---
 
 # Why
@@ -74,35 +74,42 @@ single greedy mode. **The self-improve gain lives at aggregate pass@1, not
 greedy** — so a greedy LCB run cannot detect transfer. All the greedy LCB
 numbers are valid greedy measurements and useless for this question.
 
-# Recipe result (correct metric): full-set SFT GENERALIZES to LiveCodeBench
+# Recipe result (correct metric): full-set SFT GENERALIZES — 6-seed confirmed
 
 Re-run at **aggregate pass@1 (temp 0.8, passk 5)** — where the gain lives —
-base + full-set SFT (seed 42), same F32 path, same slice:
+base + full-set SFT, same F32 path, same slice. Firmed to **6 seeds** (42, 100,
+200, 300, 400, 500):
 
 | | overall | pre (<2024-09, n=28) | post (≥2024-09, n=92) |
 |---|---|---|---|
-| base | 0.075 | 0.186 | **0.041** |
-| full-set SFT | 0.095 | 0.221 | **0.057** |
-| **Δ** | **+0.020** | +0.035 | **+0.016** |
+| base | 0.075 | 0.186 | **0.0413** |
+| full-set SFT (6-seed mean ± σ) | 0.0908 ± 0.0048 | 0.2048 ± 0.0117 | **0.0562 ± 0.0059** |
+| **Δ vs base** | **+0.016** | +0.019 | **+0.0149 (+2.52σ)** |
 
-- **The self-improve gain transfers — and holds on unseen problems.** Full-set
-  SFT lifts LCB **post-cutoff** (0.041 → 0.057, +0.016) — problems released
-  *after* the model's cutoff, definitely unseen. That is **real
+Per-seed post-cutoff: 42→0.0565, 100→0.0522, 200→0.0565, 300→0.0674,
+400→0.0522, 500→0.0522.
+
+- **The self-improve gain transfers — and holds on unseen problems, robustly.**
+  Full-set SFT lifts LCB **post-cutoff** to 0.0562 ± 0.0059 vs base 0.0413
+  (**+0.0149, +2.52σ**) — problems released *after* the model's cutoff,
+  definitely unseen. **All 6/6 seeds beat base** (per-seed Δ +0.011…+0.026), and
+  base 0.0413 sits **below the 6-seed 2σ band [0.0444, 0.0680]**. That is **real
   generalization**, not contamination/recall: a pure-recall recipe would show no
   post-cutoff lift.
 - **Mild contamination component, not the whole story.** The pre-cutoff lift
-  (+0.035) is larger than post (+0.016), a hint that some of the gain is on
-  possibly-seen problems — but post is clearly positive, so the net is genuine
-  transfer.
-- **Caveats.** Small samples (post n=92, gains are a few problems); single hep
-  seed; low absolute LCB rates (0.04–0.09). Directionally clear, not a tight CI.
+  (+0.019) is comparable to post (+0.015) — most of the gain is genuine transfer,
+  with at most a small possibly-seen component.
+- **Caveats.** Small absolute LCB rates (0.04–0.09) and small post subset
+  (n=92); the σ is tight (0.0059) but the effect is a handful of problems.
+  Directionally robust across 6 seeds, not a large absolute lift.
 - K=8 RL (hard-tail) was only measured greedy (superseded); its aggregate LCB
   transfer is a follow-up, but it is the narrower recipe.
 
 **Bottom line**: measured at the metric where self-improve actually lives, the
 HumanEval full-set self-improve **generalizes to a different, harder benchmark
-and to post-cutoff problems** — the strongest evidence yet that the gain is real
-learning, not pretraining recall. The greedy detour is the reusable lesson:
+and to post-cutoff problems, confirmed across 6 seeds (+2.5σ)** — the strongest
+evidence yet that the gain is real learning, not pretraining recall. The greedy
+detour is the reusable lesson:
 **match the eval metric to where the training signal lives** (this repo's own
 recurring theme — pass@5 saturation, aggregate-vs-greedy).
 

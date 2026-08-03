@@ -63,11 +63,11 @@ Detail + commands: `phase22-bigcodebench-notes.md`,
 - **BF16 long-prompt bug found + fixed** (`39f038e`) — the biggest by-product.
 - **LiveCodeBench base validated** (aggregate pass@1 overall 0.075, post-cutoff
   0.041); pipeline works, prompt format matches.
-- **Self-improve GENERALIZES** (correct metric): full-set SFT lifts LCB
-  post-cutoff (unseen) 0.041 → 0.057 at aggregate pass@1 → real learning, not
-  recall. Greedy was the wrong ruler (looked like a loss). 6-seed firming in
-  progress. Detail: `phase22-livecodebench-notes.md`,
-  `llm.coreon.build/livecodebench.html`.
+- **Self-improve GENERALIZES** (correct metric, 6-seed confirmed): full-set SFT
+  lifts LCB post-cutoff (unseen) 0.0413 → 0.0562 ± 0.006 at aggregate pass@1
+  (**Δ +0.0149, +2.5σ, 6/6 seeds beat base**) → real learning, not recall.
+  Greedy was the wrong ruler (looked like a loss). Detail:
+  `phase22-livecodebench-notes.md`, `llm.coreon.build/livecodebench.html`.
 - **RL variance study** (separate, concluded): `phase22-rl-variance.md`,
   `llm.coreon.build/rl-variance.html`.
 
