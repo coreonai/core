@@ -17,6 +17,7 @@ pub(crate) mod equivalence;
 pub mod filtered;
 pub mod human_eval;
 pub mod korean_completion;
+pub mod livecodebench;
 pub mod mbpp;
 pub mod python_code;
 pub mod rust_code;

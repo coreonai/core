@@ -35,6 +35,7 @@ use llm_actors::{
     domain::{
         bigcodebench::{BcbSplit, BigCodeBenchDomain},
         human_eval::HumanEvalDomain,
+        livecodebench::LiveCodeBenchDomain,
         mbpp::MbppDomain,
         Domain,
     },
@@ -49,6 +50,7 @@ enum Benchmark {
     Bigcodebench,
     Humaneval,
     Mbpp,
+    Livecodebench,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -140,6 +142,7 @@ fn default_jsonl(b: Benchmark) -> PathBuf {
         Benchmark::Bigcodebench => "data/bigcodebench/BigCodeBench.jsonl",
         Benchmark::Humaneval => "data/humaneval/HumanEval.jsonl",
         Benchmark::Mbpp => "data/mbpp/mbpp.jsonl",
+        Benchmark::Livecodebench => "data/livecodebench/lcb_release_v5.jsonl",
     })
 }
 
@@ -160,6 +163,7 @@ fn build_domain(args: &Args, jsonl: &std::path::Path) -> Result<Arc<dyn Domain>>
             let scratch = std::env::temp_dir().join("workllm-dump-mbpp");
             Arc::new(MbppDomain::from_jsonl(jsonl, &scratch)?)
         }
+        Benchmark::Livecodebench => Arc::new(LiveCodeBenchDomain::from_jsonl(jsonl)?),
     })
 }
 
