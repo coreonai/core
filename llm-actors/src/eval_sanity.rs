@@ -126,9 +126,9 @@ pub const PUBLIC_BASELINES: &[PublicBaseline] = &[
         model_id: "Qwen2.5-Coder-7B",
         benchmark: "LiveCodeBench",
         kind: AnchorKind::PlausibilityBand,
-        published_pass1: 0.235, // band midpoint of [0.02, 0.45]
-        tol: 0.215,
-        source: "plausibility guard — no public base LCB point; calibrate on first run",
+        published_pass1: 0.13, // band [0.03, 0.23] around the measured base 0.125
+        tol: 0.10,
+        source: "measured base 0.125 (release_v5 idx 640-760, F32, greedy); guard, not a leaderboard point",
     },
     PublicBaseline {
         model_id: "Qwen2.5-Coder-0.5B",
