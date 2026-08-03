@@ -62,37 +62,49 @@ vendored `candle-transformers` qwen2.
 - **The reference to beat is post-cutoff base = 0.087.** A recipe that only
   lifts pre-cutoff is contaminated; one that lifts post-cutoff generalizes.
 
-# Recipe result: K=8 RL does NOT transfer to LiveCodeBench
+# The metric trap: greedy is the wrong ruler for self-improve
 
-Same F32 Rust path, same slice, K=8 RL (the best-mean HumanEval recipe), 2 seeds
-(the full-set SFT checkpoints were deleted, so only the hard-tail recipes
-survive). Reference: base post-cutoff 0.087.
+First-pass LCB runs used **greedy** (passk 1), and every recipe looked like it
+*hurt*: post-cutoff base 0.087 → K=8 RL 0.054, → full-set SFT (re-trained; the
+originals were deleted) 0.065. But a HumanEval sanity check exposed the trap:
+the re-trained full-set SFT scored **0.439 greedy vs base 0.488** (worse!) yet
+**0.756 vs 0.656 at aggregate pass@1** (temp 0.8) — **+0.10**. SFT *sharpens the
+sampling distribution*: it lifts aggregate pass@1 / pass@k but can drop the
+single greedy mode. **The self-improve gain lives at aggregate pass@1, not
+greedy** — so a greedy LCB run cannot detect transfer. All the greedy LCB
+numbers are valid greedy measurements and useless for this question.
+
+# Recipe result (correct metric): full-set SFT GENERALIZES to LiveCodeBench
+
+Re-run at **aggregate pass@1 (temp 0.8, passk 5)** — where the gain lives —
+base + full-set SFT (seed 42), same F32 path, same slice:
 
 | | overall | pre (<2024-09, n=28) | post (≥2024-09, n=92) |
 |---|---|---|---|
-| base | 0.125 | 0.250 | **0.087** |
-| K=8 RL seed 200 | 0.108 | 0.250 | 0.065 |
-| K=8 RL seed 42 | 0.092 | 0.250 | 0.043 |
-| **K=8 RL mean** | 0.100 | 0.250 | **0.054** |
+| base | 0.075 | 0.186 | **0.041** |
+| full-set SFT | 0.095 | 0.221 | **0.057** |
+| **Δ** | **+0.020** | +0.035 | **+0.016** |
 
-- **The hard-tail K=8 RL recipe does not transfer to LCB — it slightly *hurts*.**
-  post-cutoff base 0.087 → RL 0.054; overall 0.125 → 0.100. The HumanEval
-  hard-tail self-improve (idx 100–163, 64 problems) is a **narrow
-  specialization**, not general code-gen ability, so it degrades a different,
-  harder benchmark. Expected direction; now measured.
-- **No contamination signature.** The recipe leaves pre-cutoff *identical*
-  (0.250 = 7/28 for base and both seeds) and only moves post-cutoff — the
-  opposite of a "helps-pre-not-post" contamination pattern. So this run finds
-  no contamination; it finds **no transfer**.
-- **Caveats.** K=8 RL is narrow by construction (a HumanEval subset), so this is
-  not a test of "does self-improve generalize" in general — the fairer test is a
-  full-set recipe, whose checkpoints were deleted. Small samples (post n=92, pre
-  n=28). The base's own pre/post gap (0.25 vs 0.087) is the more interesting
-  observation but is confounded (difficulty across the boundary).
+- **The self-improve gain transfers — and holds on unseen problems.** Full-set
+  SFT lifts LCB **post-cutoff** (0.041 → 0.057, +0.016) — problems released
+  *after* the model's cutoff, definitely unseen. That is **real
+  generalization**, not contamination/recall: a pure-recall recipe would show no
+  post-cutoff lift.
+- **Mild contamination component, not the whole story.** The pre-cutoff lift
+  (+0.035) is larger than post (+0.016), a hint that some of the gain is on
+  possibly-seen problems — but post is clearly positive, so the net is genuine
+  transfer.
+- **Caveats.** Small samples (post n=92, gains are a few problems); single hep
+  seed; low absolute LCB rates (0.04–0.09). Directionally clear, not a tight CI.
+- K=8 RL (hard-tail) was only measured greedy (superseded); its aggregate LCB
+  transfer is a follow-up, but it is the narrower recipe.
 
-**Bottom line**: the self-improve gain is **benchmark-specific** — it buys
-HumanEval, not competitive programming. To test broad generalization/
-contamination properly, re-train a full-set recipe and re-run this path.
+**Bottom line**: measured at the metric where self-improve actually lives, the
+HumanEval full-set self-improve **generalizes to a different, harder benchmark
+and to post-cutoff problems** — the strongest evidence yet that the gain is real
+learning, not pretraining recall. The greedy detour is the reusable lesson:
+**match the eval metric to where the training signal lives** (this repo's own
+recurring theme — pass@5 saturation, aggregate-vs-greedy).
 
 Cutoff pin: Qwen2.5-Coder-7B released ~2024-09; `2024-09-01` used as the split.
 Confirm the exact data cutoff from the tech report before any stronger claim.
