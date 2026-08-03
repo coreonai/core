@@ -62,11 +62,37 @@ vendored `candle-transformers` qwen2.
 - **The reference to beat is post-cutoff base = 0.087.** A recipe that only
   lifts pre-cutoff is contaminated; one that lifts post-cutoff generalizes.
 
-# Next (recipe contamination — deferred)
+# Recipe result: K=8 RL does NOT transfer to LiveCodeBench
 
-Benchmark a recipe (full-set SFT and/or K=8 RL) on the same slice via the same
-F32 Rust path, and read its **post-cutoff** delta vs base 0.087. For a cleaner
-base gap, generate a balanced pre/post slice from comparable-difficulty windows.
+Same F32 Rust path, same slice, K=8 RL (the best-mean HumanEval recipe), 2 seeds
+(the full-set SFT checkpoints were deleted, so only the hard-tail recipes
+survive). Reference: base post-cutoff 0.087.
+
+| | overall | pre (<2024-09, n=28) | post (≥2024-09, n=92) |
+|---|---|---|---|
+| base | 0.125 | 0.250 | **0.087** |
+| K=8 RL seed 200 | 0.108 | 0.250 | 0.065 |
+| K=8 RL seed 42 | 0.092 | 0.250 | 0.043 |
+| **K=8 RL mean** | 0.100 | 0.250 | **0.054** |
+
+- **The hard-tail K=8 RL recipe does not transfer to LCB — it slightly *hurts*.**
+  post-cutoff base 0.087 → RL 0.054; overall 0.125 → 0.100. The HumanEval
+  hard-tail self-improve (idx 100–163, 64 problems) is a **narrow
+  specialization**, not general code-gen ability, so it degrades a different,
+  harder benchmark. Expected direction; now measured.
+- **No contamination signature.** The recipe leaves pre-cutoff *identical*
+  (0.250 = 7/28 for base and both seeds) and only moves post-cutoff — the
+  opposite of a "helps-pre-not-post" contamination pattern. So this run finds
+  no contamination; it finds **no transfer**.
+- **Caveats.** K=8 RL is narrow by construction (a HumanEval subset), so this is
+  not a test of "does self-improve generalize" in general — the fairer test is a
+  full-set recipe, whose checkpoints were deleted. Small samples (post n=92, pre
+  n=28). The base's own pre/post gap (0.25 vs 0.087) is the more interesting
+  observation but is confounded (difficulty across the boundary).
+
+**Bottom line**: the self-improve gain is **benchmark-specific** — it buys
+HumanEval, not competitive programming. To test broad generalization/
+contamination properly, re-train a full-set recipe and re-run this path.
 
 Cutoff pin: Qwen2.5-Coder-7B released ~2024-09; `2024-09-01` used as the split.
-Confirm the exact data cutoff from the tech report before the recipe verdict.
+Confirm the exact data cutoff from the tech report before any stronger claim.

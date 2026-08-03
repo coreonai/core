@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="workLLM §6.5 — LiveCodeBench base-7B benchmarking: contamination via contest-date split, and the BF16 long-prompt generation bug found + fixed.">
+<title>workLLM · LiveCodeBench</title>
+</head>
+<body>
+<style>
+  :root{
+    --ground:#f3f5f8; --surface:#ffffff; --surface-2:#eef1f5; --line:#d9dfe7;
+    --ink:#141b23; --muted:#5a6b7b; --faint:#8496a6;
+    --accent:#1f8bab; --accent-soft:#e2f0f5;
+    --ok:#3f9d6e; --ok-bg:#e7f4ec; --warn:#b77a1f; --warn-bg:#faf0dd;
+    --bad:#c3554f; --bad-bg:#fae8e6; --info:#5c74a0; --info-bg:#e8eef7;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --ground:#0e151e; --surface:#151f2b; --surface-2:#1b2733; --line:#26333f;
+      --ink:#e6edf4; --muted:#93a3b3; --faint:#6b7d8d; --accent:#45b2d1; --accent-soft:#16323d;
+      --ok:#5bb98a; --ok-bg:#132a20; --warn:#d39a52; --warn-bg:#2c2213;
+      --bad:#cf6b6b; --bad-bg:#2c1817; --info:#8ba6c9; --info-bg:#16202f;
+    }
+  }
+  :root[data-theme="light"]{
+    --ground:#f3f5f8; --surface:#ffffff; --surface-2:#eef1f5; --line:#d9dfe7;
+    --ink:#141b23; --muted:#5a6b7b; --faint:#8496a6; --accent:#1f8bab; --accent-soft:#e2f0f5;
+    --ok:#3f9d6e; --ok-bg:#e7f4ec; --warn:#b77a1f; --warn-bg:#faf0dd;
+    --bad:#c3554f; --bad-bg:#fae8e6; --info:#5c74a0; --info-bg:#e8eef7;
+  }
+  :root[data-theme="dark"]{
+    --ground:#0e151e; --surface:#151f2b; --surface-2:#1b2733; --line:#26333f;
+    --ink:#e6edf4; --muted:#93a3b3; --faint:#6b7d8d; --accent:#45b2d1; --accent-soft:#16323d;
+    --ok:#5bb98a; --ok-bg:#132a20; --warn:#d39a52; --warn-bg:#2c2213;
+    --bad:#cf6b6b; --bad-bg:#2c1817; --info:#8ba6c9; --info-bg:#16202f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;font-size:15px}
+  .wrap{max-width:900px;margin:0 auto;padding:0 24px 96px}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  h1,h2,h3{text-wrap:balance;margin:0}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+  header.bar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .bar-in{max-width:900px;margin:0 auto;padding:13px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .logo{font-family:var(--mono);font-weight:600;letter-spacing:-.01em;font-size:14px;color:var(--ink)} .logo b{color:var(--accent)}
+  .bar-links{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:13px} .bar-links a{color:var(--muted)}
+  button.theme{font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:5px 10px;cursor:pointer}
+  button.theme:hover{color:var(--ink);border-color:var(--accent)} button.theme:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .hero{padding:44px 0 20px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  h1{font-size:clamp(26px,4vw,38px);letter-spacing:-.02em;line-height:1.12;margin:12px 0 14px}
+  .lede{color:var(--muted);font-size:16px;max-width:64ch} .lede b{color:var(--ink);font-weight:600}
+  .meta{margin-top:16px;font-family:var(--mono);font-size:12px;color:var(--faint)}
+  section{padding-top:34px} h2{font-size:20px;letter-spacing:-.01em;margin-bottom:6px} h2 .n{font-family:var(--mono);color:var(--accent);font-size:15px;margin-right:8px}
+  section > p{color:var(--muted);margin:10px 0} section > p b, li b, td b{color:var(--ink);font-weight:600}
+  ul{margin:10px 0;padding-left:20px;color:var(--muted)} li{margin:6px 0}
+  code{font-family:var(--mono);font-size:.88em;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:1px 5px;color:var(--ink)}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:3px 10px;border:1px solid transparent}
+  .pill.ok{color:var(--ok);background:var(--ok-bg);border-color:color-mix(in srgb,var(--ok) 30%,transparent)}
+  .pill.warn{color:var(--warn);background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
+  .pill.info{color:var(--info);background:var(--info-bg);border-color:color-mix(in srgb,var(--info) 30%,transparent)}
+  .callout{display:flex;gap:12px;background:var(--warn-bg);border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);border-radius:12px;padding:15px 17px;margin:16px 0}
+  .callout .k{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--warn);flex:none;padding-top:2px}
+  .callout p{margin:0;color:var(--ink);font-size:14px}
+  .callout.ok{background:var(--ok-bg);border-color:color-mix(in srgb,var(--ok) 30%,transparent)} .callout.ok .k{color:var(--ok)}
+  .callout.info{background:var(--info-bg);border-color:color-mix(in srgb,var(--info) 30%,transparent)} .callout.info .k{color:var(--info)}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px} .scroll{overflow-x:auto}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600}
+  td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--ink)} tr:last-child td{border-bottom:none} tr.hi td{background:var(--accent-soft)}
+  .muted{color:var(--faint)}
+  pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;margin:14px 0}
+  pre code{background:none;border:none;padding:0;font-size:12.5px;line-height:1.6;color:var(--ink)}
+  footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:13px} footer a{color:var(--muted)}
+</style>
+
+<header class="bar">
+  <div class="bar-in">
+    <span class="logo">workLLM<b>/</b>LiveCodeBench</span>
+    <div class="bar-links"><a href="/">&larr; dashboard</a><button class="theme" id="tg" type="button">theme</button></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Phase 22 · §6.5 · contamination</div>
+    <h1>Base validated on LiveCodeBench — after fixing a BF16 long-prompt bug.</h1>
+    <p class="lede">The <b>contamination</b> instrument: score the same
+    generations before vs after the model's cutoff — a real recipe reproduces
+    its gain on <b>post-cutoff</b> (unseen) problems. Base-7B first validated the
+    pipeline. Standing it up surfaced a real defect: <b>BF16 corrupts long-prompt
+    generation</b>, now fixed.</p>
+    <div class="meta">7B · release_v5 (880 problems, 2023-05..2025-01) · generate in Rust, score with lcb_runner · cutoff 2024-09-01</div>
+  </div>
+
+  <section>
+    <h2><span class="n">01</span>The bug this surfaced <span class="pill warn">fixed</span></h2>
+    <p><b>BF16 silently corrupts generation on long prompts.</b> Once a prompt
+    pushes past ~500 total tokens, output degenerates into token-doubling garbage
+    after a few dozen clean tokens. Confirmed by isolation:</p>
+    <ul>
+      <li>HumanEval/MBPP (short ~150-token prompts) — clean.</li>
+      <li>A <b>diverse</b> (non-repetitive) long prompt — corrupts in BF16, <b>clean in F32</b>.</li>
+      <li>Temperature- and prefill-independent (batched and token-by-token priming both corrupt).</li>
+    </ul>
+    <p>BF16's 7-bit mantissa loses too much rotary/attention precision at length.
+    Never hit before because all Phase 22 work used ~150-token prompts +
+    <code>max_new 192</code>. <b>Fix</b>: <code>--dtype f32</code> (default for the
+    long-prompt dumper); F32 7B = 28 GB, fits a 40 GB card. Follow-up: F32 rotary
+    for BF16-memory efficiency.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">02</span>The pipeline</h2>
+    <p><b>Generate in Rust, score with the official harness</b> — one ruler, no
+    home-grown scorer. Rust LCB domain (completion-style prompt mirroring
+    <code>lcb_runner</code>) → <code>bench_export::write_lcb</code> → the official
+    <code>codegen_metrics</code> (runs with <code>datasets+numpy</code> only, no
+    torch/vllm). Cutoff split via the harness's date filter.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">03</span>Base result <span class="pill ok">pipeline validated</span></h2>
+    <p>release_v5, idx 640–760 (spans 2024-06..2024-11), F32, greedy pass@1:</p>
+    <div class="scroll"><table>
+      <thead><tr><th>window</th><th>problems</th><th>pass@1</th></tr></thead>
+      <tbody>
+        <tr class="hi"><td>overall</td><td class="num">120</td><td class="num">0.125</td></tr>
+        <tr><td>pre-cutoff (&lt; 2024-09)</td><td class="num">28</td><td class="num">0.250</td></tr>
+        <tr><td>post-cutoff (&ge; 2024-09)</td><td class="num">92</td><td class="num">0.087</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout ok">
+      <span class="k">validated</span>
+      <p>0.125 is non-zero and inside the LCB plausibility band — prompt format,
+      generation, and official scoring all work. The <code>eval_sanity</code> 7B
+      LCB band is recalibrated to <code>[0.03, 0.23]</code>.</p>
+    </div>
+    <p><b>The base shows a ~3× pre/post gap</b> (0.25 vs 0.087) — suggestive of
+    the base benefiting from having seen pre-cutoff problems, but <b>confounded</b>
+    (pre n=28, difficulty differs across the boundary). A preliminary reference,
+    not a verdict. <b>The number to beat is post-cutoff base = 0.087.</b></p>
+  </section>
+
+  <section>
+    <h2><span class="n">04</span>Recipe contamination / transfer <span class="pill warn" id="rc-status">no transfer</span></h2>
+    <p>Does the hard-tail self-improve recipe (K=8 RL) <b>transfer</b> to
+    LiveCodeBench, and does any gain hold on <b>post-cutoff</b> (unseen) problems?
+    Same F32 Rust path, same slice, 2 seeds. <b>Reference: base post-cutoff 0.087.</b></p>
+    <div class="scroll"><table>
+      <thead><tr><th>arm</th><th>overall</th><th>pre (&lt;2024-09, n=28)</th><th>post (&ge;2024-09, n=92)</th></tr></thead>
+      <tbody>
+        <tr class="hi"><td>base</td><td class="num">0.125</td><td class="num">0.250</td><td class="num">0.087</td></tr>
+        <tr><td>K=8 RL seed 200</td><td class="num">0.108</td><td class="num">0.250</td><td class="num">0.065</td></tr>
+        <tr><td>K=8 RL seed 42</td><td class="num">0.092</td><td class="num">0.250</td><td class="num">0.043</td></tr>
+        <tr><td><b>K=8 RL mean</b></td><td class="num">0.100</td><td class="num">0.250</td><td class="num">0.054</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout">
+      <span class="k">no transfer</span>
+      <p><b>The hard-tail K=8 RL recipe does not transfer to LCB — it slightly
+      <i>hurts</i></b> (post-cutoff 0.087 → 0.054). The HumanEval hard-tail
+      self-improve (idx 100–163, 64 problems) is a <b>narrow specialization</b>,
+      not general code-gen ability. And <b>no contamination signature</b>: pre-cutoff
+      is <i>identical</i> (0.250 for base and both seeds) — the recipe moves only
+      post-cutoff, the opposite of a "helps-pre-not-post" pattern.</p>
+    </div>
+    <p><b>Bottom line:</b> the self-improve gain is <b>benchmark-specific</b> — it
+    buys HumanEval, not competitive programming. A proper broad-generalization
+    test needs a full-set recipe (those checkpoints were deleted; re-train to
+    re-run). Caveats: small samples, K=8 RL narrow by construction.</p>
+  </section>
+
+  <footer>
+    Mirror of <span class="mono">docs/phase22-livecodebench-notes.md</span> ·
+    scripts in <span class="mono">scripts/phase22_bench/</span> · workLLM Phase 22 ·
+    <a href="https://livecodebench.github.io/">LiveCodeBench</a>
+  </footer>
+</div>
+
+<script>
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('tg');
+    function cur(){ if(root.dataset.theme) return root.dataset.theme; return matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'; }
+    btn.addEventListener('click',function(){ root.dataset.theme = cur()==='dark'?'light':'dark'; });
+  })();
+</script>
+</body>
+</html>
