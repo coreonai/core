@@ -88,13 +88,14 @@
 <div class="wrap">
   <div class="hero">
     <div class="eyebrow">Phase 22 · §6.5 · contamination</div>
-    <h1>Self-improve generalizes on LiveCodeBench — 6-seed confirmed, on post-cutoff problems.</h1>
+    <h1>Self-improve generalizes on LiveCodeBench — and K=8 RL transfers ~2× SFT.</h1>
     <p class="lede">The <b>contamination</b> instrument: score the same
     generations before vs after the model's cutoff — a real recipe reproduces
-    its gain on <b>post-cutoff</b> (unseen) problems. Verdict: full-set SFT lifts
-    post-cutoff <b>0.0413 → 0.0562 (+2.5&sigma;, 6/6 seeds)</b> — real learning,
-    not recall. Getting here fixed a <b>BF16 long-prompt bug</b> and a
-    greedy-vs-aggregate <b>metric trap</b>.</p>
+    its gain on <b>post-cutoff</b> (unseen) problems. Verdict (6-seed each):
+    full-set SFT lifts post-cutoff <b>0.0413 → 0.0562 (+2.5&sigma;)</b>; <b>K=8 RL
+    → 0.1105 (+5.7&sigma;)</b>, ~2× SFT, with an almost pure post-cutoff signature
+    — real learning, not recall. Getting here fixed a <b>BF16 long-prompt bug</b>
+    and a greedy-vs-aggregate <b>metric trap</b>.</p>
     <div class="meta">7B · release_v5 (880 problems, 2023-05..2025-01) · generate in Rust, score with lcb_runner · cutoff 2024-09-01</div>
   </div>
 
@@ -159,34 +160,45 @@
   </section>
 
   <section>
-    <h2><span class="n">05</span>Recipe result, correct metric <span class="pill ok">generalizes · 6-seed</span></h2>
-    <p>Re-run at <b>aggregate pass@1 (temp 0.8, passk 5)</b> — base + full-set SFT,
-    same F32 path, same slice. Firmed to <b>6 seeds</b> (42, 100, 200, 300, 400, 500):</p>
+    <h2><span class="n">05</span>Recipe result, correct metric <span class="pill ok">generalizes · SFT + RL, 6-seed</span></h2>
+    <p>Re-run at <b>aggregate pass@1 (temp 0.8, passk 5)</b> — base vs two HumanEval
+    self-improve recipes (full-set SFT, K=8 RL), same F32 path, same slice, <b>6
+    seeds</b> each (42, 100, 200, 300, 400, 500):</p>
     <div class="scroll"><table>
       <thead><tr><th>arm</th><th>overall</th><th>pre (&lt;2024-09, n=28)</th><th>post (&ge;2024-09, n=92)</th></tr></thead>
       <tbody>
         <tr><td>base</td><td class="num">0.075</td><td class="num">0.186</td><td class="num">0.0413</td></tr>
-        <tr class="hi"><td><b>full-set SFT</b> (6-seed mean&nbsp;&plusmn;&nbsp;&sigma;)</td><td class="num">0.0908&nbsp;&plusmn;&nbsp;0.005</td><td class="num">0.2048&nbsp;&plusmn;&nbsp;0.012</td><td class="num">0.0562&nbsp;&plusmn;&nbsp;0.006</td></tr>
-        <tr><td><b>&Delta;</b> vs base</td><td class="num">+0.016</td><td class="num">+0.019</td><td class="num">+0.015 (+2.5&sigma;)</td></tr>
+        <tr><td><b>full-set SFT</b> (6-seed&nbsp;&plusmn;&nbsp;&sigma;)</td><td class="num">0.0908&nbsp;&plusmn;&nbsp;0.005</td><td class="num">0.2048&nbsp;&plusmn;&nbsp;0.012</td><td class="num">0.0562&nbsp;&plusmn;&nbsp;0.006</td></tr>
+        <tr class="hi"><td><b>K=8 RL</b> (6-seed&nbsp;&plusmn;&nbsp;&sigma;)</td><td class="num">0.1306&nbsp;&plusmn;&nbsp;0.010</td><td class="num">0.1964&nbsp;&plusmn;&nbsp;0.008</td><td class="num">0.1105&nbsp;&plusmn;&nbsp;0.012</td></tr>
+        <tr><td><b>&Delta;</b> SFT vs base</td><td class="num">+0.016</td><td class="num">+0.019</td><td class="num">+0.015 (+2.5&sigma;)</td></tr>
+        <tr><td><b>&Delta;</b> K=8 RL vs base</td><td class="num">+0.056</td><td class="num">+0.010</td><td class="num">+0.069 (+5.7&sigma;)</td></tr>
       </tbody>
     </table></div>
     <div class="callout ok">
-      <span class="k">generalizes · robust</span>
-      <p><b>The self-improve gain transfers — and holds on unseen problems, across
-      6 seeds.</b> Full-set SFT lifts LCB <b>post-cutoff</b> to 0.0562 &plusmn; 0.006
-      vs base 0.0413 (<b>+0.0149, +2.52&sigma;</b>) — problems released <i>after</i>
-      the model's cutoff, definitely unseen. <b>All 6/6 seeds beat base</b>
-      (per-seed &Delta; +0.011…+0.026) and base 0.0413 sits <b>below the 6-seed 2&sigma;
-      band [0.0444, 0.0680]</b>. That is <b>real generalization, not
-      contamination</b>: a pure-recall recipe would show no post-cutoff lift. (The
-      pre lift +0.019 &asymp; post +0.015 — most of the gain is genuine transfer.)</p>
+      <span class="k">both generalize · RL ~2× SFT</span>
+      <p><b>Both recipes transfer to unseen problems — K=8 RL ~2× as strongly as
+      SFT.</b> SFT lifts LCB <b>post-cutoff</b> +0.015 (+2.5&sigma;); <b>K=8 RL lifts
+      it +0.069 (+5.7&sigma;)</b> — post-cutoff 0.1105 vs base 0.0413, ~2.7× base
+      and ~2× SFT. <b>6/6 K8 seeds beat both base and SFT</b> (K8 vs SFT +4.0&sigma;
+      pooled); base and SFT sit below the K=8 2&sigma; band [0.086, 0.135].</p>
     </div>
-    <p><b>Bottom line:</b> at the metric where self-improve actually lives, the
-    HumanEval full-set self-improve <b>generalizes to a harder benchmark and to
-    post-cutoff problems, confirmed across 6 seeds (+2.5&sigma;)</b> — the strongest
-    evidence yet that the gain is real learning, not pretraining recall. Reusable
-    lesson: <b>match the eval metric to where the training signal lives.</b>
-    Caveats: low absolute rates (0.04–0.09), small post subset (n=92).</p>
+    <div class="callout ok">
+      <span class="k">cleanest signature</span>
+      <p><b>K=8 RL's gain is almost entirely on post-cutoff.</b> Post lift +0.069
+      vs a <b>near-flat pre-cutoff +0.010</b> (−0.008 vs SFT there) — the gain
+      lives on problems released <i>after</i> the cutoff, the <i>opposite</i> of a
+      contamination signature (which concentrates on possibly-seen pre-cutoff
+      problems). The strongest transfer evidence in the project.</p>
+    </div>
+    <p><b>Bottom line:</b> at the metric where self-improve actually lives, both
+    HumanEval recipes <b>generalize to a harder benchmark and to post-cutoff
+    problems</b> — real learning, not recall. <b>K=8 RL generalizes ~2× more
+    strongly than SFT, with a cleaner post-only signature.</b> This <i>inverts</i>
+    the in-domain deployment verdict: the RL variance study picked SFT for
+    HumanEval (RL = same mean, ~3.3× variance), but for <b>out-of-distribution
+    transfer, RL wins decisively</b>. Reusable lesson: <b>match the eval metric to
+    where the training signal lives.</b> Caveats: low absolute rates, post n=92,
+    one transfer benchmark — not "RL &gt; SFT" broadly.</p>
   </section>
 
   <footer>

@@ -63,11 +63,15 @@ Detail + commands: `phase22-bigcodebench-notes.md`,
 - **BF16 long-prompt bug found + fixed** (`39f038e`) — the biggest by-product.
 - **LiveCodeBench base validated** (aggregate pass@1 overall 0.075, post-cutoff
   0.041); pipeline works, prompt format matches.
-- **Self-improve GENERALIZES** (correct metric, 6-seed confirmed): full-set SFT
-  lifts LCB post-cutoff (unseen) 0.0413 → 0.0562 ± 0.006 at aggregate pass@1
-  (**Δ +0.0149, +2.5σ, 6/6 seeds beat base**) → real learning, not recall.
-  Greedy was the wrong ruler (looked like a loss). Detail:
-  `phase22-livecodebench-notes.md`, `llm.coreon.build/livecodebench.html`.
+- **Self-improve GENERALIZES** (correct metric, 6-seed confirmed): both HumanEval
+  recipes lift LCB post-cutoff (unseen) at aggregate pass@1. Full-set SFT
+  0.0413 → 0.0562 ± 0.006 (**+0.0149, +2.5σ**); **K=8 RL 0.0413 → 0.1105 ± 0.012
+  (+0.0692, +5.7σ), ~2× SFT** and 6/6 seeds beat both base and SFT. K=8 RL's
+  lift is almost pure post-cutoff (pre near-flat +0.010) — the cleanest
+  generalization signature, and it *inverts* the in-domain SFT-over-RL
+  deployment verdict for the transfer objective. Greedy was the wrong ruler
+  (looked like a loss). Detail: `phase22-livecodebench-notes.md`,
+  `llm.coreon.build/livecodebench.html`.
 - **RL variance study** (separate, concluded): `phase22-rl-variance.md`,
   `llm.coreon.build/rl-variance.html`.
 

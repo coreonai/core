@@ -1,7 +1,7 @@
 ---
 title: "Phase 22 §6.5 — LiveCodeBench base-7B benchmarking"
 date: "2026-08-03"
-status: "base validated; recipe GENERALIZES to post-cutoff — 6-seed confirmed (+2.5σ)"
+status: "GENERALIZES to post-cutoff — SFT +2.5σ, K=8 RL +5.7σ (both 6-seed); RL transfers ~2× SFT"
 ---
 
 # Why
@@ -80,36 +80,51 @@ Re-run at **aggregate pass@1 (temp 0.8, passk 5)** — where the gain lives —
 base + full-set SFT, same F32 path, same slice. Firmed to **6 seeds** (42, 100,
 200, 300, 400, 500):
 
+Both recipes are HumanEval self-improve, measured identically on LCB. 6 seeds
+each (42, 100, 200, 300, 400, 500):
+
 | | overall | pre (<2024-09, n=28) | post (≥2024-09, n=92) |
 |---|---|---|---|
 | base | 0.075 | 0.186 | **0.0413** |
 | full-set SFT (6-seed mean ± σ) | 0.0908 ± 0.0048 | 0.2048 ± 0.0117 | **0.0562 ± 0.0059** |
-| **Δ vs base** | **+0.016** | +0.019 | **+0.0149 (+2.52σ)** |
+| **K=8 RL (6-seed mean ± σ)** | **0.1306 ± 0.0097** | 0.1964 ± 0.0075 | **0.1105 ± 0.0122** |
+| Δ SFT vs base | +0.016 | +0.019 | **+0.0149 (+2.52σ)** |
+| **Δ K=8 RL vs base** | **+0.056** | +0.010 | **+0.0692 (+5.68σ)** |
+| **Δ K=8 RL vs SFT** | +0.040 | −0.008 | **+0.0543 (+4.01σ)** |
 
-Per-seed post-cutoff: 42→0.0565, 100→0.0522, 200→0.0565, 300→0.0674,
-400→0.0522, 500→0.0522.
+Per-seed post-cutoff — SFT: 42→0.0565, 100→0.0522, 200→0.0565, 300→0.0674,
+400→0.0522, 500→0.0522. K=8 RL: 42→0.1065, 100→0.1283, 200→0.1196, 300→0.1043,
+400→0.1109, 500→0.0935.
 
-- **The self-improve gain transfers — and holds on unseen problems, robustly.**
-  Full-set SFT lifts LCB **post-cutoff** to 0.0562 ± 0.0059 vs base 0.0413
-  (**+0.0149, +2.52σ**) — problems released *after* the model's cutoff,
-  definitely unseen. **All 6/6 seeds beat base** (per-seed Δ +0.011…+0.026), and
-  base 0.0413 sits **below the 6-seed 2σ band [0.0444, 0.0680]**. That is **real
-  generalization**, not contamination/recall: a pure-recall recipe would show no
-  post-cutoff lift.
-- **Mild contamination component, not the whole story.** The pre-cutoff lift
-  (+0.019) is comparable to post (+0.015) — most of the gain is genuine transfer,
-  with at most a small possibly-seen component.
-- **Caveats.** Small absolute LCB rates (0.04–0.09) and small post subset
-  (n=92); the σ is tight (0.0059) but the effect is a handful of problems.
-  Directionally robust across 6 seeds, not a large absolute lift.
-- K=8 RL (hard-tail) was only measured greedy (superseded); its aggregate LCB
-  transfer is a follow-up, but it is the narrower recipe.
+- **Both self-improve recipes transfer to unseen problems — and K=8 RL transfers
+  ~2× as strongly as SFT.** SFT lifts post-cutoff +0.0149 (+2.52σ, 6/6 seeds);
+  **K=8 RL lifts it +0.0692 (+5.68σ, 6/6 seeds)** — post-cutoff 0.1105 vs base
+  0.0413, ~2.7× base and ~2× SFT. K=8 RL beats SFT by +0.0543 (+4.01σ pooled),
+  **6/6 seeds K8 > SFT**; base and SFT both sit below the K=8 2σ band
+  [0.0862, 0.1349].
+- **K=8 RL's signature is the cleanest possible generalization.** Its lift is
+  almost entirely on **post-cutoff** (+0.069) with **near-flat pre-cutoff**
+  (+0.010, and it's actually −0.008 vs SFT there) — the gain lives on problems
+  released *after* the cutoff, definitely unseen. That is the *opposite* of a
+  contamination signature (which would concentrate on pre-cutoff / possibly-seen
+  problems). SFT's pre (+0.019) ≈ post (+0.015) is a slightly less clean split.
+- **This inverts the in-domain deployment verdict — for the transfer objective.**
+  The RL variance study found K=8 RL matches SFT's HumanEval *mean* with ~3.3×
+  the run-to-run variance, so SFT was the deployment pick *in-domain*. But on
+  **cross-benchmark generalization to unseen problems, K=8 RL is decisively
+  better** (~2× the post-cutoff rate, tight σ 0.012). The two objectives —
+  in-domain stability vs out-of-distribution transfer — point at different
+  recipes.
+- **Caveats.** Small absolute rates and small post subset (n=92); the effect is
+  a handful of problems, though robust across 6 seeds. One transfer benchmark;
+  do not generalize to "RL > SFT" broadly. Both σ are tight.
 
-**Bottom line**: measured at the metric where self-improve actually lives, the
-HumanEval full-set self-improve **generalizes to a different, harder benchmark
-and to post-cutoff problems, confirmed across 6 seeds (+2.5σ)** — the strongest
-evidence yet that the gain is real learning, not pretraining recall. The greedy
-detour is the reusable lesson:
+**Bottom line**: measured at the metric where self-improve actually lives, both
+HumanEval recipes **generalize to a different, harder benchmark and to
+post-cutoff problems, confirmed across 6 seeds each** — real learning, not
+pretraining recall. **K=8 RL generalizes ~2× more strongly than SFT (+5.7σ vs
++2.5σ), with a cleaner post-only signature** — the strongest transfer evidence in
+the project. The greedy detour is the reusable lesson:
 **match the eval metric to where the training signal lives** (this repo's own
 recurring theme — pass@5 saturation, aggregate-vs-greedy).
 
