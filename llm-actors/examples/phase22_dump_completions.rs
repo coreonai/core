@@ -67,6 +67,21 @@ enum Split {
     Instruct,
 }
 
+/// Inference dtype. **BF16 silently corrupts generation on long prompts**
+/// (~500+ total tokens): its 7-bit mantissa loses too much rotary/attention
+/// precision, and the output degenerates into token-doubling garbage after a
+/// few dozen clean tokens. Short-prompt benchmarks (HumanEval/MBPP, ~150-token
+/// prompts) never hit it, which is why all prior Phase 22 work ran BF16 fine.
+/// The long-prompt benchmarks (LiveCodeBench, BigCodeBench) MUST use F32 (2×
+/// memory, still fits a 40GB card for 7B inference). See
+/// `docs/phase22-livecodebench-notes.md`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum DtypeArg {
+    Bf16,
+    F16,
+    F32,
+}
+
 #[derive(Parser, Debug)]
 struct Args {
     #[arg(long, value_enum)]
@@ -101,6 +116,11 @@ struct Args {
     passk: usize,
     #[arg(long, default_value_t = 512)]
     max_new_tokens: usize,
+    /// Inference dtype. Defaults to `f32` because this dumper targets
+    /// long-prompt benchmarks that BF16 corrupts (see `DtypeArg`). Use `bf16`
+    /// only for short-prompt benchmarks where speed/memory matter.
+    #[arg(long, value_enum, default_value = "f32")]
+    dtype: DtypeArg,
     /// Output path for the generations.
     #[arg(long)]
     dump: PathBuf,
@@ -183,7 +203,16 @@ async fn main() -> Result<()> {
              Set PHASE22_ALLOW_CPU=1 to override."
         );
     }
-    let dtype = if on_cuda { DType::BF16 } else { DType::F32 };
+    let dtype = if on_cuda {
+        match args.dtype {
+            DtypeArg::Bf16 => DType::BF16,
+            DtypeArg::F16 => DType::F16,
+            DtypeArg::F32 => DType::F32,
+        }
+    } else {
+        DType::F32
+    };
+    println!("[dump] dtype = {dtype:?}");
 
     let snapshot = resolve_snapshot(args.model_dir.as_deref(), &args.model_id)?;
     println!("[dump] snapshot = {}", snapshot.display());
