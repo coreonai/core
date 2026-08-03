@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="workLLM §6.5 — external code benchmarking hub: generate in Rust, score with the official harness. LiveCodeBench, BigCodeBench, and the key findings.">
+<title>workLLM · Benchmarking guide</title>
+</head>
+<body>
+<style>
+  :root{
+    --ground:#f3f5f8; --surface:#ffffff; --surface-2:#eef1f5; --line:#d9dfe7;
+    --ink:#141b23; --muted:#5a6b7b; --faint:#8496a6; --accent:#1f8bab; --accent-soft:#e2f0f5;
+    --ok:#3f9d6e; --ok-bg:#e7f4ec; --warn:#b77a1f; --warn-bg:#faf0dd;
+    --bad:#c3554f; --bad-bg:#fae8e6; --info:#5c74a0; --info-bg:#e8eef7;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --ground:#0e151e; --surface:#151f2b; --surface-2:#1b2733; --line:#26333f;
+    --ink:#e6edf4; --muted:#93a3b3; --faint:#6b7d8d; --accent:#45b2d1; --accent-soft:#16323d;
+    --ok:#5bb98a; --ok-bg:#132a20; --warn:#d39a52; --warn-bg:#2c2213; --bad:#cf6b6b; --bad-bg:#2c1817; --info:#8ba6c9; --info-bg:#16202f;}}
+  :root[data-theme="light"]{--ground:#f3f5f8; --surface:#ffffff; --surface-2:#eef1f5; --line:#d9dfe7; --ink:#141b23; --muted:#5a6b7b; --faint:#8496a6; --accent:#1f8bab; --accent-soft:#e2f0f5; --ok:#3f9d6e; --ok-bg:#e7f4ec; --warn:#b77a1f; --warn-bg:#faf0dd; --bad:#c3554f; --bad-bg:#fae8e6; --info:#5c74a0; --info-bg:#e8eef7;}
+  :root[data-theme="dark"]{--ground:#0e151e; --surface:#151f2b; --surface-2:#1b2733; --line:#26333f; --ink:#e6edf4; --muted:#93a3b3; --faint:#6b7d8d; --accent:#45b2d1; --accent-soft:#16323d; --ok:#5bb98a; --ok-bg:#132a20; --warn:#d39a52; --warn-bg:#2c2213; --bad:#cf6b6b; --bad-bg:#2c1817; --info:#8ba6c9; --info-bg:#16202f;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;font-size:15px}
+  .wrap{max-width:900px;margin:0 auto;padding:0 24px 96px}
+  .mono{font-family:var(--mono)} a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  h1,h2,h3{text-wrap:balance;margin:0}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+  header.bar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .bar-in{max-width:900px;margin:0 auto;padding:13px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .logo{font-family:var(--mono);font-weight:600;font-size:14px;color:var(--ink)} .logo b{color:var(--accent)}
+  .bar-links{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:13px} .bar-links a{color:var(--muted)}
+  button.theme{font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:5px 10px;cursor:pointer}
+  button.theme:hover{color:var(--ink);border-color:var(--accent)}
+  .hero{padding:44px 0 20px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  h1{font-size:clamp(26px,4vw,38px);letter-spacing:-.02em;line-height:1.12;margin:12px 0 14px}
+  .lede{color:var(--muted);font-size:16px;max-width:64ch} .lede b{color:var(--ink);font-weight:600}
+  .meta{margin-top:16px;font-family:var(--mono);font-size:12px;color:var(--faint)}
+  section{padding-top:34px} h2{font-size:20px;letter-spacing:-.01em;margin-bottom:6px} h2 .n{font-family:var(--mono);color:var(--accent);font-size:15px;margin-right:8px}
+  section > p{color:var(--muted);margin:10px 0} section>p b, li b{color:var(--ink);font-weight:600}
+  ul{margin:10px 0;padding-left:20px;color:var(--muted)} li{margin:6px 0}
+  code{font-family:var(--mono);font-size:.88em;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:1px 5px;color:var(--ink)}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px} @media(max-width:640px){.cards{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:block}
+  .card:hover{border-color:var(--accent)} .card .tag{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.08em;text-transform:uppercase}
+  .card h3{font-size:15.5px;margin:6px 0 4px;color:var(--ink)} .card p{color:var(--muted);font-size:13.5px;margin:0}
+  .pill{display:inline-flex;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 9px;border:1px solid transparent;margin-left:8px}
+  .pill.ok{color:var(--ok);background:var(--ok-bg);border-color:color-mix(in srgb,var(--ok) 30%,transparent)}
+  .pill.info{color:var(--info);background:var(--info-bg);border-color:color-mix(in srgb,var(--info) 30%,transparent)}
+  .callout{display:flex;gap:12px;background:var(--warn-bg);border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);border-radius:12px;padding:15px 17px;margin:16px 0}
+  .callout .k{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--warn);flex:none;padding-top:2px}
+  .callout p{margin:0;color:var(--ink);font-size:14px}
+  pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;margin:14px 0}
+  pre code{background:none;border:none;padding:0;font-size:12.5px;line-height:1.6;color:var(--ink)}
+  footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:13px} footer a{color:var(--muted)}
+</style>
+
+<header class="bar">
+  <div class="bar-in">
+    <span class="logo">workLLM<b>/</b>benchmarking</span>
+    <div class="bar-links"><a href="/">&larr; dashboard</a><button class="theme" id="tg" type="button">theme</button></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Phase 22 · §6.5 · reference</div>
+    <h1>External benchmarking — generate in Rust, score with the official harness.</h1>
+    <p class="lede">One measurement ruler, no home-grown scorer. The Rust/Pekko
+    stack <b>generates</b>; the official harness <b>scores</b>. Porting a scorer
+    into Rust re-creates the exact silent-failure surface behind the C4/C5
+    corrections — delegating keeps numbers leaderboard-comparable.</p>
+    <div class="meta">mirror of docs/phase22-benchmarking-guide.md</div>
+  </div>
+
+  <section>
+    <h2><span class="n">01</span>The three studies</h2>
+    <div class="cards">
+      <a class="card" href="/livecodebench.html">
+        <div class="tag">contamination</div>
+        <h3>LiveCodeBench <span class="pill ok">generalizes</span></h3>
+        <p>Contest-date split. Self-improve lifts <b>post-cutoff</b> (unseen) 0.041→0.057 at aggregate pass@1 — real learning, not recall. Base validated; BF16 long-prompt bug fixed.</p>
+      </a>
+      <a class="card" href="/bigcodebench.html">
+        <div class="tag">ceiling</div>
+        <h3>BigCodeBench <span class="pill info">infra ready</span></h3>
+        <p>Real-library tasks, Docker sandbox. Emitter / domain / dumper / sanity band complete; data + Docker run pending.</p>
+      </a>
+      <a class="card" href="/rl-variance.html">
+        <div class="tag">RL variance</div>
+        <h3>K=8 harvest flips the mean</h3>
+        <p>Objective lever (GRPO) dead; harvest lever makes RL high-mean (0.538, +0.174 over SFT). The win is the RL regime, not harvest.</p>
+      </a>
+      <a class="card" href="/">
+        <div class="tag">live</div>
+        <h3>Dashboard</h3>
+        <p>Live GPU / run / git status, 7B findings, infrastructure, and next-step planning.</p>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">02</span>Two hard rules</h2>
+    <div class="callout">
+      <span class="k">F32 · long prompts</span>
+      <p><b>BF16 corrupts generation past ~500 tokens</b> (token-doubling garbage). Short HumanEval/MBPP prompts never hit it; LCB/BigCodeBench do. Use <code>--dtype f32</code> (the dumper default; 7B F32 = 28GB, fits a 40GB card).</p>
+    </div>
+    <div class="callout">
+      <span class="k">aggregate · not greedy</span>
+      <p><b>Match the metric to where the training signal lives.</b> SFT sharpens the sampling distribution — it lifts aggregate pass@1 / pass@k but can drop the single greedy mode. A greedy run made self-improve look like a <i>loss</i>; aggregate pass@1 showed generalization.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">03</span>Run it</h2>
+    <p>Scorer env: <code>scratch-7b-sft/tools/lcb-venv</code> (torch-free
+    <code>codegen_metrics</code>, <code>datasets</code> 2.x). Generate in Rust,
+    score with the official harness:</p>
+    <pre><code># LiveCodeBench — export, then base + recipe at the correct metric
+lcb-venv/bin/python scripts/phase22_bench/lcb_export_problems.py release_v5
+bash scripts/phase22_bench/lcb_agg_verify.sh          # base + recipe, aggregate pass@1
+
+# score any dumped [{question_id, code_list}], with a cutoff window
+lcb-venv/bin/python scripts/phase22_bench/lcb_score.py \
+  --gens &lt;path.json&gt; --release release_v5 --start-date 2024-09-01   # post-cutoff</code></pre>
+    <p>Full component table, BigCodeBench Docker commands, and recipe re-train:
+    <span class="mono">docs/phase22-benchmarking-guide.md</span>.</p>
+  </section>
+
+  <footer>
+    Mirror of <span class="mono">docs/phase22-benchmarking-guide.md</span> ·
+    detail: <a href="/livecodebench.html">LiveCodeBench</a> ·
+    <a href="/bigcodebench.html">BigCodeBench</a> ·
+    <a href="/rl-variance.html">RL variance</a> · workLLM Phase 22
+  </footer>
+</div>
+
+<script>
+  (function(){var root=document.documentElement,btn=document.getElementById('tg');
+   function cur(){if(root.dataset.theme)return root.dataset.theme;return matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}
+   btn.addEventListener('click',function(){root.dataset.theme=cur()==='dark'?'light':'dark';});})();
+</script>
+</body>
+</html>
