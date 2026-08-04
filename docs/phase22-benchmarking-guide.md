@@ -84,13 +84,14 @@ dataset cache). Complete/Hard first. Detail: `phase22-bigcodebench-notes.md`,
   deployment verdict for the transfer objective. Greedy was the wrong ruler
   (looked like a loss). Detail: `phase22-livecodebench-notes.md`,
   `llm.coreon.build/livecodebench.html`.
-- **BigCodeBench base + recipe ceiling probe** (Complete/Hard). base greedy
-  calibrated pass@1 **0.169** (just below instruct 0.182); at **aggregate pass@1**
-  (temp 0.8, passk 5) both recipes lift base 0.146 → **SFT 0.168 / K8 0.174**
-  (+0.022 / +0.028, 3-seed). Two contrasts with LCB: (1) **K8's dominance does
-  NOT reproduce** — K8 ≈ SFT (+0.34σ), K8 higher-variance → recipe superiority is
-  benchmark-axis-dependent; (2) **pass@5 drops** (base 0.432 > SFT 0.394 > K8
-  0.383) — self-improve sharpens onto the mode. Detail:
+- **BigCodeBench base + 6-seed recipe ceiling probe** (Complete/Hard). base
+  greedy calibrated pass@1 **0.169** (just below instruct 0.182); at **aggregate
+  pass@1** (temp 0.8, passk 5, 6-seed) **K=8 RL lifts base 0.146 → 0.181 (+0.035,
+  ≈2σ)** while **SFT's +0.009 stays inside its own σ** (SFT does not robustly lift
+  here; firming 3→6 seeds exposed seed 300 = 0.116). Two contrasts with LCB:
+  (1) **K8 > SFT is only +0.99σ** here vs +4σ on LCB → recipe superiority is
+  benchmark-axis-dependent; (2) **pass@5 drops** (base 0.432 > K8 0.402 > SFT
+  0.368) — self-improve sharpens onto the mode. Detail:
   `phase22-bigcodebench-notes.md`, `llm.coreon.build/bigcodebench.html`.
 - **RL variance study** (separate, concluded): `phase22-rl-variance.md`,
   `llm.coreon.build/rl-variance.html`.

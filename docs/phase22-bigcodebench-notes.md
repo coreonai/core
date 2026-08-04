@@ -1,7 +1,7 @@
 ---
 title: "Phase 22 §6.5 — BigCodeBench + Docker sandbox (investigation notes)"
 date: "2026-08-01"
-status: "base + recipe ceiling probe DONE — both recipes lift aggregate pass@1 (+0.02–0.03); K8's LCB dominance does NOT reproduce here (K8≈SFT within noise)"
+status: "base + 6-seed recipe ceiling probe DONE — K8 robustly lifts aggregate pass@1 (+0.035, ~2σ); SFT's lift marginal/noisy (+0.009); K8>SFT only +0.99σ (LCB was +4σ)"
 ---
 
 # Why BigCodeBench, and where it sits
@@ -48,41 +48,46 @@ is the investigation for standing BigCodeBench up.
 Commands: `scripts/phase22_bench/bcb_run_base.sh` (generate),
 `bcb_score.sh` (Docker score), `bcb_smoke.py` (format smoke).
 
-# Recipe ceiling probe (MEASURED) — aggregate pass@1, both recipes lift; K8 ≈ SFT here
+# Recipe ceiling probe (MEASURED, 6-seed) — K8 robustly lifts; SFT's lift is marginal
 
 Measured at **aggregate pass@1 (temp 0.8, passk 5, F32)** — the metric where
-self-improve lives (lesson #11), not greedy. base + full-set SFT + K=8 RL, 3
-seeds (42, 100, 200) each on Hard:
+self-improve lives (lesson #11), not greedy. base + full-set SFT + K=8 RL,
+**6 seeds** (42, 100, 200, 300, 400, 500) each on Hard:
 
 | arm | pass@1 (aggregate) | pass@5 | Δ pass@1 vs base |
 |---|---|---|---|
 | base | 0.1459 | **0.4324** | — |
-| full-set SFT (3-seed) | 0.1676 ± 0.0082 | 0.3941 | **+0.0216** |
-| K=8 RL (3-seed) | 0.1739 ± 0.0163 | 0.3829 | **+0.0279** |
+| full-set SFT (6-seed) | 0.1547 ± 0.0206 | 0.3682 | **+0.0088** |
+| K=8 RL (6-seed) | 0.1806 ± 0.0163 | 0.4020 | **+0.0347** |
 
-Per-seed pass@1 — SFT: 0.1635 / 0.1622 / 0.1770; K8: 0.1797 / 0.1554 / 0.1865.
+Per-seed pass@1 — SFT: 0.1635 / 0.1622 / 0.1770 / 0.1162 / 0.1527 / 0.1568;
+K8: 0.1797 / 0.1554 / 0.1865 / 0.1689 / 0.1959 / 0.1973.
 
-- **Both recipes lift the ceiling at aggregate pass@1.** base 0.146 → SFT 0.168 →
-  K8 0.174 (+0.022 / +0.028). Self-improve pushes BigCodeBench Hard, the harder
-  benchmark, not just HumanEval — a genuine (if modest) ceiling lift.
-- **K=8 RL's LiveCodeBench dominance does NOT reproduce here.** K8 beats SFT by
-  only **+0.006 (+0.34σ pooled)** — within noise — and K8 is *higher*-variance
-  (σ 0.016 vs 0.008; seed 100 = 0.155 falls below every SFT seed). Contrast LCB,
-  where K8 beat SFT by +4σ. **Recipe superiority is benchmark-axis-dependent**:
-  on LCB's *contamination* axis K8 dominates; on BigCodeBench's *difficulty* axis
-  K8 ≈ SFT.
-- **Clearest sharpening signature in the project.** pass@5 *decreases* with
-  self-improve: base 0.432 > SFT 0.394 > K8 0.383. The recipes concentrate
-  probability mass onto the mode (pass@1 ↑, diversity ↓) — lesson #11's mechanism
-  observed directly. (So base's *greedy* 0.169 > base *aggregate* 0.146: greedy
-  picks the strong mode; the recipes lift the aggregate back to ≈ base-greedy.)
-- **Caveats.** 3 seeds; small absolute deltas (a few problems on 148); gt pass
-  rate 0.980. Directional, not a tight CI. One OOM recovery: 3 arms' slice_19
-  hit CUDA OOM under checkpoint-load + F32 passk5 contention → regenerated alone
-  on a dedicated GPU (`bcb_probe_recover.sh`).
+**Firming to 6 seeds corrected the 3-seed picture** (3-seed had SFT 0.168, K8
+0.174, K8−SFT +0.34σ → read as "both lift, K8 ≈ SFT"). The three new seeds
+revealed:
 
-Command: `scripts/phase22_bench/bcb_recipe_probe.sh` (generate all arms at
-aggregate + Docker-score + summarize).
+- **SFT's ceiling lift is marginal and unstable.** SFT dropped 0.168 → 0.155
+  (seed 300 = 0.116 is a weak seed); Δ +0.009 is *inside its own σ* (0.021). SFT
+  does **not** robustly raise the BigCodeBench Hard ceiling.
+- **K=8 RL robustly lifts the ceiling.** K8 0.181, Δ +0.035 ≈ 2σ over base, with
+  tighter σ (0.016). K8 is the reliable improver here.
+- **K8 > SFT, but only a lean (+0.026, +0.99σ) — not the LCB rout.** The gap grew
+  from 3-seed's +0.34σ to +0.99σ, still short of significance and far from LCB's
+  **+4σ**. So **recipe superiority is benchmark-axis-dependent**: on LCB's
+  *contamination* axis K8 dominates decisively; on BigCodeBench's *difficulty*
+  axis K8 leads by only ~1σ (and SFT is the one that falters). (`all k8 > all
+  sft` is false — k8 seed 100 = 0.155 dips into the SFT band.)
+- **Sharpening confirmed at 6 seeds.** pass@5 *decreases* with self-improve:
+  base 0.432 > K8 0.402 > SFT 0.368 — the recipes concentrate probability mass
+  onto the mode (pass@1 ↑, diversity ↓), lesson #11's mechanism. (base *greedy*
+  0.169 > base *aggregate* 0.146: greedy picks the strong mode.)
+- **Caveats.** 6 seeds now, but small absolute deltas (a few problems on 148);
+  gt pass rate 0.973–0.980. K8's edge over SFT is a trend, not a proven win.
+
+Commands: `bcb_recipe_probe.sh` (3-seed base run), `bcb_6seed_firm.sh` (waits for
+GPUs to free, adds seeds 300/400/500 with per-slice OOM auto-retry, re-aggregates
+6-seed). The 6-seed firm ran clean (GPUs freed in 6 min, no retries needed).
 
 # What BigCodeBench measures
 

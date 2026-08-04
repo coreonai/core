@@ -115,11 +115,11 @@
     “얼마나 더 어려운 문제까지 밀어붙일 수 있나(천장)”를 봤습니다.</p>
 
     <div class="scorecard">
-      <div class="cap"><span>어려운 문제 평균 정답률</span><span>높을수록 좋음 →</span></div>
-      <div class="bar-row"><div class="bar-label">기본 모델</div><div class="bar-track"><div class="bar-fill base" style="width:84%">14.6</div></div></div>
-      <div class="bar-row"><div class="bar-label">일반 자기개선<br><b>(SFT)</b></div><div class="bar-track"><div class="bar-fill sft" style="width:97%">16.8</div></div></div>
-      <div class="bar-row"><div class="bar-label">강화학습<br><b>(K=8 RL)</b></div><div class="bar-track"><div class="bar-fill rl" style="width:100%">17.4</div></div></div>
-      <div class="verdict warn"><span class="tick">!</span><div><b>둘 다 조금씩 올랐지만, 반전이 있었습니다.</b> 첫 시험에서 2배 잘하던 강화학습이 <b>여기선 일반 자기개선과 거의 같았습니다</b> (차이가 오차 범위 안). 즉 <b>“강화학습이 더 좋다”는 시험 종류에 따라 달라진다</b>는 걸 발견했습니다 — 커닝 잡는 시험에선 압도했지만, 난이도 시험에선 도긴개긴.</div></div>
+      <div class="cap"><span>어려운 문제 평균 정답률 (6번 반복 평균)</span><span>높을수록 좋음 →</span></div>
+      <div class="bar-row"><div class="bar-label">기본 모델</div><div class="bar-track"><div class="bar-fill base" style="width:81%">14.6</div></div></div>
+      <div class="bar-row"><div class="bar-label">일반 자기개선<br><b>(SFT)</b></div><div class="bar-track"><div class="bar-fill sft" style="width:86%">15.5</div></div></div>
+      <div class="bar-row"><div class="bar-label">강화학습<br><b>(K=8 RL)</b></div><div class="bar-track"><div class="bar-fill rl" style="width:100%">18.1</div></div></div>
+      <div class="verdict warn"><span class="tick">!</span><div><b>여기선 반전이 있었습니다.</b> 강화학습은 어려운 문제에서도 <b>안정적으로 올랐지만</b>(14.6→18.1), <b>일반 자기개선은 거의 못 올랐습니다</b>(14.6→15.5, 들쭉날쭉). 그리고 첫 시험에서 2배 앞서던 강화학습이 <b>여기선 조금 앞서는 정도</b>였습니다. 즉 <b>“강화학습이 얼마나 더 좋은가”는 시험 종류에 따라 다르다</b> — 커닝 잡는 시험에선 압도, 난이도 시험에선 소폭 우세.</div></div>
     </div>
   </section>
 

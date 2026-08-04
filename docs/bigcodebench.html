@@ -129,15 +129,15 @@
 
 <div class="wrap">
   <div class="hero">
-    <div class="eyebrow">Phase 22 · §6.5 · base + recipe probe</div>
-    <h1>BigCodeBench — self-improve lifts the ceiling, but K8 ≈ SFT here.</h1>
+    <div class="eyebrow">Phase 22 · §6.5 · base + 6-seed recipe probe</div>
+    <h1>BigCodeBench — K=8 RL robustly lifts the ceiling; SFT's lift is marginal.</h1>
     <p class="lede">The <b>ceiling</b> instrument — harder, library-using,
     instruction-following tasks that HumanEval's ceiling hides. Complementary to
     LiveCodeBench (the <b>contamination</b> instrument): LCB adds a temporal
-    axis, BigCodeBench a difficulty/realism axis. Both self-improve recipes lift
-    base Hard aggregate pass@1 (0.146 → <b>0.168 SFT / 0.174 K8</b>) — but K=8 RL's
-    LCB dominance <b>does not reproduce</b> here (K8 ≈ SFT, within noise). Base
-    greedy Complete/Hard = <b>0.169</b>, just below instruct 0.182.</p>
+    axis, BigCodeBench a difficulty/realism axis. At aggregate pass@1 (6-seed),
+    <b>K=8 RL lifts base Hard 0.146 → 0.181 (+0.035, ≈2&sigma;)</b> while SFT's
+    +0.009 stays inside its own noise. K8 &gt; SFT by only +0.99&sigma; here — a lean,
+    not LCB's +4&sigma; rout. Base greedy Complete/Hard = <b>0.169</b>.</p>
     <div class="meta">generate in Rust (F32), score with the official Docker harness (bcb 0.2.4, v0.1.4) · one ruler</div>
   </div>
 
@@ -215,39 +215,42 @@ docker run --rm --user $(id -u):$(id -g) -e HOME=/app/.dockerhome \
   </section>
 
   <section>
-    <h2><span class="n">06</span>Recipe ceiling probe <span class="pill ok">both lift · K8 ≈ SFT here</span></h2>
+    <h2><span class="n">06</span>Recipe ceiling probe <span class="pill ok">6-seed · K8 lifts, SFT marginal</span></h2>
     <p>Measured at <b>aggregate pass@1 (temp 0.8, passk 5, F32)</b> — the metric
-    where self-improve lives (not greedy) — base + full-set SFT + K=8 RL, 3 seeds
-    (42, 100, 200) each on Hard:</p>
+    where self-improve lives (not greedy) — base + full-set SFT + K=8 RL,
+    <b>6 seeds</b> (42, 100, 200, 300, 400, 500) each on Hard:</p>
     <div class="scroll"><table>
       <thead><tr><th>arm</th><th>pass@1 (aggregate)</th><th>pass@5</th><th>Δ pass@1 vs base</th></tr></thead>
       <tbody>
         <tr><td>base</td><td class="num">0.1459</td><td class="num">0.4324</td><td class="num">—</td></tr>
-        <tr><td>full-set SFT (3-seed)</td><td class="num">0.1676 ± 0.008</td><td class="num">0.3941</td><td class="num">+0.0216</td></tr>
-        <tr class="hi"><td>K=8 RL (3-seed)</td><td class="num">0.1739 ± 0.016</td><td class="num">0.3829</td><td class="num">+0.0279</td></tr>
+        <tr><td>full-set SFT (6-seed)</td><td class="num">0.1547 ± 0.021</td><td class="num">0.3682</td><td class="num">+0.0088</td></tr>
+        <tr class="hi"><td>K=8 RL (6-seed)</td><td class="num">0.1806 ± 0.016</td><td class="num">0.4020</td><td class="num">+0.0347</td></tr>
       </tbody>
     </table></div>
     <div class="callout ok">
-      <span class="k">both recipes lift the ceiling</span>
-      <p>base 0.146 → SFT 0.168 → K8 0.174 (+0.022 / +0.028). Self-improve pushes
-      BigCodeBench Hard — the harder benchmark — not just HumanEval. A genuine, if
-      modest, ceiling lift.</p>
+      <span class="k">K8 robustly lifts; SFT's lift is marginal</span>
+      <p>K8 = 0.181, <b>Δ +0.035 (≈2&sigma; over base)</b>, tight &sigma; 0.016 — the
+      reliable improver. SFT = 0.155, Δ +0.009 <i>inside its own &sigma;</i> (0.021):
+      SFT does <b>not</b> robustly raise the Hard ceiling. Firming 3→6 seeds
+      corrected the 3-seed read (SFT looked like 0.168; seed 300 = 0.116 exposed
+      its instability).</p>
     </div>
     <div class="callout warn">
-      <span class="k">K8's LCB dominance does NOT reproduce here</span>
-      <p>K8 beats SFT by only <b>+0.006 (+0.34&sigma;)</b> — within noise — and K8 is
-      <i>higher</i>-variance (&sigma; 0.016 vs 0.008; seed 100 = 0.155 below every SFT
-      seed). Contrast LCB, where K8 beat SFT by +4&sigma;. <b>Recipe superiority is
-      benchmark-axis-dependent</b>: K8 dominates on LCB's <i>contamination</i> axis,
-      but K8 ≈ SFT on BigCodeBench's <i>difficulty</i> axis.</p>
+      <span class="k">K8 &gt; SFT, but only a lean — not the LCB rout</span>
+      <p>K8 beats SFT by <b>+0.026 (+0.99&sigma;)</b> — grew from 3-seed's +0.34&sigma;
+      but still short of significance, and far from LCB's <b>+4&sigma;</b>. <b>Recipe
+      superiority is benchmark-axis-dependent</b>: K8 dominates decisively on LCB's
+      <i>contamination</i> axis, but leads by only ~1&sigma; on BigCodeBench's
+      <i>difficulty</i> axis (and SFT is the one that falters). k8 seed 100 = 0.155
+      dips into the SFT band.</p>
     </div>
     <div class="callout">
       <span class="k">sharpening, seen directly</span>
-      <p>pass@5 <i>decreases</i> with self-improve: base 0.432 &gt; SFT 0.394 &gt; K8
-      0.383. The recipes concentrate probability mass onto the mode (pass@1 ↑,
+      <p>pass@5 <i>decreases</i> with self-improve: base 0.432 &gt; K8 0.402 &gt; SFT
+      0.368. The recipes concentrate probability mass onto the mode (pass@1 ↑,
       diversity ↓) — lesson #11's mechanism observed directly. (So base's greedy
-      0.169 &gt; base aggregate 0.146; the recipes lift aggregate back to ≈
-      base-greedy.) Caveats: 3 seeds, small absolute deltas on 148 tasks.</p>
+      0.169 &gt; base aggregate 0.146.) Caveats: 6 seeds, small absolute deltas on
+      148 tasks; K8's edge over SFT is a trend, not a proven win.</p>
     </div>
   </section>
 
