@@ -129,14 +129,15 @@
 
 <div class="wrap">
   <div class="hero">
-    <div class="eyebrow">Phase 22 · §6.5 · base measured</div>
-    <h1>BigCodeBench + Docker sandbox — base 7B = 0.169 on Hard.</h1>
+    <div class="eyebrow">Phase 22 · §6.5 · base + recipe probe</div>
+    <h1>BigCodeBench — self-improve lifts the ceiling, but K8 ≈ SFT here.</h1>
     <p class="lede">The <b>ceiling</b> instrument — harder, library-using,
     instruction-following tasks that HumanEval's ceiling hides. Complementary to
     LiveCodeBench (the <b>contamination</b> instrument): LCB adds a temporal
-    axis, BigCodeBench a difficulty/realism axis. Pipeline validated end-to-end:
-    base 7B Complete/Hard <b>calibrated pass@1 = 0.169</b> (gt 0.973), just below
-    the instruct neighbourhood 0.182 — exactly as predicted.</p>
+    axis, BigCodeBench a difficulty/realism axis. Both self-improve recipes lift
+    base Hard aggregate pass@1 (0.146 → <b>0.168 SFT / 0.174 K8</b>) — but K=8 RL's
+    LCB dominance <b>does not reproduce</b> here (K8 ≈ SFT, within noise). Base
+    greedy Complete/Hard = <b>0.169</b>, just below instruct 0.182.</p>
     <div class="meta">generate in Rust (F32), score with the official Docker harness (bcb 0.2.4, v0.1.4) · one ruler</div>
   </div>
 
@@ -214,7 +215,44 @@ docker run --rm --user $(id -u):$(id -g) -e HOME=/app/.dockerhome \
   </section>
 
   <section>
-    <h2><span class="n">06</span>Recommended sequencing</h2>
+    <h2><span class="n">06</span>Recipe ceiling probe <span class="pill ok">both lift · K8 ≈ SFT here</span></h2>
+    <p>Measured at <b>aggregate pass@1 (temp 0.8, passk 5, F32)</b> — the metric
+    where self-improve lives (not greedy) — base + full-set SFT + K=8 RL, 3 seeds
+    (42, 100, 200) each on Hard:</p>
+    <div class="scroll"><table>
+      <thead><tr><th>arm</th><th>pass@1 (aggregate)</th><th>pass@5</th><th>Δ pass@1 vs base</th></tr></thead>
+      <tbody>
+        <tr><td>base</td><td class="num">0.1459</td><td class="num">0.4324</td><td class="num">—</td></tr>
+        <tr><td>full-set SFT (3-seed)</td><td class="num">0.1676 ± 0.008</td><td class="num">0.3941</td><td class="num">+0.0216</td></tr>
+        <tr class="hi"><td>K=8 RL (3-seed)</td><td class="num">0.1739 ± 0.016</td><td class="num">0.3829</td><td class="num">+0.0279</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout ok">
+      <span class="k">both recipes lift the ceiling</span>
+      <p>base 0.146 → SFT 0.168 → K8 0.174 (+0.022 / +0.028). Self-improve pushes
+      BigCodeBench Hard — the harder benchmark — not just HumanEval. A genuine, if
+      modest, ceiling lift.</p>
+    </div>
+    <div class="callout warn">
+      <span class="k">K8's LCB dominance does NOT reproduce here</span>
+      <p>K8 beats SFT by only <b>+0.006 (+0.34&sigma;)</b> — within noise — and K8 is
+      <i>higher</i>-variance (&sigma; 0.016 vs 0.008; seed 100 = 0.155 below every SFT
+      seed). Contrast LCB, where K8 beat SFT by +4&sigma;. <b>Recipe superiority is
+      benchmark-axis-dependent</b>: K8 dominates on LCB's <i>contamination</i> axis,
+      but K8 ≈ SFT on BigCodeBench's <i>difficulty</i> axis.</p>
+    </div>
+    <div class="callout">
+      <span class="k">sharpening, seen directly</span>
+      <p>pass@5 <i>decreases</i> with self-improve: base 0.432 &gt; SFT 0.394 &gt; K8
+      0.383. The recipes concentrate probability mass onto the mode (pass@1 ↑,
+      diversity ↓) — lesson #11's mechanism observed directly. (So base's greedy
+      0.169 &gt; base aggregate 0.146; the recipes lift aggregate back to ≈
+      base-greedy.) Caveats: 3 seeds, small absolute deltas on 148 tasks.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">07</span>Recommended sequencing</h2>
     <ol class="steps">
       <li><b>Complete / Hard (148 tasks) first</b> — a cheap ceiling probe (far lighter than Full 1140), docstring split suits a base model.</li>
       <li><b>Infra</b>: <code>docker pull bigcodebench/bigcodebench-evaluate:latest</code> → smoke the eval on a tiny hand-made samples file → confirm the results-JSON shape.</li>

@@ -1,7 +1,7 @@
 ---
 title: "Phase 22 §6.5 — BigCodeBench + Docker sandbox (investigation notes)"
 date: "2026-08-01"
-status: "base MEASURED — Complete/Hard calibrated pass@1 = 0.169 (gt 0.973), pipeline validated end-to-end"
+status: "base + recipe ceiling probe DONE — both recipes lift aggregate pass@1 (+0.02–0.03); K8's LCB dominance does NOT reproduce here (K8≈SFT within noise)"
 ---
 
 # Why BigCodeBench, and where it sits
@@ -47,6 +47,42 @@ is the investigation for standing BigCodeBench up.
 
 Commands: `scripts/phase22_bench/bcb_run_base.sh` (generate),
 `bcb_score.sh` (Docker score), `bcb_smoke.py` (format smoke).
+
+# Recipe ceiling probe (MEASURED) — aggregate pass@1, both recipes lift; K8 ≈ SFT here
+
+Measured at **aggregate pass@1 (temp 0.8, passk 5, F32)** — the metric where
+self-improve lives (lesson #11), not greedy. base + full-set SFT + K=8 RL, 3
+seeds (42, 100, 200) each on Hard:
+
+| arm | pass@1 (aggregate) | pass@5 | Δ pass@1 vs base |
+|---|---|---|---|
+| base | 0.1459 | **0.4324** | — |
+| full-set SFT (3-seed) | 0.1676 ± 0.0082 | 0.3941 | **+0.0216** |
+| K=8 RL (3-seed) | 0.1739 ± 0.0163 | 0.3829 | **+0.0279** |
+
+Per-seed pass@1 — SFT: 0.1635 / 0.1622 / 0.1770; K8: 0.1797 / 0.1554 / 0.1865.
+
+- **Both recipes lift the ceiling at aggregate pass@1.** base 0.146 → SFT 0.168 →
+  K8 0.174 (+0.022 / +0.028). Self-improve pushes BigCodeBench Hard, the harder
+  benchmark, not just HumanEval — a genuine (if modest) ceiling lift.
+- **K=8 RL's LiveCodeBench dominance does NOT reproduce here.** K8 beats SFT by
+  only **+0.006 (+0.34σ pooled)** — within noise — and K8 is *higher*-variance
+  (σ 0.016 vs 0.008; seed 100 = 0.155 falls below every SFT seed). Contrast LCB,
+  where K8 beat SFT by +4σ. **Recipe superiority is benchmark-axis-dependent**:
+  on LCB's *contamination* axis K8 dominates; on BigCodeBench's *difficulty* axis
+  K8 ≈ SFT.
+- **Clearest sharpening signature in the project.** pass@5 *decreases* with
+  self-improve: base 0.432 > SFT 0.394 > K8 0.383. The recipes concentrate
+  probability mass onto the mode (pass@1 ↑, diversity ↓) — lesson #11's mechanism
+  observed directly. (So base's *greedy* 0.169 > base *aggregate* 0.146: greedy
+  picks the strong mode; the recipes lift the aggregate back to ≈ base-greedy.)
+- **Caveats.** 3 seeds; small absolute deltas (a few problems on 148); gt pass
+  rate 0.980. Directional, not a tight CI. One OOM recovery: 3 arms' slice_19
+  hit CUDA OOM under checkpoint-load + F32 passk5 contention → regenerated alone
+  on a dedicated GPU (`bcb_probe_recover.sh`).
+
+Command: `scripts/phase22_bench/bcb_recipe_probe.sh` (generate all arms at
+aggregate + Docker-score + summarize).
 
 # What BigCodeBench measures
 
