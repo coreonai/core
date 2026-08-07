@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Coreon self-evolving 7B — 진행 상황 종합. Rust×Pekko 자기개선 파운데이션 모델의 벤치마킹·인프라·결과를 한 페이지로.">
+<title>Coreon · 진행 상황 종합</title>
+</head>
+<body>
+<style>
+  :root{
+    --ground:#f3f5f8; --surface:#ffffff; --surface-2:#eef1f5; --line:#d9dfe7;
+    --ink:#141b23; --muted:#5a6b7b; --faint:#8496a6; --accent:#1f8bab; --accent-2:#6b4fa0; --accent-soft:#e2f0f5;
+    --ok:#3f9d6e; --ok-bg:#e7f4ec; --warn:#b77a1f; --warn-bg:#faf0dd;
+    --bad:#c3554f; --bad-bg:#fae8e6; --info:#5c74a0; --info-bg:#e8eef7; --track:#e4e9ef;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --ground:#0e151e; --surface:#151f2b; --surface-2:#1b2733; --line:#26333f;
+    --ink:#e6edf4; --muted:#93a3b3; --faint:#6b7d8d; --accent:#45b2d1; --accent-2:#a68bd8; --accent-soft:#16323d;
+    --ok:#5bb98a; --ok-bg:#132a20; --warn:#d39a52; --warn-bg:#2c2213; --bad:#cf6b6b; --bad-bg:#2c1817; --info:#8ba6c9; --info-bg:#16202f; --track:#233040;}}
+  :root[data-theme="light"]{--ground:#f3f5f8; --surface:#ffffff; --surface-2:#eef1f5; --line:#d9dfe7; --ink:#141b23; --muted:#5a6b7b; --faint:#8496a6; --accent:#1f8bab; --accent-2:#6b4fa0; --accent-soft:#e2f0f5; --ok:#3f9d6e; --ok-bg:#e7f4ec; --warn:#b77a1f; --warn-bg:#faf0dd; --bad:#c3554f; --bad-bg:#fae8e6; --info:#5c74a0; --info-bg:#e8eef7; --track:#e4e9ef;}
+  :root[data-theme="dark"]{--ground:#0e151e; --surface:#151f2b; --surface-2:#1b2733; --line:#26333f; --ink:#e6edf4; --muted:#93a3b3; --faint:#6b7d8d; --accent:#45b2d1; --accent-2:#a68bd8; --accent-soft:#16323d; --ok:#5bb98a; --ok-bg:#132a20; --warn:#d39a52; --warn-bg:#2c2213; --bad:#cf6b6b; --bad-bg:#2c1817; --info:#8ba6c9; --info-bg:#16202f; --track:#233040;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);line-height:1.7;-webkit-font-smoothing:antialiased;font-size:16px}
+  .wrap{max-width:940px;margin:0 auto;padding:0 24px 110px}
+  .mono{font-family:var(--mono)} a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  h1,h2,h3{text-wrap:balance;margin:0}
+  header.bar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .bar-in{max-width:940px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .logo{font-family:var(--mono);font-weight:600;font-size:14px;color:var(--ink)} .logo b{color:var(--accent)}
+  .bar-links{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:13px} .bar-links a{color:var(--muted)}
+  button.theme{font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:5px 10px;cursor:pointer}
+  button.theme:hover{color:var(--ink);border-color:var(--accent)}
+  .hero{padding:52px 0 26px;border-bottom:1px solid var(--line);margin-bottom:10px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--faint);margin-bottom:15px}
+  h1{font-size:clamp(29px,5vw,46px);letter-spacing:-.022em;line-height:1.12;margin-bottom:18px}
+  h1 .hl{background:linear-gradient(100deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .lede{color:var(--muted);font-size:17.5px;max-width:70ch} .lede b{color:var(--ink);font-weight:600}
+  .updated{margin-top:20px;font-family:var(--mono);font-size:12px;color:var(--faint)}
+  .updated b{color:var(--accent)}
+  section{padding-top:44px}
+  .kicker{font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.05em;color:var(--accent);margin-bottom:8px}
+  h2{font-size:24px;letter-spacing:-.01em;line-height:1.26;margin-bottom:12px}
+  section > p{color:var(--muted);margin:12px 0} p b, li b{color:var(--ink);font-weight:600}
+  .em{color:var(--accent);font-weight:600}
+  /* big finding cards */
+  .findings{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:16px} @media(max-width:680px){.findings{grid-template-columns:1fr}}
+  .fcard{background:var(--surface);border:1px solid var(--line);border-radius:15px;padding:20px 22px}
+  .fcard .big{font-family:var(--mono);font-size:30px;font-weight:700;letter-spacing:-.02em;color:var(--ink);line-height:1}
+  .fcard .big span{font-size:16px;color:var(--accent)}
+  .fcard .cap{font-size:13.5px;color:var(--muted);margin-top:9px} .fcard .cap b{color:var(--ink)}
+  /* scorecards with bars */
+  .scorecard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin:16px 0}
+  .scorecard .top{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+  .scorecard .top h3{font-size:16px;color:var(--ink)} .scorecard .top .u{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+  .bar-row{display:grid;grid-template-columns:112px 1fr;gap:12px;align-items:center;margin:10px 0}
+  .bar-label{font-size:13px;color:var(--muted);text-align:right;line-height:1.25} .bar-label b{color:var(--ink)}
+  .bar-track{position:relative;background:var(--track);border-radius:8px;height:28px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:8px;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;color:#fff;font-family:var(--mono);font-size:12px;font-weight:600;min-width:42px}
+  .bar-fill.base{background:linear-gradient(90deg,var(--faint),color-mix(in srgb,var(--faint) 78%,#000))}
+  .bar-fill.sft{background:linear-gradient(90deg,var(--info),color-mix(in srgb,var(--info) 80%,#000))}
+  .bar-fill.rl{background:linear-gradient(90deg,var(--accent),color-mix(in srgb,var(--accent) 70%,#000))}
+  .note{font-size:13.5px;color:var(--muted);margin-top:14px;padding-top:13px;border-top:1px solid var(--line)} .note b{color:var(--ink)}
+  .callout{display:flex;gap:12px;border-radius:13px;padding:15px 18px;margin:15px 0;font-size:14.5px;border:1px solid transparent}
+  .callout.ok{background:var(--ok-bg);border-color:color-mix(in srgb,var(--ok) 30%,transparent)}
+  .callout.warn{background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
+  .callout .k{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;flex:none;padding-top:2px}
+  .callout.ok .k{color:var(--ok)} .callout.warn .k{color:var(--warn)}
+  .callout p{margin:0;color:var(--ink)}
+  /* timeline */
+  .rail{display:flex;flex-direction:column;gap:2px;margin-top:14px;border-left:2px solid var(--line);padding-left:0}
+  .ph{display:grid;grid-template-columns:88px 1fr;gap:16px;padding:11px 0 11px 18px;position:relative}
+  .ph::before{content:"";position:absolute;left:-5px;top:17px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
+  .ph .pn{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:600;padding-top:1px}
+  .ph .pd{font-size:14px;color:var(--muted)} .ph .pd b{color:var(--ink)}
+  /* infra chips */
+  .chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}
+  .chip{font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:8px 13px}
+  .chip b{color:var(--ink)} .chip .mono{font-family:var(--mono);font-size:11.5px;color:var(--accent)}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:14px} @media(max-width:600px){.cards{grid-template-columns:1fr}}
+  .lcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:15px 17px;display:block}
+  .lcard:hover{border-color:var(--accent)} .lcard .t{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
+  .lcard h3{font-size:15px;margin:5px 0 3px;color:var(--ink)} .lcard p{color:var(--muted);font-size:13px;margin:0}
+  footer{margin-top:52px;padding-top:22px;border-top:1px solid var(--line);color:var(--faint);font-size:13px} footer a{color:var(--muted)}
+  .divider{height:1px;background:var(--line);margin:6px 0}
+</style>
+
+<header class="bar">
+  <div class="bar-in">
+    <span class="logo">Coreon<b>·</b>진행 상황 종합</span>
+    <div class="bar-links"><a href="https://llm.coreon.build/">라이브 대시보드</a><a href="https://llm.coreon.build/benchmarking.html">벤치마킹 허브</a><button class="theme" id="tg" type="button">테마</button></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Coreon · self-evolving foundation model · 진행 상황</div>
+    <h1>스스로 성장하는 코딩 모델 —<br><span class="hl">그 성장이 진짜임을 측정으로 증명했다.</span></h1>
+    <p class="lede">Rust와 Apache Pekko 위에 올린 <b>자기개선(self-evolving) 파운데이션 모델</b>
+    (Qwen2.5-Coder-7B 기반). 모델이 스스로 문제를 풀고 그 결과로 다시 학습하면 성적이 오릅니다.
+    핵심 질문 — <b>이게 진짜 실력인가, 아니면 외운 것인가?</b> — 을 두 종류의 외부
+    벤치마크로 검증했고, 그 답과 인프라를 이 페이지 한 장에 정리합니다.</p>
+    <div class="updated">최종 갱신 <b id="upd">2026-08-07</b> · 이 페이지는 진행에 따라 계속 갱신됩니다 · <a href="https://llm.coreon.build/">라이브 상태 →</a></div>
+  </div>
+
+  <!-- HEADLINE FINDINGS -->
+  <section>
+    <div class="kicker">한눈에</div>
+    <h2>핵심 결과</h2>
+    <div class="findings">
+      <div class="fcard">
+        <div class="big">진짜 실력 <span>✓</span></div>
+        <div class="cap"><b>자기개선은 실재한다.</b> 학습 컷오프 <b>이후</b>(한 번도 안 본) 문제에서도 점수가 올랐다 — 외운 게 아니다.</div>
+      </div>
+      <div class="fcard">
+        <div class="big">+5.7<span>σ</span></div>
+        <div class="cap"><b>LiveCodeBench 새 문제.</b> 강화학습(K=8 RL)이 새 문제 정답률을 base 대비 크게 끌어올림 (6-seed, 오염 성분 거의 0).</div>
+      </div>
+      <div class="fcard">
+        <div class="big">~2×</div>
+        <div class="cap"><b>RL &gt; SFT (단, 조건부).</b> 커닝 잡는 시험에선 강화학습이 일반 자기개선의 2배. 난이도 시험에선 소폭 우세로 축소.</div>
+      </div>
+      <div class="fcard">
+        <div class="big">100% Rust</div>
+        <div class="cap"><b>Python 사이드카 없음.</b> 7B 추론·LoRA 학습·REINFORCE가 Candle+Pekko로 네이티브 동작.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXAM 1 -->
+  <section>
+    <div class="kicker">시험 1 · LiveCodeBench · “커닝 잡는 시험”</div>
+    <h2>학습 끝난 뒤 새로 나온 문제에서도 올랐다 = 진짜 학습</h2>
+    <p>문제를 <b>출제 날짜</b>로 나눠, 모델이 학습을 끝낸 시점(2024-09) <b>이후</b>에 나온
+    문제만 채점합니다. 절대 본 적 없는 문제죠. 여기서 오르면 외운 게 아니라 일반화입니다.
+    측정은 <b>여러 번 시도 평균(aggregate pass@1)</b> 기준 — 자기개선의 이득이 사는 곳입니다.</p>
+    <div class="scorecard">
+      <div class="top"><h3>처음 보는(post-cutoff) 문제 정답률 · 6-seed</h3><span class="u">높을수록 좋음 →</span></div>
+      <div class="bar-row"><div class="bar-label">기본 모델</div><div class="bar-track"><div class="bar-fill base" style="width:37%">4.1</div></div></div>
+      <div class="bar-row"><div class="bar-label">자기개선 <b>SFT</b></div><div class="bar-track"><div class="bar-fill sft" style="width:51%">5.6</div></div></div>
+      <div class="bar-row"><div class="bar-label">강화학습 <b>K=8 RL</b></div><div class="bar-track"><div class="bar-fill rl" style="width:100%">11.1</div></div></div>
+      <div class="note"><b>진짜 실력 확정.</b> SFT +2.5σ, K=8 RL <b>+5.7σ</b> (둘 다 6/6 seed가 base 초과). 강화학습의 상승은 <b>거의 전부 새 문제에서만</b> 발생 — 오염(외우기)의 정반대인 가장 깨끗한 일반화 신호. 강화학습이 일반 자기개선의 <b>약 2배</b>.</div>
+    </div>
+  </section>
+
+  <!-- EXAM 2 -->
+  <section>
+    <div class="kicker">시험 2 · BigCodeBench · “난이도 높은 시험”</div>
+    <h2>numpy·pandas 쓰는 실무형 문제 — 여기선 우열이 좁혀졌다</h2>
+    <p>진짜 라이브러리를 사용하는 어려운 문제(Hard 148개)를 공식 Docker 채점기로 평가합니다.
+    “얼마나 더 어려운 문제까지 밀어붙이나(천장)”를 봅니다.</p>
+    <div class="scorecard">
+      <div class="top"><h3>어려운 문제 평균 정답률 · 6-seed</h3><span class="u">높을수록 좋음 →</span></div>
+      <div class="bar-row"><div class="bar-label">기본 모델</div><div class="bar-track"><div class="bar-fill base" style="width:81%">14.6</div></div></div>
+      <div class="bar-row"><div class="bar-label">자기개선 <b>SFT</b></div><div class="bar-track"><div class="bar-fill sft" style="width:86%">15.5</div></div></div>
+      <div class="bar-row"><div class="bar-label">강화학습 <b>K=8 RL</b></div><div class="bar-track"><div class="bar-fill rl" style="width:100%">18.1</div></div></div>
+      <div class="note"><b>강화학습만 안정적으로 상승</b> (14.6→18.1, +0.035 ≈ 2σ). 일반 자기개선은 <b>거의 못 올림</b> (14.6→15.5, 자기 노이즈 안). 그리고 첫 시험에서 2배였던 강화학습의 우위가 <b>여기선 소폭(+0.99σ)</b>으로 축소 — <b>“강화학습이 얼마나 더 좋은가”는 시험 종류에 따라 다르다.</b></div>
+    </div>
+  </section>
+
+  <!-- LESSONS -->
+  <section>
+    <div class="kicker">방법론에서 얻은 것</div>
+    <h2>측정에 대한 두 가지 교훈</h2>
+    <div class="callout ok">
+      <span class="k">metric</span>
+      <p><b>“채점 방식”을 잘못 고르면 결과가 거꾸로 보인다.</b> 처음엔 “가장 확신하는 답 1개”(greedy)로
+      채점해 자기개선이 나빠 보였습니다. 이득은 <b>여러 번 시도 평균</b>에서 나타나며, 기준을 맞추자
+      드러났습니다 — 결과를 믿기 전에 측정 방식부터 검증.</p>
+    </div>
+    <div class="callout warn">
+      <span class="k">sharpening</span>
+      <p><b>자기개선 = “뾰족해지기”.</b> 정답 하나에 확신을 몰아줘 <b>한 번에 맞힐 확률(pass@1)은 오르지만
+      여러 번 중 하나라도 맞힐 확률(pass@5)은 떨어집니다</b> — 다양성을 희생해 정확도를 얻음. 난이도
+      시험에서 가장 뚜렷하게 관측.</p>
+    </div>
+  </section>
+
+  <!-- INFRASTRUCTURE -->
+  <section>
+    <div class="kicker">인프라</div>
+    <h2>측정을 가능케 한 것들</h2>
+    <p>모든 벤치마킹은 <b>“생성은 Rust, 채점은 공식 하니스”</b> 원칙을 지킵니다 — 자체 채점기를
+    만들지 않고 리더보드와 직접 비교 가능한 숫자를 얻습니다.</p>
+    <div class="chips">
+      <div class="chip"><b>Pekko-native 7B</b> · Candle qwen2, Python 사이드카 <span class="mono">0</span></div>
+      <div class="chip"><b>LoRA 학습 15.2GB</b> · candle 패치 (was OOM &gt;60GB) <span class="mono">PR #3773</span></div>
+      <div class="chip"><b>2-GPU 학습 분리</b> · sampler/trainer 분리</div>
+      <div class="chip"><b>BF16 긴-프롬프트 버그 수정</b> · F32 생성 <span class="mono">39f038e</span></div>
+      <div class="chip"><b>LiveCodeBench</b> · torch-free 공식 채점 (datasets+numpy)</div>
+      <div class="chip"><b>BigCodeBench</b> · 공식 Docker 샌드박스 <span class="mono">bcb 0.2.4 / v0.1.4</span></div>
+      <div class="chip"><b>가드레일 스킬</b> · trait 위임 + 측정 sanity CI</div>
+    </div>
+  </section>
+
+  <!-- TIMELINE -->
+  <section>
+    <div class="kicker">여정</div>
+    <h2>단계별 개요</h2>
+    <div class="rail">
+      <div class="ph"><span class="pn">P1–4</span><span class="pd"><b>기반.</b> 12축 nanoGPT + 한국어 학습; 6-액터 자기개선 루프; 진화적 NAS가 <b>Llama 레시피를 스스로 재발견</b>; 툴+에이전트 루프.</span></div>
+      <div class="ph"><span class="pn">P5–9</span><span class="pd"><b>측정 규율.</b> 앙상블·전문가(정직한 부정 결과); Shape-C 신뢰도 보정; 외부 Qwen 검증; 1-round LoRA 0.40→0.73.</span></div>
+      <div class="ph"><span class="pn">P10–16</span><span class="pd"><b>논문 이식은 LoRA 스케일에서 실패.</b> JEPA·DPO·Muon·OPD — DeepSeek-V4의 기법들이 조용한 substrate에서 모두 짐; 분산 바닥 지도화.</span></div>
+      <div class="ph"><span class="pn">P17–20</span><span class="pd"><b>첫 알고리즘 승리.</b> 멀티라운드 SFT + 추론 pass@k 포화 곡선; r=6에서 0.581, seed 기록 0.645 (base의 3배).</span></div>
+      <div class="ph"><span class="pn">P21</span><span class="pd"><b>Pekko 네이티브 브릿지.</b> Candle 네이티브 Qwen2 추론 + LoRA 학습 + REINFORCE, Python 사이드카 없이.</span></div>
+      <div class="ph"><span class="pn">P22 §6.5</span><span class="pd"><b>외부 벤치마크 + 7B.</b> 0.5B→7B 이관; LiveCodeBench(오염)·BigCodeBench(난이도) 양축에서 <b>6-seed로 자기개선 전이 측정</b> — 이 페이지의 결과.</span></div>
+    </div>
+  </section>
+
+  <!-- DEEP LINKS -->
+  <section>
+    <div class="kicker">상세</div>
+    <h2>더 깊이</h2>
+    <div class="cards">
+      <a class="lcard" href="https://llm.coreon.build/benchmarking-explained.html"><div class="t">쉬운 설명</div><h3>벤치마킹, 쉽게 (KR)</h3><p>비전문가용 점수 막대 설명.</p></a>
+      <a class="lcard" href="https://llm.coreon.build/livecodebench.html"><div class="t">contamination</div><h3>LiveCodeBench</h3><p>컷오프 분리 · 6-seed 일반화.</p></a>
+      <a class="lcard" href="https://llm.coreon.build/bigcodebench.html"><div class="t">difficulty</div><h3>BigCodeBench</h3><p>Docker 샌드박스 · ceiling probe.</p></a>
+      <a class="lcard" href="https://llm.coreon.build/rl-variance.html"><div class="t">RL variance</div><h3>RL 분산 연구</h3><p>K=8 harvest가 평균을 뒤집음.</p></a>
+      <a class="lcard" href="https://llm.coreon.build/benchmarking.html"><div class="t">hub</div><h3>벤치마킹 허브</h3><p>파이프라인·findings 인덱스.</p></a>
+      <a class="lcard" href="https://llm.coreon.build/"><div class="t">live</div><h3>라이브 대시보드</h3><p>GPU·run·git 실시간 상태.</p></a>
+    </div>
+  </section>
+
+  <footer>
+    Coreon self-evolving foundation model · Rust × Apache Pekko · Qwen2.5-Coder-7B ·
+    진행에 따라 갱신되는 living document · 상세: <a href="https://llm.coreon.build/benchmarking.html">벤치마킹 허브</a>
+    <br><span class="mono" style="font-size:11.5px">숫자 = 정답률(%) · 두 시험 모두 여러-시도 평균(aggregate pass@1), 6-seed 기준</span>
+  </footer>
+</div>
+
+<script>
+  (function(){var root=document.documentElement,btn=document.getElementById('tg');
+   function cur(){if(root.dataset.theme)return root.dataset.theme;return matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}
+   btn.addEventListener('click',function(){root.dataset.theme=cur()==='dark'?'light':'dark';});})();
+</script>
+</body>
+</html>
