@@ -137,6 +137,16 @@ the dose the sampled policy actually carries.
 
 (pass count out of 256.)
 
+⚠ **These are un-truncated scores.** The RL loop verified raw completions
+while the evaluator applies `truncate_completion` (C5). On the same base
+policy that gap is ~3× at pass@1, and it penalises *long* completions
+specifically — so the zeros above say "this policy emitted completions an
+un-truncated scorer rejects", not "this policy stopped solving problems".
+Re-run with the reward scored correctly, the `legacy`-equivalent
+full-advantage arm **never collapses**: 8/8 runs rise over 30 updates
+(`docs/phase22-c4-c5-rl-vs-sft.md`). Read the table as a scorer artifact
+with a real update-count defect underneath it.
+
 ## The noise floor — read this before believing any single number
 
 The original runs hand it over for free: with `--sync-every 4`, steps 0–3
@@ -172,11 +182,14 @@ Consequences:
 2. **The proximate bug is real and measured**: 256 unintended optimizer
    updates per RL step, an artifact of a memory knob leaking into the
    training math. Fixed, with the equivalence property now under test.
-3. **The root cause is not fixed.** REINFORCE with unbounded
+3. ~~**The root cause is not fixed.** REINFORCE with unbounded
    negative-advantage CE ascent has no anchor; the update-count fix removes
-   a 256× amplifier but not the runaway itself. The fixed arm's 6 updates
-   are ~200× fewer than the dose that kills the legacy arm, so it has not
-   been tested at equal dose.
+   a 256× amplifier but not the runaway itself.~~ **RETRACTED.** There is no
+   runaway to fix. Tested at equal dose (30 updates, 8 seeds/arm) with the
+   reward scored the way the eval scores it, the full-advantage arm rises in
+   8/8 runs and lands within ~0.03 pass@5 of the bounded arm. The "unbounded
+   objective" attribution was this document reading a scorer artifact as
+   policy behaviour.
 4. **CLAUDE.md gotcha #9 again** — a Pekko-driven mechanism diverged from
    its reference recipe, and the cause was in the inner training step, not
    the actor wiring. Found by reading `train_qwen_lora_pg_step` before
@@ -184,14 +197,19 @@ Consequences:
 
 # Where next
 
-- **Bound the objective** — the actual fix. Cheapest first: positive-
-  advantage-only (drop `reward < 0`), which removes the unbounded term
-  outright and reduces to rejection-sampling FT / RAFT — the same family as
-  the SFT recipe that already gives **+0.254** on this hard tail. Then
-  reference-policy KL, or PPO-style ratio clipping (needs old log-probs).
-- **Test the fixed arm at equal dose** (30–50 steps ≈ 30–50 updates, ~8–12
-  GPU-h for 4 runs) to find out whether one-update-per-step *learns*, or
-  merely runs away 256× slower. Either answer is worth having; neither is
-  established by the 6-step run.
-- Whatever the RL outcome, SFT remains the robust hard-tail win (+0.254).
+Both items below were **done**, and both answers differ from what this
+document expected:
+
+- ~~Bound the objective — the actual fix.~~ Bounding does help, but not for
+  the reason given here: at 8 seeds it is worth **+0.124 pass@1** over
+  full-advantage (8/8 seeds, p = 0.0086) and **nothing at pass@5**
+  (p = 0.17). It is a marginal improvement, not a repair of a broken
+  objective.
+- ~~Test the fixed arm at equal dose.~~ Done at 30 updates: it **learns**
+  (+0.146 pass@5 / +0.227 pass@1 over base for the bounded arm), and it does
+  not run away.
+- ~~SFT remains the robust hard-tail win (+0.254).~~ That number is
+  **+0.145** on a consistent ruler, and bounded RL matches it in-domain and
+  beats it ~2× on out-of-distribution transfer
+  (`docs/phase22-livecodebench-notes.md`).
   RL is still the weak axis — but now for a stated, testable reason.

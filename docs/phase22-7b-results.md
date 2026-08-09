@@ -3,6 +3,39 @@ title: "Phase 22 — Qwen2.5-Coder-7B: migration + saturation + pass@k"
 date: "2026-07-25"
 ---
 
+# ⚠ Measurement corrections — read first
+
+Two scoring defects, both found in late July 2026, invalidated a series of
+conclusions in this document and its follow-ups. Each is fixed and
+re-measured; this index exists so a reader does not have to reconstruct which
+statement still stands. Full accounts in
+`docs/phase22-c4-c5-rl-vs-sft.md` and `docs/phase22-c3-rl-step-semantics.md`.
+
+**The defects.** (a) The RL loop verified *raw* completions while every other
+consumer calls `domain.truncate_completion` — ~3× stricter at pass@1, and it
+penalises long completions specifically. (b) `FilteredDomain` never delegated
+`truncate_completion`, so wrapping a code domain in it turned truncation off
+entirely — and every hard-tail experiment ran through `--prompt-skip-list`.
+Same base, same problems, same sampling: pass@5 **0.4219 truncated vs 0.1562
+un-truncated**.
+
+| Conclusion as originally published | Status |
+|---|---|
+| "RL collapses on adapter sync" | **Retracted** — the defect was 256 optimizer updates per RL step; sync only made the drift visible |
+| "The RL collapse is caused by an unbounded objective" | **Retracted** — no runaway exists; 8/8 runs rise once the reward is scored correctly |
+| "RL is the weak axis / half of SFT" | **Retracted** — bounded RL matches SFT (+0.146 pass@5 / +0.227 pass@1 vs +0.145 / +0.203) |
+| "Hard-tail SFT +0.254" | **Corrected to +0.145** pass@5 (+0.203 pass@1) on a consistent ruler |
+| "Harvest is an inverted-U peaking at samples≈16" | **Retracted** — 6→16 helps, past 16 the mean is flat and only the variance grows |
+
+**What survived unchanged**: the pass@k inference-time result (+0.347), the
+full-set pass@1 SFT lift (+0.106), HumanEval+ (+0.088), and the 256-update
+step-count defect and its fix.
+
+**The transferable lesson**: every one of these came from comparing numbers
+produced by two different scoring paths. Before comparing to a prior result,
+re-measure the prior result on your ruler — `llm_actors::eval_sanity` and
+`--sanity-strict` now enforce this in CI.
+
 # TL;DR
 
 Migrated the Rust/Pekko self-improve stack from Qwen2.5-Coder-**0.5B** to
