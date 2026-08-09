@@ -7,12 +7,14 @@ date: "2026-07-30"
 
 Three results, in increasing order of consequence:
 
-- **C4 (re-run, 4 seeds/arm, correct reward) — RL matches SFT.**
-  Positive-advantage-only gives **+0.152 pass@5 / +0.218 pass@1** over base
+- **C4 (re-run, 8 seeds/arm, correct reward) — bounded RL matches SFT.**
+  Positive-advantage-only gives **+0.146 pass@5 / +0.227 pass@1** over base
   on the 7B hard tail; multi-round SFT on the same ruler gives +0.145 /
-  +0.203. Full-advantage RL gives +0.145 / +0.161. **But RL's spread is
-  3–4× wider** (pass@5 σ 0.068–0.077 vs SFT's 0.020), so SFT is still the
-  better bet in practice even at an equal mean. **Extended to 6 seeds/arm:
+  +0.203. Full-advantage RL is worse (+0.115 / +0.103), and **bounding the
+  objective beats not bounding it at pass@1: paired +0.124, 8/8 seeds,
+  p = 0.0086** (metric-dependent — at pass@5 the same comparison is p = 0.17).
+  **RL's spread stays ~3× wider** (pass@5 σ 0.063 vs SFT's 0.020), so SFT is
+  still the better bet in practice at an equal mean. **Extended to 6 seeds/arm:
   posonly firms to +0.159 / +0.240 (σ steady ~0.067), fulladv weakens to
   +0.120 / +0.127 (both new seeds poor for it), the σ gap holds (~3.3×),
   and posonly > fulladv strengthens to 6/6 seeds on pass@1 — verdict
@@ -218,35 +220,60 @@ Per-seed pass@5 — posonly 0.641 / 0.516 / 0.625 / 0.516; fulladv 0.641 /
    significant at n = 4. This is the first of three measurements to show a
    direction at all; it is not yet a claim.
 
-## Seed extension (6 seeds per arm)
+## Seed extension → 8 seeds per arm
 
-Seeds 400 and 500 added to each RL arm (the SFT arm is unchanged at 4
-seeds), scored on the same ruler:
+Seeds 400/500 then 600/700 were added to each RL arm (the SFT arm stays at
+4 seeds), scored on the same ruler:
 
 | | pass@5 | pass@1 | Δ pass@5 | Δ pass@1 |
 |---|---|---|---|---|
 | base | 0.4219 | 0.1719 | — | — |
-| **posonly** (6 seeds) | **0.581 ± 0.067** | **0.412 ± 0.103** | **+0.159** | **+0.240** |
-| **fulladv** (6 seeds) | **0.542 ± 0.071** | **0.299 ± 0.118** | **+0.120** | **+0.127** |
+| **posonly** (8 seeds) | **0.568 ± 0.063** | **0.399 ± 0.090** | **+0.146** | **+0.227** |
+| **fulladv** (8 seeds) | **0.537 ± 0.064** | **0.275 ± 0.110** | **+0.115** | **+0.103** |
 | SFT samples=16 r2 (4 seeds) | 0.566 ± 0.020 | 0.364 ± 0.037 | +0.145 | +0.203 |
 
-New per-seed pass@5 — posonly 400/500 = 0.656 / 0.531; fulladv 400/500 =
-0.484 / 0.500.
+Per-seed pass@1 differences (posonly − fulladv), seeds 42 → 700:
+**+0.016 / +0.063 / +0.025 / +0.125 / +0.319 / +0.128 / +0.172 / +0.147**.
 
-The extension **confirms and sharpens** the 4-seed reading:
+1. **Bounding the objective is a real effect at pass@1.** Paired mean
+   **+0.124, 8/8 seeds positive, t = 3.62, df = 7, p = 0.0086**. The effect
+   *grew* with n (+0.057 at n=4 → +0.113 at n=6 → +0.124 at n=8) while the
+   spread stabilised — the opposite of what a chance finding does.
+2. **At pass@5 it is not significant**: paired +0.031, 5/8 positive,
+   t = 1.53, p = 0.17, and one seed (400, +0.172) carries most of it. **The
+   conclusion is metric-dependent** — state the metric or don't state it.
+3. **posonly ≈ SFT on the mean, fulladv below it.** posonly edges SFT by
+   +0.002 pass@5 / +0.035 pass@1; fulladv is −0.029 / −0.089. So "RL matches
+   SFT" holds only for the *bounded* arm.
+4. **The σ gap is the durable practical finding.** RL pass@5 σ ≈ 0.063–0.064
+   vs SFT's 0.020 (~3×); pass@1 σ ≈ 0.090–0.110 vs 0.037 (~3×). More seeds
+   confirmed the spread rather than shrinking it. **Equal mean, ~3× the
+   variance → SFT remains the deployment pick.**
 
-1. **posonly firms up, fulladv weakens.** posonly's mean edges up
-   (+0.152 → +0.159 pass@5, +0.218 → +0.240 pass@1) with σ steady; fulladv
-   drops (+0.145 → +0.120, +0.161 → +0.127) because both new seeds were
-   poor for it. posonly is the arm to keep; fulladv is out.
-2. **The σ gap holds.** RL pass@5 σ ≈ 0.067–0.071 vs SFT's 0.020 (~3.3×);
-   pass@1 σ ≈ 0.10–0.12 vs 0.037 (~3–5×). More seeds *confirmed* the spread
-   rather than shrinking it — **equal-or-better RL mean, far wider RL
-   variance → SFT is still the deployment pick.**
-3. **posonly > fulladv strengthens.** Sign-consistent now in **6/6 seeds**
-   on pass@1 (was 4/4), paired mean gap widened **+0.057 → +0.113**. The
-   bounded objective's edge over full-advantage is no longer marginal — the
-   one direction that was "consistent but inconclusive" at n=4 firmed up.
+### Statistical caveat: this was optional stopping
+
+The sample was extended after looking at n=4 (p ≈ 0.10) and n=6 (p ≈ 0.057),
+so the nominal p at n=8 is optimistic — it is not the same evidence as a
+pre-registered single test at n=8. Reported honestly rather than quietly:
+
+- A Bonferroni-style correction for three looks needs p < 0.017; the pass@1
+  result (0.0086) clears that too.
+- The stronger evidence is look-count-independent: **8/8 sign consistency**
+  (1/256 under the null) and an effect size that *increased* with n. The
+  training-time metric agrees independently — posonly's last-10 mean beats
+  fulladv's in 8/8 seeds.
+
+**Status: strong, not established.** A pre-registered replication at fixed n
+on fresh seeds would settle it. Given this repo's four retractions from
+under-powered claims, that distinction is kept explicit.
+
+*Build note*: seeds 600/700 ran on a later binary than 42–500. The
+intervening commits (`7f19be7`, `3fe9cd6`, `0ce30e3`) added a print-only
+histogram, opt-in `--advantage-mode`/`--advantage-clip` flags whose defaults
+are documented as the historical behaviour, and an additive `Domain::task_id`
+— none touching generation, truncation, verification or the training step.
+Step-0 pass counts (37, 33) sit inside the earlier batches' range (36–41),
+so the batches pool.
 
 # The correction to the SFT hard-tail claim
 
@@ -392,10 +419,11 @@ headline, not its direction.
 
 # Where next
 
-- **Settle posonly vs fulladv.** 4/4 seeds favour posonly at pass@1 (+0.057)
-  but p ≈ 0.10. The paired design is efficient, so ~8 seeds/arm would resolve
-  it — worth it, because it is the difference between "bound the objective"
-  being a real recipe rule and a coin flip.
+- ~~**Settle posonly vs fulladv.**~~ **DONE at n = 8**: paired +0.124 pass@1,
+  8/8 seeds, p = 0.0086. Remaining work is a *pre-registered replication at
+  fixed n on fresh seeds* — the n=8 p-value came from optional stopping, and
+  the pass@5 comparison is still null (p = 0.17), so the claim is
+  metric-scoped.
 - **Attack the variance, not the mean.** RL already matches SFT's mean; its
   problem is σ 0.068 vs 0.020. The seed dominates the arm (42/200 ≈ 0.63,
   100/300 ≈ 0.51 in *both* arms), so the lever is whatever the seed controls
