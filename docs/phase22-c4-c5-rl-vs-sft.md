@@ -248,7 +248,14 @@ Per-seed pass@1 differences (posonly − fulladv), seeds 42 → 700:
 4. **The σ gap is the durable practical finding.** RL pass@5 σ ≈ 0.063–0.064
    vs SFT's 0.020 (~3×); pass@1 σ ≈ 0.090–0.110 vs 0.037 (~3×). More seeds
    confirmed the spread rather than shrinking it. **Equal mean, ~3× the
-   variance → SFT remains the deployment pick.**
+   variance → SFT is the deployment pick _in-domain_.**
+   ⚠ **That verdict is in-domain only, and out-of-distribution transfer
+   inverts it.** On LiveCodeBench post-cutoff (unseen, n=92, aggregate
+   pass@1, 6 seeds) the K=8 RL recipe gives **+0.069 (+5.68σ)** against
+   SFT's **+0.015 (+2.52σ)** — ~2× the transfer, 6/6 seeds above both base
+   and SFT (`docs/phase22-livecodebench-notes.md`, commit `309f913`). Read
+   the σ argument as "for the benchmark you trained on"; for unseen problems
+   the ranking flips.
 
 ### Statistical caveat: this was optional stopping
 
@@ -264,7 +271,15 @@ pre-registered single test at n=8. Reported honestly rather than quietly:
   fulladv's in 8/8 seeds.
 
 **Status: strong, not established.** A pre-registered replication at fixed n
-on fresh seeds would settle it. Given this repo's four retractions from
+on fresh seeds would settle it.
+
+*Downstream relevance*: the K=8 RL recipe behind the LiveCodeBench transfer
+result runs `--pg-positive-only` throughout
+(`scripts/phase22_rl_variance/arm_sweep.sh`). That choice was made before
+there was evidence for it; this 8-seed comparison is the evidence. What is
+**not** yet measured is whether bounding matters for *transfer* — every K=8
+transfer run used the bounded arm, so `posonly` vs `fulladv` has never been
+scored out-of-domain. Given this repo's four retractions from
 under-powered claims, that distinction is kept explicit.
 
 *Build note*: seeds 600/700 ran on a later binary than 42–500. The
