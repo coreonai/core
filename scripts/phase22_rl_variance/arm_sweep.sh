@@ -14,7 +14,12 @@
 # 2 GPUs/run (model + trainer), so 4 runs fill 8 GPUs. --sync-every 1 makes
 # each step a 15 GB merge+reload => ~15 min/step => ~7.5 h for 30 steps.
 #
-# Usage: arm_sweep.sh <mode> <clip|-> <seeds> <k> <out> [steps]
+# Usage: arm_sweep.sh <mode> <clip|-> <seeds> <k> <out> [steps] [objective]
+#   objective: posonly (default, --pg-positive-only) | fulladv (omit it).
+#   The fulladv arm exists to test whether bounding the objective — which the
+#   C4 8-seed comparison established IN-DOMAIN at pass@1 (+0.124, 8/8,
+#   p=0.0086) — also matters for OUT-OF-DOMAIN transfer. Every K=8 transfer
+#   run so far used posonly, so that comparison has never been made.
 #   arm_sweep.sh grpo -   42,100,200,300 4 scratch-7b-sft/rlvar_grpo
 #   arm_sweep.sh grpo 1.0 42,100,200,300 4 scratch-7b-sft/rlvar_grpo_clip1
 #   arm_sweep.sh mean -   42,100,200,300 8 scratch-7b-sft/rlvar_k8     # K=8 harvest arm
@@ -28,16 +33,20 @@ SEEDS=${3:?comma-separated seeds}
 K=${4:-4}
 OUT=${5:?output dir}
 STEPS=${6:-30}
+OBJECTIVE=${7:-posonly}
 
 if [ "$(strings $BIN | grep -c cudarc)" -eq 0 ]; then
   echo "⚠ $BIN is a CPU build (0 cudarc symbols) — rebuild with --features cuda." ; exit 1
 fi
 mkdir -p "$OUT"
 
+obj_arg="--pg-positive-only"
+if [ "$OBJECTIVE" = "fulladv" ]; then obj_arg=""; fi
 clip_arg=""
 tag="$MODE"
 if [ "$CLIP" != "-" ]; then clip_arg="--advantage-clip $CLIP"; tag="${MODE}clip${CLIP}"; fi
 [ "$K" != "4" ] && tag="${tag}_k${K}"
+[ "$OBJECTIVE" != "posonly" ] && tag="${tag}_${OBJECTIVE}"
 
 IFS=, read -r -a SEED_ARR <<< "$SEEDS"
 if [ "${#SEED_ARR[@]}" -gt 4 ]; then
@@ -52,7 +61,7 @@ for seed in "${SEED_ARR[@]}"; do
     --prompt-offset 100 --n-prompts 64 \
     --rl-steps "$STEPS" --k-per-prompt "$K" --max-new-tokens 192 \
     --pg-micro-batch-size 1 --sync-every 1 --lr 2e-4 --seed "$seed" \
-    --pg-positive-only --advantage-mode "$MODE" $clip_arg \
+    $obj_arg --advantage-mode "$MODE" $clip_arg \
     --sync-path /dev/shm/rlvar_${tag}_seed${seed}.safetensors \
     --final-checkpoint "$OUT/${tag}_seed${seed}_final.safetensors" \
     > "$OUT/${tag}_seed${seed}.log" 2>&1 &

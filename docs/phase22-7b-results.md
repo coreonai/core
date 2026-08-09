@@ -270,6 +270,32 @@ What actually holds:
   completions, which an un-truncated scorer punishes as wrong. Same mechanism
   that made the RL `fulladv` arm look like it was collapsing.
 
+### Round-by-round, re-measured (the collapse never existed)
+
+Every r0/r1 checkpoint was re-scored too, so the whole curve sits on one
+ruler rather than just its endpoint (mean pass@5 ± σ over 4 seeds):
+
+| samples | r0 | r1 | r2 |
+|---------|----|----|----|
+| 6 | 0.434 ± 0.047 | 0.477 ± 0.079 | 0.500 ± 0.038 |
+| 32 | 0.449 ± 0.045 | 0.531 ± 0.065 | 0.535 ± 0.090 |
+
+(base = 0.4219; samples=16 was re-scored at r2 only, 0.566 ± 0.020.)
+
+- **Both settings rise monotonically**, and per-seed net r0→r2 is positive in
+  7 of 8 runs (6: +0.031 / +0.156 / 0 / +0.078; 32: +0.063 / +0.125 / +0.016
+  / +0.141). There is no round at which samples=32 turns over.
+- The old ruler reported samples=32 going *backwards* at r2 (r1 0.367 → r2
+  0.340) with "seed 300 collapsed 0.422 → 0.188". On the consistent ruler
+  that seed reads **0.500 → 0.609 → 0.641** — monotone up, and the best
+  checkpoint in the entire harvest sweep.
+- r0 sits essentially at base (0.434 / 0.449 vs 0.4219), which is the
+  expected shape after a single round and a useful sanity check on the
+  re-scoring.
+
+So "too much harvest over-trains and degrades" had **no round-level support
+either** — the mean is flat past 16 and only the variance grows.
+
 **Corrected reading**: harvest matters, thinly-harvested (6) is worst, and
 past ~16 the mean is flat while the variance grows. "Interior optimum /
 inverted-U" overstates what the data supports; `samples≈16` remains a
