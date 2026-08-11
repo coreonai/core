@@ -87,14 +87,32 @@ each (42, 100, 200, 300, 400, 500):
 |---|---|---|---|
 | base | 0.075 | 0.186 | **0.0413** |
 | full-set SFT (6-seed mean ± σ) | 0.0908 ± 0.0048 | 0.2048 ± 0.0117 | **0.0562 ± 0.0059** |
-| **K=8 RL (6-seed mean ± σ)** | **0.1306 ± 0.0097** | 0.1964 ± 0.0075 | **0.1105 ± 0.0122** |
+| **K=8 RL, posonly (6-seed mean ± σ)** | **0.1306 ± 0.0097** | 0.1964 ± 0.0075 | **0.1105 ± 0.0122** |
+| K=8 RL, **fulladv** (6-seed mean ± σ) | 0.1144 ± 0.0273 | 0.1488 ± 0.0374 | **0.1040 ± 0.0291** |
 | Δ SFT vs base | +0.016 | +0.019 | **+0.0149 (+2.52σ)** |
 | **Δ K=8 RL vs base** | **+0.056** | +0.010 | **+0.0692 (+5.68σ)** |
 | **Δ K=8 RL vs SFT** | +0.040 | −0.008 | **+0.0543 (+4.01σ)** |
 
 Per-seed post-cutoff — SFT: 42→0.0565, 100→0.0522, 200→0.0565, 300→0.0674,
-400→0.0522, 500→0.0522. K=8 RL: 42→0.1065, 100→0.1283, 200→0.1196, 300→0.1043,
-400→0.1109, 500→0.0935.
+400→0.0522, 500→0.0522. K=8 RL posonly: 42→0.1065, 100→0.1283, 200→0.1196,
+300→0.1043, 400→0.1109, 500→0.0935. K=8 RL fulladv: 42→0.1565, 100→0.1130,
+200→0.0870, 300→0.1065, 400→0.0804, 500→0.0804.
+
+**Objective bounding does not drive the transfer.** The K=8 arm re-run
+without `--pg-positive-only` (otherwise byte-identical, 6 seeds, same ruler)
+lands at **0.1040 ± 0.0291** post-cutoff — paired against posonly that is
+**−0.0065, t = −0.52, df = 5**, ahead in only 2/6 seeds. Null. This is worth
+stating because bounding *is* a real in-domain effect (+0.124 pass@1 on the
+HumanEval hard tail, 8/8 seeds, p = 0.0086,
+`docs/phase22-c4-c5-rl-vs-sft.md`) — it simply does not carry to unseen
+problems. **The lift is K=8 harvest.** `--pg-positive-only` remains the
+default on a variance argument instead: fulladv's spread is 2.4× wider
+(σ 0.0291 vs 0.0122) with one seed carrying its mean.
+
+*Drift control*: the two arms were measured a week apart on different
+binaries, so posonly seed 42 was regenerated end-to-end with the current
+binary first — it reproduced exactly (post 0.10652 vs 0.1065, pre 0.19286,
+overall 0.12667), confirming both generation and scoring paths are stable.
 
 - **Both self-improve recipes transfer to unseen problems — and K=8 RL transfers
   ~2× as strongly as SFT.** SFT lifts post-cutoff +0.0149 (+2.52σ, 6/6 seeds);

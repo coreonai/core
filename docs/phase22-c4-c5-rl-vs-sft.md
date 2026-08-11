@@ -276,11 +276,47 @@ on fresh seeds would settle it.
 *Downstream relevance*: the K=8 RL recipe behind the LiveCodeBench transfer
 result runs `--pg-positive-only` throughout
 (`scripts/phase22_rl_variance/arm_sweep.sh`). That choice was made before
-there was evidence for it; this 8-seed comparison is the evidence. What is
-**not** yet measured is whether bounding matters for *transfer* — every K=8
-transfer run used the bounded arm, so `posonly` vs `fulladv` has never been
-scored out-of-domain. Given this repo's four retractions from
-under-powered claims, that distinction is kept explicit.
+there was evidence for it; this 8-seed comparison is the evidence. Given this
+repo's four retractions from under-powered claims, that distinction is kept
+explicit.
+
+### Does bounding matter for *transfer*? No.
+
+Every K=8 transfer run had used the bounded arm, so the comparison had never
+been made out-of-domain. It has now: the K=8 arm was re-run with
+`--pg-positive-only` omitted (`arm_sweep.sh … fulladv`, otherwise
+byte-identical), 6 seeds, and scored on the same LiveCodeBench ruler
+(slices 640/670/700/730 × 30, passk 5, temp 0.8, F32).
+
+Post-cutoff (unseen, n=92) aggregate pass@1:
+
+| | mean ± σ | Δ base |
+|---|---|---|
+| base | 0.0413 | — |
+| full-set SFT | 0.0562 ± 0.0059 | +0.0149 |
+| **K=8 posonly** | **0.1105 ± 0.0122** | **+0.0692** |
+| **K=8 fulladv** | **0.1040 ± 0.0291** | **+0.0627** |
+
+Paired `fulladv − posonly` = **−0.0065** (per seed +0.050 / −0.015 / −0.033 /
++0.002 / −0.031 / −0.013; sd 0.0305, t = −0.52, df = 5, fulladv ahead in
+2/6). **Null.**
+
+So the in-domain effect does **not** transfer: +0.124 pass@1 with 8/8 sign
+consistency in-domain becomes −0.007 with t = −0.52 out-of-domain. **The
+transfer lift comes from K=8 harvest, not from bounding the objective.** Both
+arms clear SFT (+0.015) by ~4×.
+
+One practical difference survives: **fulladv's spread is 2.4× wider**
+(σ 0.0291 vs 0.0122), and a single seed (42, +0.050) carries its mean. Equal
+mean, worse reliability — so `--pg-positive-only` stays the default, now for
+a variance reason rather than a mean one.
+
+*Measurement integrity*: because the two arms were measured ~a week apart on
+different binaries, the posonly seed-42 run was re-generated end-to-end with
+the current binary before comparing. It reproduced the recorded numbers
+exactly (post 0.10652 vs 0.1065, pre 0.19286, overall 0.12667), so both the
+generation and scoring paths are drift-free and the published posonly values
+are directly comparable.
 
 *Build note*: seeds 600/700 ran on a later binary than 42–500. The
 intervening commits (`7f19be7`, `3fe9cd6`, `0ce30e3`) added a print-only
