@@ -89,6 +89,7 @@ each (42, 100, 200, 300, 400, 500):
 | full-set SFT (6-seed mean ± σ) | 0.0908 ± 0.0048 | 0.2048 ± 0.0117 | **0.0562 ± 0.0059** |
 | **K=8 RL, posonly (6-seed mean ± σ)** | **0.1306 ± 0.0097** | 0.1964 ± 0.0075 | **0.1105 ± 0.0122** |
 | K=8 RL, **fulladv** (6-seed mean ± σ) | 0.1144 ± 0.0273 | 0.1488 ± 0.0374 | **0.1040 ± 0.0291** |
+| **K=4 RL, posonly** (6-seed mean ± σ) | 0.1233 ± 0.0090 | 0.2048 ± 0.0114 | **0.0982 ± 0.0121** |
 | Δ SFT vs base | +0.016 | +0.019 | **+0.0149 (+2.52σ)** |
 | **Δ K=8 RL vs base** | **+0.056** | +0.010 | **+0.0692 (+5.68σ)** |
 | **Δ K=8 RL vs SFT** | +0.040 | −0.008 | **+0.0543 (+4.01σ)** |
@@ -98,7 +99,16 @@ Per-seed post-cutoff — SFT: 42→0.0565, 100→0.0522, 200→0.0565, 300→0.0
 300→0.1043, 400→0.1109, 500→0.0935. K=8 RL fulladv: 42→0.1565, 100→0.1130,
 200→0.0870, 300→0.1065, 400→0.0804, 500→0.0804.
 
-**Objective bounding does not drive the transfer.** The K=8 arm re-run
+**Neither the objective bound nor the harvest width drives the transfer — the
+RL step does.** K=4 posonly (the C4 checkpoints, scored without retraining)
+reaches 0.0982 ± 0.0121 post-cutoff, **82% of the K=8 lift**; paired
+K=8 − K=4 = +0.0123 (sd 0.0202, t = 1.50, df = 5, 5/6) — directional, not
+significant. All three RL variants sit near 0.10 and are mutually
+indistinguishable, against SFT's 0.056. An earlier note here attributed the
+lift to K=8 harvest on an elimination argument; measuring K directly does not
+support that.
+
+**Objective bounding does not drive it either.** The K=8 arm re-run
 without `--pg-positive-only` (otherwise byte-identical, 6 seeds, same ruler)
 lands at **0.1040 ± 0.0291** post-cutoff — paired against posonly that is
 **−0.0065, t = −0.52, df = 5**, ahead in only 2/6 seeds. Null. This is worth

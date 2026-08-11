@@ -302,9 +302,31 @@ Paired `fulladv − posonly` = **−0.0065** (per seed +0.050 / −0.015 / −0.
 2/6). **Null.**
 
 So the in-domain effect does **not** transfer: +0.124 pass@1 with 8/8 sign
-consistency in-domain becomes −0.007 with t = −0.52 out-of-domain. **The
-transfer lift comes from K=8 harvest, not from bounding the objective.** Both
-arms clear SFT (+0.015) by ~4×.
+consistency in-domain becomes −0.007 with t = −0.52 out-of-domain. Bounding
+the objective is not what drives the transfer. Both arms clear SFT (+0.015)
+by ~4×.
+
+⚠ An earlier version of this section attributed the lift to **K=8 harvest**.
+That was an elimination argument — bounding had been ruled out, K had not
+been *measured* — and measuring it does not support the attribution. The K=4
+posonly arm (the C4 checkpoints, same 6 seeds, same ruler, scored without
+retraining) reaches **0.0982 ± 0.0121** post-cutoff, i.e. **+0.0569 over
+base, 82% of the K=8 arm's lift**. Paired K=8 − K=4 = **+0.0123 (sd 0.0202,
+t = 1.50, df = 5, K=8 ahead 5/6)** — directional, not significant.
+
+**What actually drives the transfer is the RL step itself**, not the harvest
+width and not the objective bound. All three RL variants land near 0.10 and
+are statistically indistinguishable from each other, while SFT sits at 0.056:
+
+| arm | post-cutoff | Δ base |
+|---|---|---|
+| full-set SFT | 0.0562 ± 0.0059 | +0.0149 |
+| K=4 posonly | 0.0982 ± 0.0121 | +0.0569 |
+| K=8 fulladv | 0.1040 ± 0.0291 | +0.0627 |
+| K=8 posonly | 0.1105 ± 0.0122 | +0.0692 |
+
+**Transfer is insensitive to the RL recipe's details and sensitive to
+whether you run RL at all.**
 
 One practical difference survives: **fulladv's spread is 2.4× wider**
 (σ 0.0291 vs 0.0122), and a single seed (42, +0.050) carries its mean. Equal
