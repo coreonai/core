@@ -48,23 +48,49 @@ if [ "$CLIP" != "-" ]; then clip_arg="--advantage-clip $CLIP"; tag="${MODE}clip$
 [ "$K" != "4" ] && tag="${tag}_k${K}"
 [ "$OBJECTIVE" != "posonly" ] && tag="${tag}_${OBJECTIVE}"
 
+# --- tmpfs hygiene -----------------------------------------------------------
+# Each run rewrites a ~15 GB merged checkpoint to /dev/shm every step
+# (--sync-every 1). These are pure scratch: nothing reads them after the run
+# exits. Leaving them behind filled tmpfs to 100% (33 files, 541 GB of a 504 GB
+# fs) and killed a run mid-batch with "No space left on device" — at step 0,
+# after the model was already loaded. Two defences:
+#   1. a pre-flight free-space check, so the batch fails loudly up front
+#      instead of a subset of runs dying at a random step;
+#   2. each run removes its own sync file when the binary exits (subshell, so
+#      it fires on success AND failure without needing to `wait`).
+shm_guard() { # $1 = number of runs about to start
+  local need_gb=$(( $1 * 16 ))
+  local free_gb=$(df -BG --output=avail /dev/shm | tail -1 | tr -dc '0-9')
+  if [ "$free_gb" -lt "$need_gb" ]; then
+    echo "⚠ /dev/shm has ${free_gb}G free, need ~${need_gb}G for $1 run(s)."
+    echo "  Stale sync files from finished runs are the usual cause:"
+    echo "    ls -la /dev/shm/*.safetensors"
+    echo "  Remove the ones whose runs have exited, then retry."
+    exit 1
+  fi
+}
+
 IFS=, read -r -a SEED_ARR <<< "$SEEDS"
 if [ "${#SEED_ARR[@]}" -gt 4 ]; then
   echo "⚠ ${#SEED_ARR[@]} seeds but only 4 runs fit on 8 GPUs — run in waves of 4." ; exit 1
 fi
 
+shm_guard "${#SEED_ARR[@]}"
+
 gpu=0
 for seed in "${SEED_ARR[@]}"; do
   gpu_m=$gpu; gpu_t=$((gpu + 1)); gpu=$((gpu + 2))
-  CUDA_VISIBLE_DEVICES=$gpu_m,$gpu_t $BIN \
+  SYNC=/dev/shm/rlvar_${tag}_seed${seed}.safetensors
+  ( CUDA_VISIBLE_DEVICES=$gpu_m,$gpu_t $BIN \
     --model-id Qwen2.5-Coder-7B --train-bf16 --trainer-gpu 1 \
     --prompt-offset 100 --n-prompts 64 \
     --rl-steps "$STEPS" --k-per-prompt "$K" --max-new-tokens 192 \
     --pg-micro-batch-size 1 --sync-every 1 --lr 2e-4 --seed "$seed" \
     $obj_arg --advantage-mode "$MODE" $clip_arg \
-    --sync-path /dev/shm/rlvar_${tag}_seed${seed}.safetensors \
+    --sync-path "$SYNC" \
     --final-checkpoint "$OUT/${tag}_seed${seed}_final.safetensors" \
-    > "$OUT/${tag}_seed${seed}.log" 2>&1 &
+    > "$OUT/${tag}_seed${seed}.log" 2>&1
+    rm -f "$SYNC" ) &
   echo "$tag seed=$seed GPUs $gpu_m(model),$gpu_t(trainer) PID=$!"
 done
 echo
