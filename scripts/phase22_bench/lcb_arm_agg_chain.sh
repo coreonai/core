@@ -27,32 +27,43 @@ CKPT_DIR=${1:?checkpoint dir}
 TAG=${2:?checkpoint tag, e.g. mean_k8_fulladv}
 IFS=, read -r -a SEEDS <<< "${3:?comma-separated seeds}"
 PREFIX=${4:-lcb_${TAG}}
+# GPUs usable for generation, comma-separated. Each seed needs 4 (one per
+# slice). Default 0-7 = two seeds in flight. Narrow it when a card is held by
+# an unrelated process: F32 7B needs ~31 GB, so a card with e.g. 25 GB of
+# someone else's vLLM on it will OOM the 4th slice and silently truncate a
+# seed's problem set (that happened; hence the completeness check below).
+IFS=, read -r -a GPUS <<< "${5:-0,1,2,3,4,5,6,7}"
+SEEDS_AT_ONCE=$(( ${#GPUS[@]} / 4 ))
+[ "$SEEDS_AT_ONCE" -lt 1 ] && { echo "⚠ need at least 4 GPUs, got ${#GPUS[@]}"; exit 1; }
 
 if [ "$(strings $BIN 2>/dev/null | grep -c cudarc)" -eq 0 ]; then
   echo "⚠ $BIN is a CPU build (0 cudarc symbols) — rebuild with --features cuda." ; exit 1
 fi
 
-gen_seed() { # $1=seed $2=gpubase -> 4 slices in parallel
-  local s=$1 g=$2
+gen_seed() { # $1=seed $2=index into GPUS of this seed's first card
+  local s=$1 gi=$2
   local OUT="scratch-7b-sft/${PREFIX}_s${s}"; mkdir -p "$OUT"
   local CKPT="$CKPT_DIR/${TAG}_seed${s}_final.safetensors"
   [ -f "$CKPT" ] || { echo "⚠ missing $CKPT"; return 1; }
   for off in 640 670 700 730; do
+    local g=${GPUS[$gi]}; gi=$((gi + 1))
     CUDA_VISIBLE_DEVICES=$g $BIN --benchmark livecodebench --model-id Qwen2.5-Coder-7B \
       --dtype f32 --checkpoint "$CKPT" --offset $off --n-problems 30 --passk 5 \
       --max-new-tokens 768 --dump "$OUT/slice_$off.json" > "$OUT/gen_$off.log" 2>&1 &
-    g=$((g + 1))
   done
 }
 
 n=${#SEEDS[@]}; idx=0
 while [ $idx -lt $n ]; do
-  a=${SEEDS[$idx]}; b=${SEEDS[$((idx+1))]}
-  echo "=== $TAG LCB gen batch: $a (GPU0-3)${b:+ + $b (GPU4-7)} ==="
-  gen_seed "$a" 0
-  [ -n "$b" ] && gen_seed "$b" 4
+  batch=()
+  for j in $(seq 0 $((SEEDS_AT_ONCE - 1))); do
+    [ $((idx + j)) -lt $n ] && batch+=("${SEEDS[$((idx + j))]}")
+  done
+  echo "=== $TAG LCB gen batch: ${batch[*]} on GPUs ${GPUS[*]} ==="
+  k=0
+  for sd in "${batch[@]}"; do gen_seed "$sd" $((k * 4)); k=$((k + 1)); done
   wait
-  idx=$((idx + 2))
+  idx=$((idx + SEEDS_AT_ONCE))
 done
 echo "=== all $TAG LCB generation done; scoring ==="
 
