@@ -90,6 +90,7 @@ each (42, 100, 200, 300, 400, 500):
 | **K=8 RL, posonly (6-seed mean ± σ)** | **0.1306 ± 0.0097** | 0.1964 ± 0.0075 | **0.1105 ± 0.0122** |
 | K=8 RL, **fulladv** (6-seed mean ± σ) | 0.1144 ± 0.0273 | 0.1488 ± 0.0374 | **0.1040 ± 0.0291** |
 | **K=4 RL, posonly** (6-seed mean ± σ) | 0.1233 ± 0.0090 | 0.2048 ± 0.0114 | **0.0982 ± 0.0121** |
+| **K=2 RL, posonly** (6-seed mean ± σ) | 0.1125 ± 0.0186 | 0.2071 ± 0.0141 | **0.0841 ± 0.0238** |
 | Δ SFT vs base | +0.016 | +0.019 | **+0.0149 (+2.52σ)** |
 | **Δ K=8 RL vs base** | **+0.056** | +0.010 | **+0.0692 (+5.68σ)** |
 | **Δ K=8 RL vs SFT** | +0.040 | −0.008 | **+0.0543 (+4.01σ)** |
@@ -103,10 +104,13 @@ Per-seed post-cutoff — SFT: 42→0.0565, 100→0.0522, 200→0.0565, 300→0.0
 RL step does.** K=4 posonly (the C4 checkpoints, scored without retraining)
 reaches 0.0982 ± 0.0121 post-cutoff, **82% of the K=8 lift**; paired
 K=8 − K=4 = +0.0123 (sd 0.0202, t = 1.50, df = 5, 5/6) — directional, not
-significant. All three RL variants sit near 0.10 and are mutually
-indistinguishable, against SFT's 0.056. An earlier note here attributed the
-lift to K=8 harvest on an elimination argument; measuring K directly does not
-support that.
+significant. Extending to **K=2** (0.0841 ± 0.0238) completes the sweep: the lift is
+monotone in K (0.084 → 0.098 → 0.111 for K = 2/4/8) but every adjacent step
+is inside the noise at n=6 (K=4−K=2 t = 1.55; K=8−K=4 t = 1.50; even
+K=8−K=2 only t = 2.12, p ≈ 0.09). **K=2 alone already beats SFT in 6/6
+seeds** at a quarter of K=8's harvest. So K is a shallow dose-response knob,
+not the mechanism — an earlier note here attributed the lift to K=8 harvest
+on an elimination argument, and measuring K directly does not support that.
 
 **Objective bounding does not drive it either.** The K=8 arm re-run
 without `--pg-positive-only` (otherwise byte-identical, 6 seeds, same ruler)

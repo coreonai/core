@@ -56,8 +56,22 @@ while [ $idx -lt $n ]; do
 done
 echo "=== all $TAG LCB generation done; scoring ==="
 
+# A slice that OOMs leaves no JSON, and `gens_all.json` is built from whatever
+# is present — so a seed silently ends up scored on 90 problems instead of 120
+# while its number still looks ordinary. (Hit for real: 3 seeds lost slice 730
+# to an external process holding 25 GB on one card.) Refuse to score a seed
+# whose slice set is incomplete.
+EXPECTED_SLICES=4
 score() {
   local OUT=$1
+  local got; got=$(ls "$OUT"/slice_*.json 2>/dev/null | wc -l)
+  if [ "$got" -ne "$EXPECTED_SLICES" ]; then
+    echo "  ⚠ INCOMPLETE: $got/$EXPECTED_SLICES slices — NOT scored (would use a different problem set)"
+    for off in 640 670 700 730; do
+      [ -f "$OUT/slice_$off.json" ] || echo "      missing $off: $(sed -r 's/\x1b\[[0-9;]*m//g' "$OUT/gen_$off.log" 2>/dev/null | grep -m1 -iE 'error|out of memory' || echo 'no log')"
+    done
+    return 1
+  fi
   python3 -c "
 import json, glob
 g=[]

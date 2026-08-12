@@ -314,19 +314,35 @@ retraining) reaches **0.0982 ± 0.0121** post-cutoff, i.e. **+0.0569 over
 base, 82% of the K=8 arm's lift**. Paired K=8 − K=4 = **+0.0123 (sd 0.0202,
 t = 1.50, df = 5, K=8 ahead 5/6)** — directional, not significant.
 
-**What actually drives the transfer is the RL step itself**, not the harvest
-width and not the objective bound. All three RL variants land near 0.10 and
-are statistically indistinguishable from each other, while SFT sits at 0.056:
+Extending the sweep down to K=2 (6 seeds each, same ruler) fills in the
+left-hand end and sharpens this:
 
-| arm | post-cutoff | Δ base |
-|---|---|---|
-| full-set SFT | 0.0562 ± 0.0059 | +0.0149 |
-| K=4 posonly | 0.0982 ± 0.0121 | +0.0569 |
-| K=8 fulladv | 0.1040 ± 0.0291 | +0.0627 |
-| K=8 posonly | 0.1105 ± 0.0122 | +0.0692 |
+| arm | post-cutoff | Δ base | vs SFT |
+|---|---|---|---|
+| full-set SFT | 0.0562 ± 0.0059 | +0.0149 | — |
+| **K=2 posonly** | **0.0841 ± 0.0238** | **+0.0428** | +0.0279 |
+| K=4 posonly | 0.0982 ± 0.0121 | +0.0569 | +0.0420 |
+| K=8 fulladv | 0.1040 ± 0.0291 | +0.0627 | +0.0478 |
+| K=8 posonly | 0.1105 ± 0.0122 | +0.0692 | +0.0543 |
 
-**Transfer is insensitive to the RL recipe's details and sensitive to
-whether you run RL at all.**
+- **Running RL at all is the dominant factor.** K=2 alone beats SFT in
+  **6/6 seeds** and lifts base by +0.043 — 2.9× SFT's +0.015 — on a quarter
+  of K=8's harvest.
+- **K has a shallow dose-response.** Monotone across 2 → 4 → 8, +61% of lift
+  for 4× the harvest, but every adjacent step is inside the noise: K=4−K=2
+  = +0.0141 (t = 1.55, 4/6), K=8−K=4 = +0.0123 (t = 1.50, 5/6). Even the
+  two-notch jump K=8−K=2 = +0.0265 only reaches t = 2.12 (p ≈ 0.09) at n=6.
+- **The objective bound is orthogonal** (K=8 fulladv vs posonly: −0.0065,
+  t = −0.52).
+- K=2 is also the noisiest arm (σ 0.0238 vs 0.012 at K=4/K=8): thin harvest
+  costs both mean and stability, the same shape the in-domain harvest sweep
+  showed.
+
+An earlier version of this section said transfer is "insensitive to the RL
+recipe's details" — that was drawn from K=4 and K=8 alone, two points that
+happen to sit close together. With K=2 in hand the accurate statement is
+**insensitive to the objective, mildly responsive to harvest width, and
+dominated by whether RL is run at all.**
 
 One practical difference survives: **fulladv's spread is 2.4× wider**
 (σ 0.0291 vs 0.0122), and a single seed (42, +0.050) carries its mean. Equal
