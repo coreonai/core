@@ -314,35 +314,44 @@ retraining) reaches **0.0982 ± 0.0121** post-cutoff, i.e. **+0.0569 over
 base, 82% of the K=8 arm's lift**. Paired K=8 − K=4 = **+0.0123 (sd 0.0202,
 t = 1.50, df = 5, K=8 ahead 5/6)** — directional, not significant.
 
-Extending the sweep down to K=2 (6 seeds each, same ruler) fills in the
-left-hand end and sharpens this:
+Sweeping K over 2 / 4 / 8 / 16 (6 seeds each, same ruler) gives the shape:
 
 | arm | post-cutoff | Δ base | vs SFT |
 |---|---|---|---|
 | full-set SFT | 0.0562 ± 0.0059 | +0.0149 | — |
-| **K=2 posonly** | **0.0841 ± 0.0238** | **+0.0428** | +0.0279 |
+| K=2 posonly | 0.0841 ± 0.0238 | +0.0428 | +0.0279 |
 | K=4 posonly | 0.0982 ± 0.0121 | +0.0569 | +0.0420 |
 | K=8 fulladv | 0.1040 ± 0.0291 | +0.0627 | +0.0478 |
 | K=8 posonly | 0.1105 ± 0.0122 | +0.0692 | +0.0543 |
+| **K=16 posonly** | **0.1293 ± 0.0128** | **+0.0880** | **+0.0731** |
 
-- **Running RL at all is the dominant factor.** K=2 alone beats SFT in
-  **6/6 seeds** and lifts base by +0.043 — 2.9× SFT's +0.015 — on a quarter
-  of K=8's harvest.
-- **K has a shallow dose-response.** Monotone across 2 → 4 → 8, +61% of lift
-  for 4× the harvest, but every adjacent step is inside the noise: K=4−K=2
-  = +0.0141 (t = 1.55, 4/6), K=8−K=4 = +0.0123 (t = 1.50, 5/6). Even the
-  two-notch jump K=8−K=2 = +0.0265 only reaches t = 2.12 (p ≈ 0.09) at n=6.
-- **The objective bound is orthogonal** (K=8 fulladv vs posonly: −0.0065,
-  t = −0.52).
-- K=2 is also the noisiest arm (σ 0.0238 vs 0.012 at K=4/K=8): thin harvest
-  costs both mean and stability, the same shape the in-domain harvest sweep
-  showed.
+- **Log-linear in K, with no saturation in range.** Regressing each seed's
+  pass@1 on log₂K gives **+0.0148 per doubling, 6/6 seeds positive,
+  t = 3.68 (df = 5, p ≈ 0.014)**. The curve does not bend through K=16, where
+  the lift is **5.9× SFT's**.
+- **The last step is individually significant, the earlier ones are not.**
+  K=16−K=8 = **+0.0188 (σ 0.0129, t = 3.58, 6/6 seeds)**, against K=4−K=2
+  = +0.0141 (t = 1.55, 4/6) and K=8−K=4 = +0.0123 (t = 1.50, 5/6). The trend
+  is what carries the claim; single adjacent steps mostly cannot at n = 6.
+- **Running RL at all still dominates.** K=2 alone beats SFT in 6/6 seeds
+  (+0.043, 2.9× SFT) on an eighth of K=16's harvest — so the first doubling
+  buys far more than the last, even though the last is the cleanest measured.
+- **The objective bound is orthogonal to all of this** (K=8 fulladv vs
+  posonly: −0.0065, t = −0.52).
+- K=2 is the noisiest arm (σ 0.0238 vs ~0.012 elsewhere): thin harvest costs
+  both mean and stability.
 
-An earlier version of this section said transfer is "insensitive to the RL
-recipe's details" — that was drawn from K=4 and K=8 alone, two points that
-happen to sit close together. With K=2 in hand the accurate statement is
-**insensitive to the objective, mildly responsive to harvest width, and
-dominated by whether RL is run at all.**
+Two earlier framings in this section were wrong and are corrected above:
+"transfer is insensitive to the RL recipe's details" (drawn from K=4 and K=8
+alone, two points that happen to sit close together) and, before that, "the
+lift comes from K=8 harvest" (an elimination argument). The sweep supports
+neither — K matters, log-linearly, and the objective does not.
+
+**Not established**: where it saturates. K=32 is the next point and costs
+~140 GPU-hours at 6 seeds (~140 min/step), which is why the sweep stops at
+16. Also in-domain learning and transfer moved *together* here (K=16's
+in-domain last-10 ratio 0.515 vs K=8's 0.451), so there is no evidence yet
+of over-specialisation to the hard tail at this range.
 
 One practical difference survives: **fulladv's spread is 2.4× wider**
 (σ 0.0291 vs 0.0122), and a single seed (42, +0.050) carries its mean. Equal
