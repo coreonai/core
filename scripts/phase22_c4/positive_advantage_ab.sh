@@ -28,6 +28,11 @@
 # post-hoc aggregate eval on the same 64 hard-tail problems.
 #
 # 4 runs x 2 GPUs = all 8 cards, ~15 min/step => ~7.5 h for 30 steps.
+# NOTE: --k-per-prompt is pinned at 4 here on purpose. This script exists to
+# compare OBJECTIVES (posonly vs fulladv) and its numbers are only meaningful
+# against the other K=4 arms in that comparison. The production recipe uses
+# K=16 (the measured transfer saturation point) — see
+# scripts/phase22_rl_variance/arm_sweep.sh.
 set -e
 cd /raid/users/paul/workLLM
 

@@ -16,8 +16,10 @@
 # Usage: lcb_arm_agg_chain.sh <ckpt_dir> <tag> <seeds> [out_prefix]
 #   lcb_arm_agg_chain.sh scratch-7b-sft/rlvar_k8_fulladv mean_k8_fulladv 42,100,200,300
 #
-# Reference (posonly K=8, 6 seeds, post-cutoff n=92 aggregate pass@1):
-#   base 0.0413 | SFT 0.0562 +- 0.0059 | K=8 RL 0.1105 +- 0.0122
+# Reference (6 seeds each, post-cutoff n=92 aggregate pass@1):
+#   base 0.0413 | full-set SFT 0.0562 +- 0.0059
+#   K=2 0.0841 | K=4 0.0982 | K=8 0.1105 | K=16 0.1293 | K=32 0.1279
+#   K=16 is the saturation point (K=32-K=16 = -0.0014, t=-0.17, 3/6 seeds).
 set +e
 cd /raid/users/paul/workLLM
 BIN=./target/release/examples/phase22_dump_completions

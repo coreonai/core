@@ -6,13 +6,25 @@
 #
 # The MeanCenter arm already exists as the C4 posonly 6-seed arm
 # (0.412 ± 0.103 pass@1) — do NOT re-run it; compare against it. This script
-# runs the TEST arms: grpo, grpo+clip, rloo (control), and k=8 (harvest lever).
+# runs the TEST arms: grpo, grpo+clip, rloo (control), and the K harvest lever.
+#
+# RECIPE AS MEASURED (7B hard tail -> LiveCodeBench transfer, 6 seeds/arm):
+#   --advantage-mode mean --pg-positive-only --k-per-prompt 16 --rl-steps 30
+# K sweep post-cutoff pass@1: K=2 0.084 / K=4 0.098 / K=8 0.111 /
+# K=16 0.129 / K=32 0.128 (base 0.041, full-set SFT 0.056). K=16 is the
+# saturation point at 5.9x SFT's lift. The objective bound is orthogonal to
+# transfer (fulladv vs posonly: -0.0065, t=-0.52) but worth +0.124 pass@1
+# in-domain (8/8 seeds, p=0.0086), so posonly stays the default.
 #
 # Config is byte-identical to the C4 re-run except --advantage-mode /
 # --advantage-clip / --k-per-prompt, so the arms are directly comparable.
 #
-# 2 GPUs/run (model + trainer), so 4 runs fill 8 GPUs. --sync-every 1 makes
-# each step a 15 GB merge+reload => ~15 min/step => ~7.5 h for 30 steps.
+# 2 GPUs/run (model + trainer), so 4 runs fill 8 GPUs (3 if a card is held by
+# an unrelated job — see shm_guard/GPU notes below). --sync-every 1 makes each
+# step a 15 GB merge+reload. MEASURED wall clock per step, 64 prompts:
+#   K=4 ~15 min | K=8 ~36 min | K=16 ~70 min | K=32 ~78 min
+# so the default K=16 run is ~35 h for 30 steps per wave. (Generation does not
+# scale linearly with K — fixed per-step costs dominate at large K.)
 #
 # Usage: arm_sweep.sh <mode> <clip|-> <seeds> <k> <out> [steps] [objective]
 #   objective: posonly (default, --pg-positive-only) | fulladv (omit it).
@@ -22,7 +34,7 @@
 #   run so far used posonly, so that comparison has never been made.
 #   arm_sweep.sh grpo -   42,100,200,300 4 scratch-7b-sft/rlvar_grpo
 #   arm_sweep.sh grpo 1.0 42,100,200,300 4 scratch-7b-sft/rlvar_grpo_clip1
-#   arm_sweep.sh mean -   42,100,200,300 8 scratch-7b-sft/rlvar_k8     # K=8 harvest arm
+#   arm_sweep.sh mean -   42,100,200,300 16 scratch-7b-sft/rlvar_k16  # default recipe
 set -e
 cd /raid/users/paul/workLLM
 
@@ -30,7 +42,14 @@ BIN=./target/release/examples/phase22_he_reinforce
 MODE=${1:?mode: mean|rloo|grpo}
 CLIP=${2:-'-'}
 SEEDS=${3:?comma-separated seeds}
-K=${4:-4}
+# Samples per prompt. Default 16 = the measured saturation point of the
+# transfer sweep: LCB post-cutoff pass@1 rises log-linearly to K=16
+# (+0.0148/doubling, 6/6 seeds, t=3.68) and is flat from 16 to 32
+# (-0.0014, t=-0.17). K=32 doubles the harvest cost for nothing, and trains
+# better in-domain while transferring no better — past saturation the extra
+# harvest buys hard-tail fit that does not generalise. See
+# docs/phase22-livecodebench-notes.md. Was 4 (pre-sweep default).
+K=${4:-16}
 OUT=${5:?output dir}
 STEPS=${6:-30}
 OBJECTIVE=${7:-posonly}
