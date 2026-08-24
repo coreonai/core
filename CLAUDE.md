@@ -288,6 +288,15 @@ livecodebench`, F32), score with `scripts/phase22_bench/lcb_score.py`.
   harvest cost for nothing **and** trains better in-domain while transferring
   no better — past saturation the extra harvest buys hard-tail fit that does
   not generalise.
+- **The operating point depends on the objective.** Transfer saturates at
+  K=16, but *in-domain* keeps improving to K=32 — and its variance collapses
+  there. In-domain hard-tail pass@1 (6 seeds, same ruler): K=2 0.298±0.098 /
+  K=4 0.399±0.090 / K=8 0.538±0.076 / K=16 0.572±0.069 / **K=32 0.606±0.037**.
+  σ is monotone across all five (p≈0.008 under random ordering) and K=32 lands
+  on SFT's σ (0.037) with 1.7× SFT's mean. Post hoc — no pairwise step is
+  significant at n=6 (K=8 vs K=32: F=4.34, p≈0.13) — so **use K=32 when
+  in-domain reliability is what you want, K=16 when transfer is**, and confirm
+  with more seeds before treating the variance result as settled.
 - **The harvest gain is LiveCodeBench-specific.** On BigCodeBench Hard
   (difficulty/realism axis, same 6 seeds, same ruler) K=16 is **flat** vs K=8:
   paired −0.0018 (t=−0.19, 2/6), where LCB gave +0.0188 (t=3.58, 6/6). K=16

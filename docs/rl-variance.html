@@ -212,8 +212,56 @@
     <div class="callout info">
       <span class="k">What's settled</span>
       <p>Objective-side lever (GRPO/clip) dead × Wave 1. Harvest-side lever
-      (K=8) doesn't make RL low-variance — it makes RL high-mean, and that's the
-      better recipe on this substrate. Attribution resolved: RL, not harvest.</p>
+      <i>at K=8</i> doesn't make RL low-variance — it makes RL high-mean, and
+      that's the better recipe on this substrate. Attribution resolved: RL, not
+      harvest. <b>Section 06 revisits the variance question past K=8</b>, where
+      σ does fall to SFT's level — post hoc, and not a revision of this
+      conclusion.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">06</span>Post hoc: the lever was past K=8 <span class="pill warn">not pre-registered</span></h2>
+    <p>The study stopped at K=8. Checkpoints at K=16 and K=32 were built later
+    for the <a href="https://llm.coreon.build/livecodebench.html">transfer
+    sweep</a>, so the same in-domain ruler could be re-run on all of them for
+    free. <b>&sigma; falls monotonically with harvest width</b> &mdash; and the
+    mean keeps rising:</p>
+    <div class="scroll"><table>
+      <thead><tr><th>K</th><th>pass@1 mean</th><th>pass@1 &sigma;</th><th>&times; SFT &sigma;</th></tr></thead>
+      <tbody>
+        <tr><td>2</td><td class="num">0.2979</td><td class="num">0.0977</td><td class="num">2.6&times;</td></tr>
+        <tr><td>4</td><td class="num">0.3992</td><td class="num">0.0896</td><td class="num">2.4&times;</td></tr>
+        <tr><td>8 <span class="muted">(the wave-2 arm)</span></td><td class="num">0.5380</td><td class="num">0.0760</td><td class="num">2.1&times;</td></tr>
+        <tr><td>16</td><td class="num">0.5718</td><td class="num">0.0693</td><td class="num">1.9&times;</td></tr>
+        <tr class="hi"><td><b>32</b></td><td class="num"><b>0.6057</b></td><td class="num"><b>0.0365</b></td><td class="num"><b>1.0&times;</b></td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout ok">
+      <span class="k">K=32 lands on SFT's &sigma; without giving up the mean</span>
+      <p>&sigma; 0.0365 vs SFT's 0.037 &mdash; and pass@1 0.606 vs SFT's 0.364.
+      Numerically that clears the registered gate (&le; 0.056), which K=8's
+      0.076 missed. So &ldquo;RL can't be made low-variance here&rdquo; was true
+      of the levers tested; the harvest lever simply wasn't exhausted at K=8.</p>
+    </div>
+    <div class="callout warn">
+      <span class="k">read this before quoting it</span>
+      <p><b>This is post hoc.</b> The gate was registered for a study that
+      tested K=8; applying it to checkpoints built afterwards is not the same
+      evidence, and the wave-1/2 conclusion above is left standing as recorded.
+      <b>No pairwise step is significant</b> either &mdash; K=8 vs K=32 gives
+      F=4.34 (df 5,5), two-sided p&nbsp;&asymp;&nbsp;0.13 at n=6. What carries
+      it is that &sigma; is monotone across <b>all five</b> points
+      (p&nbsp;&asymp;&nbsp;0.008 under random ordering), the same trend-not-pairs
+      pattern the transfer sweep showed. Confirming it needs more seeds at
+      K=32.</p>
+    </div>
+    <div class="callout info">
+      <span class="k">the operating point depends on what you want</span>
+      <p><b>Transfer &rarr; K=16</b> (LCB saturates: K=32 is &minus;0.001).
+      <b>In-domain reliability &rarr; K=32</b> (mean +0.034 <i>and</i> &sigma;
+      halved). Past the transfer saturation point the extra harvest still buys
+      in-domain quality &mdash; it just doesn't generalise.</p>
     </div>
   </section>
 
