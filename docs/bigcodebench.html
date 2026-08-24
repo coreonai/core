@@ -225,6 +225,7 @@ docker run --rm --user $(id -u):$(id -g) -e HOME=/app/.dockerhome \
         <tr><td>base</td><td class="num">0.1459</td><td class="num">0.4324</td><td class="num">—</td></tr>
         <tr><td>full-set SFT (6-seed)</td><td class="num">0.1547 ± 0.021</td><td class="num">0.3682</td><td class="num">+0.0088</td></tr>
         <tr class="hi"><td>K=8 RL (6-seed)</td><td class="num">0.1806 ± 0.016</td><td class="num">0.4020</td><td class="num">+0.0347</td></tr>
+        <tr class="hi"><td>K=16 RL (6-seed) <span class="pill ok">tuned on LCB</span></td><td class="num">0.1788 &plusmn; 0.010</td><td class="num">0.3784</td><td class="num">+0.0329</td></tr>
       </tbody>
     </table></div>
     <div class="callout ok">
@@ -243,6 +244,24 @@ docker run --rm --user $(id -u):$(id -g) -e HOME=/app/.dockerhome \
       <i>contamination</i> axis, but leads by only ~1&sigma; on BigCodeBench's
       <i>difficulty</i> axis (and SFT is the one that falters). k8 seed 100 = 0.155
       dips into the SFT band.</p>
+    </div>
+    <div class="callout warn">
+      <span class="k">the harvest sweep does NOT transfer to this axis</span>
+      <p>K=16 is the harvest optimum <i>on LiveCodeBench</i> (+0.0188 over K=8,
+      t=3.58, 6/6 seeds). Here it is <b>flat</b>: paired
+      <b>K=16 &minus; K=8 = &minus;0.0018 (t=&minus;0.19, 2/6 seeds)</b>. Same
+      checkpoints, same ruler as the K=8 arm &mdash; only the harvest width
+      differs. So the <b>benchmark-axis dependence already seen for RL-vs-SFT
+      also holds for the harvest lever</b>: more harvest buys generalization to
+      unseen problems, not difficulty ceiling.</p>
+    </div>
+    <div class="callout ok">
+      <span class="k">but K=16 halves the spread</span>
+      <p>Same mean, much tighter: <b>&sigma; 0.0095 vs K=8's 0.0163</b> (58%) and
+      SFT's 0.0206. And <b>K=16 &minus; SFT = +0.024 in 6/6 seeds</b> (t=2.60)
+      where K=8 manages 5/6. On this axis the extra harvest pays in
+      <i>reliability</i> rather than mean &mdash; which is why K=16 stays the
+      default: it wins on LCB and loses nothing here.</p>
     </div>
     <div class="callout">
       <span class="k">sharpening, seen directly</span>

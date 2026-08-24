@@ -288,6 +288,14 @@ livecodebench`, F32), score with `scripts/phase22_bench/lcb_score.py`.
   harvest cost for nothing **and** trains better in-domain while transferring
   no better — past saturation the extra harvest buys hard-tail fit that does
   not generalise.
+- **The harvest gain is LiveCodeBench-specific.** On BigCodeBench Hard
+  (difficulty/realism axis, same 6 seeds, same ruler) K=16 is **flat** vs K=8:
+  paired −0.0018 (t=−0.19, 2/6), where LCB gave +0.0188 (t=3.58, 6/6). K=16
+  still stays the default because it wins on LCB, loses nothing on BCB, and
+  **halves the spread there** (σ 0.0095 vs K=8's 0.0163) while beating SFT in
+  6/6 seeds. Benchmark-axis dependence — already known for RL-vs-SFT (+4σ on
+  LCB, +1σ on BCB) — holds for the harvest lever too. Don't assume a harvest
+  gain measured on one axis shows up on another.
 - **`--pg-positive-only` matters in-domain, not for transfer.** Bounding the
   objective is worth +0.124 pass@1 in-domain (8/8 seeds, p=0.0086) but is null
   out-of-domain (t=−0.52). It stays the default on a *variance* argument:

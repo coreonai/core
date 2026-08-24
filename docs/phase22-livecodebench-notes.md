@@ -102,6 +102,20 @@ Per-seed post-cutoff — SFT: 42→0.0565, 100→0.0522, 200→0.0565, 300→0.0
 300→0.1043, 400→0.1109, 500→0.0935. K=8 RL fulladv: 42→0.1565, 100→0.1130,
 200→0.0870, 300→0.1065, 400→0.0804, 500→0.0804.
 
+**The harvest gain does not carry to BigCodeBench.** Re-measured the K=16 arm
+on BCB Complete/Hard (same 6 seeds, same ruler as the published K=8 arm, only
+the checkpoints differ): **K=16 0.1788 ± 0.0095 vs K=8 0.1806 ± 0.0163**,
+paired **−0.0018 (t = −0.19, 2/6 seeds)** — flat, where the same comparison on
+LCB post-cutoff gave **+0.0188 (t = 3.58, 6/6)**. So the benchmark-axis
+dependence already recorded for RL-vs-SFT (+4σ on LCB, +0.99σ on BCB) holds
+for the harvest lever as well: **more harvest buys generalization to unseen
+problems, not difficulty ceiling.**
+
+Two things still favour K=16 on BCB even without a mean gain: its spread is
+**58% of K=8's** (σ 0.0095 vs 0.0163, and SFT's 0.0206), and it beats SFT in
+**6/6 seeds** (+0.024, t = 2.60) where K=8 manages 5/6. K=16 therefore stays
+the default — it wins on one axis and loses nothing on the other.
+
 **Neither the objective bound nor the harvest width drives the transfer — the
 RL step does.** K=4 posonly (the C4 checkpoints, scored without retraining)
 reaches 0.0982 ± 0.0121 post-cutoff, **82% of the K=8 lift**; paired
