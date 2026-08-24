@@ -325,10 +325,11 @@ Sweeping K over 2 / 4 / 8 / 16 (6 seeds each, same ruler) gives the shape:
 | K=8 posonly | 0.1105 ± 0.0122 | +0.0692 | +0.0543 |
 | **K=16 posonly** | **0.1293 ± 0.0128** | **+0.0880** | **+0.0731** |
 
-- **Log-linear in K, with no saturation in range.** Regressing each seed's
-  pass@1 on log₂K gives **+0.0148 per doubling, 6/6 seeds positive,
-  t = 3.68 (df = 5, p ≈ 0.014)**. The curve does not bend through K=16, where
-  the lift is **5.9× SFT's**.
+- **Log-linear up to K=16, then flat.** Regressing each seed's pass@1 on
+  log₂K over K ≤ 16 gives **+0.0148 per doubling, 6/6 seeds, t = 3.68**. The
+  next doubling buys nothing: **K=32 − K=16 = −0.0014 (t = −0.17, 3/6
+  seeds)**. K=16 is the saturation point, at **5.9× SFT's lift**; K=32 costs
+  2× the harvest for no measurable gain.
 - **The last step is individually significant, the earlier ones are not.**
   K=16−K=8 = **+0.0188 (σ 0.0129, t = 3.58, 6/6 seeds)**, against K=4−K=2
   = +0.0141 (t = 1.55, 4/6) and K=8−K=4 = +0.0123 (t = 1.50, 5/6). The trend
@@ -347,11 +348,25 @@ alone, two points that happen to sit close together) and, before that, "the
 lift comes from K=8 harvest" (an elimination argument). The sweep supports
 neither — K matters, log-linearly, and the objective does not.
 
-**Not established**: where it saturates. K=32 is the next point and costs
-~140 GPU-hours at 6 seeds (~140 min/step), which is why the sweep stops at
-16. Also in-domain learning and transfer moved *together* here (K=16's
-in-domain last-10 ratio 0.515 vs K=8's 0.451), so there is no evidence yet
-of over-specialisation to the hard tail at this range.
+**K=32 measured (6 seeds): the sweep saturates at K=16.**
+
+| K | post-cutoff | Δ base | vs previous K |
+|---|---|---|---|
+| 8 | 0.1105 ± 0.0122 | +0.0692 | +0.0123 (t = 1.50) |
+| 16 | **0.1293 ± 0.0128** | **+0.0880** | +0.0188 (t = 3.58, 6/6) |
+| 32 | 0.1279 ± 0.0092 | +0.0866 | **−0.0014 (t = −0.17, 3/6)** |
+
+**In-domain and transfer come apart at K=32** — the first place in this study
+where they do. K=32 trains *better* in-domain than K=16 (last-10 pass ratio
+0.522 vs 0.477, 3/3 pilot seeds) yet transfers no better. Up to K=16 the two
+moved together. So beyond the saturation point the extra harvest is bought by
+fitting the hard tail harder, and none of it generalises — the
+over-specialisation risk flagged earlier, now observed.
+
+*Pilot-vs-full caution*: the first 3 seeds of K=32 read as a **decline**
+(−0.0065, 1/3 seeds), and on that evidence K=32 looked actively worse. With
+all 6 it is flat, not down — seeds 400/500 came in at +0.015/+0.026. n=3 was
+enough to see "not rising", not enough to sign the difference.
 
 One practical difference survives: **fulladv's spread is 2.4× wider**
 (σ 0.0291 vs 0.0122), and a single seed (42, +0.050) carries its mean. Equal
