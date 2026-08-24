@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="description" content="workLLM Phase 22 — RL variance study: can REINFORCE be made low-variance to match SFT? Concluded — no, but the K=8 harvest lever flips the mean.">
+<meta name="description" content="workLLM Phase 22 — RL variance study: can REINFORCE be made low-variance to match SFT? Concluded — no, but the harvest lever flips the mean; it tops out at K=16.">
 <title>workLLM · RL variance study</title>
 </head>
 <body>
@@ -119,9 +119,12 @@
     <h1>RL can't be made low-variance here — but more harvest flips the mean.</h1>
     <p class="lede">Pre-registered question: <b>can REINFORCE be made
     low-variance to match SFT?</b> Answer, both levers tested: <b>no</b>. But the
-    harvest lever (K=8) lifts RL's <b>mean</b> so far above SFT that, on
-    expected value, <b>K=8 RL now beats SFT on this substrate</b> despite a wider
-    σ — the variance gate was the wrong lens once the mean moved.</p>
+    harvest lever lifts RL's <b>mean</b> so far above SFT that, on
+    expected value, <b>RL now beats SFT on this substrate</b> despite a wider
+    σ — the variance gate was the wrong lens once the mean moved. A later sweep
+    put the lever's ceiling at <b>K=16</b>
+    (<a href="https://llm.coreon.build/livecodebench.html">transfer sweep</a>):
+    log-linear to 16, flat at 32.</p>
     <div class="meta">7B · HumanEval hard tail (idx 100–163) · passk=5 · pre-registered σ gate ≤ 0.056</div>
   </div>
 

@@ -88,13 +88,13 @@
 <div class="wrap">
   <div class="hero">
     <div class="eyebrow">Phase 22 · §6.5 · contamination</div>
-    <h1>Self-improve generalizes on LiveCodeBench — and K=8 RL transfers ~2× SFT.</h1>
+    <h1>Self-improve generalizes on LiveCodeBench — and RL transfers several times better than SFT.</h1>
     <p class="lede">The <b>contamination</b> instrument: score the same
     generations before vs after the model's cutoff — a real recipe reproduces
     its gain on <b>post-cutoff</b> (unseen) problems. Verdict (6-seed each):
-    full-set SFT lifts post-cutoff <b>0.0413 → 0.0562 (+2.5&sigma;)</b>; <b>K=8 RL
-    → 0.1105 (+5.7&sigma;)</b>, ~2× SFT, with an almost pure post-cutoff signature
-    — real learning, not recall. Getting here fixed a <b>BF16 long-prompt bug</b>
+    full-set SFT lifts post-cutoff <b>0.0413 → 0.0562 (+2.5&sigma;)</b>; RL
+    <b>→ 0.1105 at K=8, 0.1293 at the tuned K=16</b> — up to <b>5.9× SFT's lift</b>,
+    with an almost pure post-cutoff signature — real learning, not recall. Getting here fixed a <b>BF16 long-prompt bug</b>
     and a greedy-vs-aggregate <b>metric trap</b>.</p>
     <div class="meta">7B · release_v5 (880 problems, 2023-05..2025-01) · generate in Rust, score with lcb_runner · cutoff 2024-09-01</div>
   </div>
@@ -172,6 +172,8 @@
         <tr class="hi"><td><b>K=8 RL</b> (6-seed&nbsp;&plusmn;&nbsp;&sigma;)</td><td class="num">0.1306&nbsp;&plusmn;&nbsp;0.010</td><td class="num">0.1964&nbsp;&plusmn;&nbsp;0.008</td><td class="num">0.1105&nbsp;&plusmn;&nbsp;0.012</td></tr>
         <tr><td><b>&Delta;</b> SFT vs base</td><td class="num">+0.016</td><td class="num">+0.019</td><td class="num">+0.015 (+2.5&sigma;)</td></tr>
         <tr><td><b>&Delta;</b> K=8 RL vs base</td><td class="num">+0.056</td><td class="num">+0.010</td><td class="num">+0.069 (+5.7&sigma;)</td></tr>
+        <tr class="hi"><td><b>K=16 RL</b> (6-seed&nbsp;&plusmn;&nbsp;&sigma;) <span class="pill ok">tuned</span></td><td class="num">0.1451&nbsp;&plusmn;&nbsp;0.011</td><td class="num">0.2012&nbsp;&plusmn;&nbsp;0.014</td><td class="num">0.1293&nbsp;&plusmn;&nbsp;0.013</td></tr>
+        <tr><td><b>&Delta;</b> K=16 RL vs base</td><td class="num">+0.070</td><td class="num">+0.015</td><td class="num">+0.088 (5.9&times; SFT)</td></tr>
       </tbody>
     </table></div>
     <div class="callout ok">
@@ -199,6 +201,46 @@
     transfer, RL wins decisively</b>. Reusable lesson: <b>match the eval metric to
     where the training signal lives.</b> Caveats: low absolute rates, post n=92,
     one transfer benchmark — not "RL &gt; SFT" broadly.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">06</span>How far does harvest go? <span class="pill ok">saturates at K=16</span></h2>
+    <p>K=8 was one point, not the recipe. Sweeping samples-per-prompt over
+    <b>2 / 4 / 8 / 16 / 32</b>, 6 seeds each, same ruler — post-cutoff aggregate
+    pass@1:</p>
+    <div class="scroll"><table>
+      <thead><tr><th>arm</th><th>post-cutoff</th><th>&Delta; base</th><th>vs previous K</th></tr></thead>
+      <tbody>
+        <tr><td>full-set SFT</td><td class="num">0.0562</td><td class="num">+0.0149</td><td class="num muted">&mdash;</td></tr>
+        <tr><td>K=2</td><td class="num">0.0841&nbsp;&plusmn;&nbsp;0.024</td><td class="num">+0.0428</td><td class="num muted">&mdash;</td></tr>
+        <tr><td>K=4</td><td class="num">0.0982&nbsp;&plusmn;&nbsp;0.012</td><td class="num">+0.0569</td><td class="num">+0.0141 (t=1.55)</td></tr>
+        <tr><td>K=8</td><td class="num">0.1105&nbsp;&plusmn;&nbsp;0.012</td><td class="num">+0.0692</td><td class="num">+0.0123 (t=1.50)</td></tr>
+        <tr class="hi"><td><b>K=16</b></td><td class="num"><b>0.1293&nbsp;&plusmn;&nbsp;0.013</b></td><td class="num"><b>+0.0880</b></td><td class="num">+0.0188 (t=3.58, 6/6)</td></tr>
+        <tr><td>K=32</td><td class="num">0.1279&nbsp;&plusmn;&nbsp;0.009</td><td class="num">+0.0866</td><td class="num">&minus;0.0014 (t=&minus;0.17)</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout ok">
+      <span class="k">log-linear to 16, then flat</span>
+      <p>Per-seed regression on log&#8322;K gives <b>+0.0148 per doubling
+      (6/6 seeds, t=3.68)</b> over K&nbsp;&le;&nbsp;16, and the next doubling buys
+      nothing: <b>K=32 &minus; K=16 = &minus;0.0014 (t=&minus;0.17, 3/6)</b>.
+      <b>K=16 is the operating point</b> &mdash; 5.9&times; SFT's lift, and K=32
+      doubles the harvest cost for no measurable gain.</p>
+    </div>
+    <div class="callout warn">
+      <span class="k">the trend carries it, not any one step</span>
+      <p>Only <b>K=16&minus;K=8</b> clears the noise on its own (t=3.58). K=4&minus;K=2
+      (t=1.55) and K=8&minus;K=4 (t=1.50) do not &mdash; a pairwise-only reading would
+      have said &ldquo;no effect&rdquo; three times running. The claim rests on the
+      24-run trend.</p>
+    </div>
+    <div class="callout info">
+      <span class="k">past saturation, in-domain and transfer come apart</span>
+      <p>K=32 trains <i>better</i> in-domain than K=16 (last-10 pass ratio 0.522 vs
+      0.477) and transfers no better. Up to K=16 the two axes moved together, so
+      beyond the saturation point the extra harvest buys hard-tail fit that does
+      <b>not</b> generalise.</p>
+    </div>
   </section>
 
   <footer>

@@ -117,7 +117,7 @@
       </div>
       <div class="fcard">
         <div class="big">+5.7<span>σ</span></div>
-        <div class="cap"><b>LiveCodeBench 새 문제.</b> 강화학습(K=8 RL)이 새 문제 정답률을 base 대비 크게 끌어올림 (6-seed, 오염 성분 거의 0).</div>
+        <div class="cap"><b>LiveCodeBench 새 문제.</b> 강화학습이 새 문제 정답률을 base 대비 크게 끌어올림 (6-seed, 오염 성분 거의 0). 수확량 K=16이 최적.</div>
       </div>
       <div class="fcard">
         <div class="big">~2×</div>
@@ -139,10 +139,11 @@
     측정은 <b>여러 번 시도 평균(aggregate pass@1)</b> 기준 — 자기개선의 이득이 사는 곳입니다.</p>
     <div class="scorecard">
       <div class="top"><h3>처음 보는(post-cutoff) 문제 정답률 · 6-seed</h3><span class="u">높을수록 좋음 →</span></div>
-      <div class="bar-row"><div class="bar-label">기본 모델</div><div class="bar-track"><div class="bar-fill base" style="width:37%">4.1</div></div></div>
-      <div class="bar-row"><div class="bar-label">자기개선 <b>SFT</b></div><div class="bar-track"><div class="bar-fill sft" style="width:51%">5.6</div></div></div>
-      <div class="bar-row"><div class="bar-label">강화학습 <b>K=8 RL</b></div><div class="bar-track"><div class="bar-fill rl" style="width:100%">11.1</div></div></div>
-      <div class="note"><b>진짜 실력 확정.</b> SFT +2.5σ, K=8 RL <b>+5.7σ</b> (둘 다 6/6 seed가 base 초과). 강화학습의 상승은 <b>거의 전부 새 문제에서만</b> 발생 — 오염(외우기)의 정반대인 가장 깨끗한 일반화 신호. 강화학습이 일반 자기개선의 <b>약 2배</b>.</div>
+      <div class="bar-row"><div class="bar-label">기본 모델</div><div class="bar-track"><div class="bar-fill base" style="width:32%">4.1</div></div></div>
+      <div class="bar-row"><div class="bar-label">자기개선 <b>SFT</b></div><div class="bar-track"><div class="bar-fill sft" style="width:43%">5.6</div></div></div>
+      <div class="bar-row"><div class="bar-label">강화학습 <b>K=8</b></div><div class="bar-track"><div class="bar-fill rl" style="width:86%">11.1</div></div></div>
+      <div class="bar-row"><div class="bar-label">강화학습 <b>K=16</b> (최적)</div><div class="bar-track"><div class="bar-fill rl" style="width:100%">12.9</div></div></div>
+      <div class="note"><b>진짜 실력 확정.</b> SFT +2.5σ, K=8 RL <b>+5.7σ</b> (둘 다 6/6 seed가 base 초과). 강화학습의 상승은 <b>거의 전부 새 문제에서만</b> 발생 — 오염(외우기)의 정반대인 가장 깨끗한 일반화 신호. <b>수확량(K)을 16까지 늘리면 12.9로 더 오르고, 거기서 포화</b> — 자기개선 SFT의 <b>약 5.9배</b>.</div>
     </div>
   </section>
 

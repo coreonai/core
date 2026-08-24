@@ -273,6 +273,39 @@ must be **2.x** (the LCB dataset uses a loading script that datasets 3.x+
 dropped). Generate in Rust (`phase22_dump_completions --benchmark
 livecodebench`, F32), score with `scripts/phase22_bench/lcb_score.py`.
 
+**The measured 7B self-improve recipe.** Don't re-derive these; they cost
+~2 weeks of A100 time. Defaults are already set in
+`scripts/phase22_rl_variance/arm_sweep.sh`.
+
+```
+--advantage-mode mean --pg-positive-only --k-per-prompt 16 --rl-steps 30
+```
+
+- **`--k-per-prompt 16` is the saturation point**, measured on LiveCodeBench
+  post-cutoff transfer (6 seeds/arm): K=2 0.084 / K=4 0.098 / K=8 0.111 /
+  **K=16 0.129** / K=32 0.128. Log-linear to 16 (+0.0148 per doubling, 6/6
+  seeds, t=3.68), flat from 16 to 32 (−0.0014, t=−0.17). K=32 doubles the
+  harvest cost for nothing **and** trains better in-domain while transferring
+  no better — past saturation the extra harvest buys hard-tail fit that does
+  not generalise.
+- **`--pg-positive-only` matters in-domain, not for transfer.** Bounding the
+  objective is worth +0.124 pass@1 in-domain (8/8 seeds, p=0.0086) but is null
+  out-of-domain (t=−0.52). It stays the default on a *variance* argument:
+  full-advantage's spread is 2.4× wider.
+- **RL vs SFT**: same mean in-domain with ~3× the variance (so SFT is the
+  in-domain deployment pick), but RL transfers ~2–6× better to unseen
+  problems. Pick by which one you need.
+- **Only the trend is significant, not the steps.** K=16−K=8 clears noise on
+  its own (t=3.58); K=4−K=2 and K=8−K=4 do not (t≈1.5). A pairwise-only
+  reading would have concluded "no effect" three times. Budget for the whole
+  sweep, not two points.
+- Wall clock per step, 64 prompts: K=4 ~15 min, K=8 ~36, K=16 ~70, K=32 ~78.
+  Generation does **not** scale linearly with K — fixed per-step cost
+  dominates at large K.
+
+Full write-ups: `docs/phase22-c4-c5-rl-vs-sft.md`,
+`docs/phase22-livecodebench-notes.md`.
+
 ## Testing strategy
 
 - 74 unit tests are exhaustive on what's deterministic (parsing,
