@@ -52,16 +52,29 @@ pub struct StepRecord {
     pub tool_result: Option<Result<String, String>>,
 }
 
-pub struct AgenticGeneratorActor {
-    pub model: ActorRef<ModelActor>,
+/// Generic over the model actor so the same multi-turn loop drives either
+/// backend: the nanogpt `ModelActor` (Phase 4) or `QwenModelActor` (Phase 21+).
+/// The default type parameter keeps every existing call site compiling
+/// unchanged. Mirrors how `EvaluatorActor<M>` was opened up for the same
+/// reason — `ActorRef<QwenModelActor>` is a different type from
+/// `ActorRef<ModelActor>`, so without this the 7B model cannot be driven
+/// agentically at all.
+pub struct AgenticGeneratorActor<M = ModelActor>
+where
+    M: Actor<Message = ModelMessage>,
+{
+    pub model: ActorRef<M>,
     pub executor: ActorRef<ToolExecutorActor>,
     pub tokenizer: Arc<Tokenizer>,
     pub per_request_timeout: Duration,
 }
 
-impl AgenticGeneratorActor {
+impl<M> AgenticGeneratorActor<M>
+where
+    M: Actor<Message = ModelMessage>,
+{
     pub fn new(
-        model: ActorRef<ModelActor>,
+        model: ActorRef<M>,
         executor: ActorRef<ToolExecutorActor>,
         tokenizer: Arc<Tokenizer>,
     ) -> Self {
@@ -167,7 +180,10 @@ impl AgenticGeneratorActor {
     }
 }
 
-impl Actor for AgenticGeneratorActor {
+impl<M> Actor for AgenticGeneratorActor<M>
+where
+    M: Actor<Message = ModelMessage>,
+{
     type Message = AgenticMessage;
 
     fn receive(
@@ -191,5 +207,36 @@ impl Actor for AgenticGeneratorActor {
                 }
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::qwen_model_actor::QwenModelActor;
+
+    /// The point of the generic parameter is that the *7B* backend can be
+    /// driven agentically. A build-only check is not enough: the struct must
+    /// actually instantiate at `QwenModelActor`, which is a different type
+    /// from the default `ModelActor`. This is a compile-time assertion — it
+    /// needs no GPU and no weights, and it fails the moment someone
+    /// re-hardcodes the model type.
+    #[test]
+    fn agentic_generator_accepts_both_backends() {
+        fn assert_is_actor<A: Actor<Message = AgenticMessage>>() {}
+        assert_is_actor::<AgenticGeneratorActor<ModelActor>>();
+        assert_is_actor::<AgenticGeneratorActor<QwenModelActor>>();
+        // The bare form must keep resolving to the historical default, so
+        // existing call sites are unaffected.
+        assert_is_actor::<AgenticGeneratorActor>();
+    }
+
+    #[test]
+    fn default_type_parameter_is_model_actor() {
+        fn same_type<T>(_: &T, _: &T) {}
+        // If the default ever changes, this stops compiling.
+        let a: Option<AgenticGeneratorActor> = None;
+        let b: Option<AgenticGeneratorActor<ModelActor>> = None;
+        same_type(&a, &b);
     }
 }
