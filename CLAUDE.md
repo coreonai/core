@@ -306,9 +306,11 @@ livecodebench`, F32), score with `scripts/phase22_bench/lcb_score.py`.
   LCB, +1σ on BCB) — holds for the harvest lever too. Don't assume a harvest
   gain measured on one axis shows up on another.
 - **`--pg-positive-only` matters in-domain, not for transfer.** Bounding the
-  objective is worth +0.124 pass@1 in-domain (8/8 seeds, p=0.0086) but is null
-  out-of-domain (t=−0.52). It stays the default on a *variance* argument:
-  full-advantage's spread is 2.4× wider.
+  objective is worth **+0.2070 pass@1 in-domain (12/12 seeds, t=6.67,
+  p<0.0001)** — *established* by pre-registered replication on fresh seeds
+  (`docs/phase22-c1-prereg.md`), not the earlier optional-stopping estimate of
+  +0.124. It is null out-of-domain (t=−0.52), so expect the benefit in-domain
+  only. Keep it on.
 - **RL vs SFT**: same mean in-domain with ~3× the variance (so SFT is the
   in-domain deployment pick), but RL transfers ~2–6× better to unseen
   problems. Pick by which one you need.

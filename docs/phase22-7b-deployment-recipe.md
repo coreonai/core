@@ -2,7 +2,7 @@
 title: "Phase 22 — Qwen2.5-Coder-7B deployment recipe"
 subtitle: "Cost × quality selector, distilled from the measured 7B study"
 date: "2026-08-25"
-status: "DRAFT — one cell pending the C-1 confirmatory result"
+status: "current — C-1 landed, SFT arms cross-measured"
 ---
 
 # What this is
@@ -21,17 +21,18 @@ Read this if you need to pick a recipe. Read
 | budget | recipe | in-domain pass@1 | transfer (LCB post) | train GPU-h |
 |---|---|---:|---:|---:|
 | **free** | base + pass@k | 0.172 → 0.422 @ k=5 | 0.041 | **0** |
-| **cheap** | SFT — hard tail, s=16 | 0.364 | *not measured* | ~11 |
+| **cheap** | SFT — hard tail, s=16 | 0.364 | 0.065 | ~11 |
 | **cheap** | SFT — full set | *not measured* | 0.056 | ~11 |
 | **balanced** | **RL K=8** | 0.538 | 0.111 | ~36 |
 | **transfer-max** | **RL K=16** | 0.572 | **0.129** | ~70 |
 | **in-domain-max** | **RL K=32** | **0.606** | 0.128 | ~78 |
 
-⚠ **Two different SFT arms appear below and they are not interchangeable.**
-The in-domain numbers come from *hard-tail SFT* (samples=16, idx 100–163);
-the transfer numbers come from *full-set SFT* (all 164). Each was only ever
-measured on its own axis, so there is no row where one SFT recipe has both.
-Do not read across.
+ℹ **Two SFT arms appear below.** In-domain numbers come from *hard-tail SFT*
+(samples=16, idx 100–163); the full-set arm has only ever been measured on
+transfer. The hard-tail arm has since been scored on transfer too
+(**0.0652 ± 0.0064**, 4 seeds), and the two arms differ by only +0.009 there —
+so the SFT baseline is not very sensitive to which problems it trained on.
+The full-set arm still lacks an in-domain hard-tail number.
 
 **The single most important line**: if you only ever do one thing, do
 **pass@k**. It is free, needs no training, and on the full HumanEval set it
@@ -80,6 +81,7 @@ training cutoff.
 |---|---:|---:|
 | base | 0.041 | — |
 | full-set SFT | 0.056 | +0.015 |
+| hard-tail SFT | 0.065 | +0.024 |
 | RL K=2 | 0.084 | +0.043 |
 | RL K=4 | 0.098 | +0.057 |
 | RL K=8 | 0.111 | +0.069 |
@@ -172,16 +174,17 @@ compute. Past it you are paying ~2× for the last ~12%.
 
 # Open
 
-- **`--pg-positive-only` justification** — *pending C-1*. The in-domain
-  advantage (+0.124 pass@1) came from optional stopping and is under
-  pre-registered replication (`phase22-c1-prereg.md`, n=12). It is null on
-  transfer (t=−0.52), so if C-1 comes back null the flag stays default on the
-  variance argument alone (full-advantage's spread is 2.4× wider). **This
-  cell will be filled when C-1 reports; it does not change any number above.**
+- ~~**`--pg-positive-only` justification** — pending C-1.~~ **SETTLED.**
+  Pre-registered replication (n=12 fresh seeds, `phase22-c1-prereg.md`):
+  **+0.2070 pass@1, t = 6.668, p < 0.0001, 12/12 pairs — ESTABLISHED.** The
+  effect is 1.7× the exploratory estimate, so the flag is justified on the
+  mean in-domain, not merely on variance. It remains null on *transfer*
+  (t = −0.52), so the recommendation is unchanged: keep it on by default,
+  and expect its benefit in-domain only.
 - **K=32's σ** rests on n=6 and no pairwise step is significant
   (F=4.34, p≈0.13). More seeds would firm it.
-- **The two SFT arms have never been cross-measured.** Hard-tail SFT has no
-  transfer number and full-set SFT has no in-domain hard-tail number, so the
-  SFT baseline in this document is axis-dependent. Scoring the existing
-  `htr_out_s*` checkpoints on LCB would close this with no training.
+- ~~**The two SFT arms have never been cross-measured.**~~ Half-closed:
+  hard-tail SFT now has a transfer number (0.0652 ± 0.0064, 4 seeds) and the
+  two arms differ by only +0.009 there. Full-set SFT still has no in-domain
+  hard-tail number, which would need a training run rather than just scoring.
 - **Multi-round RL** untested. All RL numbers are single-round, 30 steps.

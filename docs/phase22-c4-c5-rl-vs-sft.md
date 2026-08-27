@@ -270,8 +270,32 @@ pre-registered single test at n=8. Reported honestly rather than quietly:
   training-time metric agrees independently — posonly's last-10 mean beats
   fulladv's in 8/8 seeds.
 
-**Status: strong, not established.** A pre-registered replication at fixed n
-on fresh seeds would settle it.
+**Status: ESTABLISHED** by pre-registered replication (2026-08-27).
+
+`docs/phase22-c1-prereg.md` locked the design — 12 fresh seeds (1000–2100),
+paired two-sided t-test on in-domain hard-tail aggregate pass@1, α = 0.05,
+**no interim looks** — and was committed (`21e66d7`) before any confirmatory
+data existed. Result, from the pre-committed `scripts/phase22_c1/analyze.py`:
+
+| | posonly | fulladv |
+|---|---|---|
+| pass@1 (12 seeds) | **0.4458 ± 0.0888** | 0.2388 ± 0.0395 |
+
+**paired +0.2070, sd 0.1076, t = 6.668, df = 11, p < 0.0001, 12/12 pairs.**
+All 12 pairs completed; no exclusions.
+
+**The exploratory estimate was too *low*, not too high.** The pre-registration
+budgeted for winner's curse and planned power at a deflated dz = 0.80. The
+confirmatory effect came in at **+0.207 against the exploratory +0.124** —
+1.7× larger, t 3.62 → 6.67, sign consistency 8/8 → 12/12. Optional stopping
+inflates p-values, but here it had understated the effect size.
+
+*pass@5* was also significant this time (+0.094, t = 3.90, p = 0.0025, 10/12)
+where the exploration found it null (p = 0.17). **This is not promoted to a
+claim.** It was pre-registered as descriptive-only, precisely because the
+exploration had found it null; treating it as decisive now because it came
+out favourably is the move the pre-registration exists to prevent. Claiming
+pass@5 needs a study that registers it as primary.
 
 *Downstream relevance*: the K=8 RL recipe behind the LiveCodeBench transfer
 result runs `--pg-positive-only` throughout
@@ -533,10 +557,10 @@ headline, not its direction.
 # Where next
 
 - ~~**Settle posonly vs fulladv.**~~ **DONE at n = 8**: paired +0.124 pass@1,
-  8/8 seeds, p = 0.0086. Remaining work is a *pre-registered replication at
-  fixed n on fresh seeds* — the n=8 p-value came from optional stopping, and
-  the pass@5 comparison is still null (p = 0.17), so the claim is
-  metric-scoped.
+  8/8 seeds, p = 0.0086. ~~Remaining work is a pre-registered replication.~~
+  **DONE** (`phase22-c1-prereg.md`): n=12 fresh seeds, **+0.2070, t = 6.668,
+  p < 0.0001, 12/12** — established, and the effect is 1.7× the exploratory
+  estimate.
 - **Attack the variance, not the mean.** RL already matches SFT's mean; its
   problem is σ 0.068 vs 0.020. The seed dominates the arm (42/200 ≈ 0.63,
   100/300 ≈ 0.51 in *both* arms), so the lever is whatever the seed controls
