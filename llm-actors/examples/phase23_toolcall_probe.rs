@@ -124,13 +124,23 @@ async fn main() -> Result<()> {
     let known: Vec<String> = registry.names().iter().map(|s| s.to_string()).collect();
     println!("[Phase23] registry tools = {known:?}");
 
-    // Few-shot preamble. Uses the domain's own renderer so the probe cannot
-    // drift from the format the rest of the stack expects.
+    // Few-shot preamble.
+    //
+    // ⚠ It must demonstrate what the model is supposed to EMIT, which is the
+    // *unresolved* call `(arith add a b)`. `render_full_trajectory` renders
+    // the post-dispatch line `(arith add a b=r)` — that is what the model
+    // *reads back* after the executor splices a result in, not what it should
+    // produce. Prompting with the resolved form makes the model imitate it
+    // faithfully, and `parse_first_tool_call` then skips the output by design
+    // ("body contains `=`" means already-resolved). The first version of this
+    // probe made exactly that mistake and measured 2.8% grammar, which said
+    // more about the prompt than about the model.
     let mut shots = String::new();
     for i in 0..args.n_shot {
         let a = (i as u32 * 3 + 1) % 10;
         let b = (i as u32 * 5 + 2) % 10;
-        shots.push_str(&domain.render_full_trajectory(a, b));
+        let r = a + b;
+        shots.push_str(&format!("Q: {a}+{b}=\n(arith add {a} {b})\nA: {r}\n"));
     }
 
     // Held-out problems, disjoint from the shot pairs by construction
