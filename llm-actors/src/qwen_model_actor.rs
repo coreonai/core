@@ -68,6 +68,23 @@ pub struct QwenModelActor {
     pub config: Qwen2Config,
     pub device: Device,
     pub dtype: DType,
+    /// Token ids masked to -inf before sampling. Empty by default, so every
+    /// existing caller is unaffected.
+    ///
+    /// Why this exists: on the Phase 23 tool-call probe the base 7B lands
+    /// `(arith` and then samples a *special* token (`<|fim_prefix|>`) where
+    /// ` add` belongs, wrecking the call 83% of the time. The tokenizer
+    /// round-trips the target string fine and ` add` is a single token, so
+    /// this is real sampling, not a decode artifact — Qwen-Coder base
+    /// reaching for its FIM machinery on an unfamiliar format. Masking the
+    /// special ids at sample time is the cheapest way to find out whether the
+    /// exact-call rate is recoverable by decoding alone, before concluding
+    /// the format needs SFT.
+    ///
+    /// Lives on the actor rather than `GenerateConfig` deliberately: that
+    /// struct is built by 47 literal sites with no `..Default::default()`,
+    /// so adding a field there is pure churn for an experiment.
+    pub suppress_tokens: Vec<u32>,
     /// Path of the most recently loaded safetensors checkpoint. Used by
     /// `ReloadCheckpoint` to re-initialize the model.
     pub model_path: std::path::PathBuf,
@@ -97,11 +114,18 @@ impl QwenModelActor {
             device,
             dtype,
             model_path,
+            suppress_tokens: Vec::new(),
         })
     }
 
     /// Convenience loader: read `config.json` + `tokenizer.json` +
     /// `model.safetensors` from a single HF snapshot directory.
+    /// Mask these token ids out of every sample. Builder-style.
+    pub fn with_suppressed_tokens(mut self, ids: Vec<u32>) -> Self {
+        self.suppress_tokens = ids;
+        self
+    }
+
     pub fn from_snapshot_dir(
         snapshot_dir: &Path,
         device: Device,
@@ -364,7 +388,7 @@ impl QwenModelActor {
         let mut seqlen_offset = tokens.len();
 
         for _ in 0..cfg.max_new_tokens {
-            let next = sample_logits(&logits, cfg, &mut rng)?;
+            let next = sample_logits(&logits, cfg, &self.suppress_tokens, &mut rng)?;
             // Qwen2 uses `eos_token_id` = 151643. Stop on EOS if encountered.
             if next == 151_643 {
                 break;
@@ -384,8 +408,28 @@ impl QwenModelActor {
     }
 }
 
-fn sample_logits(logits: &Tensor, cfg: &GenerateConfig, rng: &mut StdRng) -> anyhow::Result<u32> {
+fn sample_logits(
+    logits: &Tensor,
+    cfg: &GenerateConfig,
+    suppress: &[u32],
+    rng: &mut StdRng,
+) -> anyhow::Result<u32> {
     use rand::distributions::{Distribution, WeightedIndex};
+
+    // Applied before temperature/top-k/top-p and before the greedy branch, so
+    // a suppressed id can never be selected by any path.
+    let logits = if suppress.is_empty() {
+        logits.clone()
+    } else {
+        let mut v = logits.to_vec1::<f32>()?;
+        for &id in suppress {
+            if let Some(x) = v.get_mut(id as usize) {
+                *x = f32::NEG_INFINITY;
+            }
+        }
+        Tensor::from_vec(v, logits.shape(), logits.device())?
+    };
+    let logits = &logits;
 
     // temperature == 0 → greedy
     if cfg.temperature <= 0.0 {

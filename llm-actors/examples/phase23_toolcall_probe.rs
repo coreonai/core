@@ -66,6 +66,12 @@ struct Args {
     max_new_tokens: usize,
     #[arg(long, default_value_t = 7)]
     seed: u64,
+    /// Mask every *special* token except EOS out of sampling. The base model
+    /// emits `<|fim_prefix|>` where ` add` belongs; this tests whether the
+    /// exact-call rate is recoverable by decoding alone. EOS is left alone so
+    /// the model can still terminate.
+    #[arg(long, default_value_t = false)]
+    suppress_special: bool,
     /// Print the first few raw completions — the failure mode matters as much
     /// as the rate (wrong syntax vs right syntax wrong args are different
     /// problems with different fixes).
@@ -115,7 +121,32 @@ async fn main() -> Result<()> {
     let tk = Arc::new(NgptTokenizer::from_hf_file(
         snapshot.join("tokenizer.json"),
     )?);
-    let model = QwenModelActor::from_snapshot_dir(&snapshot, device.clone(), DType::F16)?;
+    let mut model = QwenModelActor::from_snapshot_dir(&snapshot, device.clone(), DType::F16)?;
+    if args.suppress_special {
+        let tj: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(snapshot.join("tokenizer.json"))?)?;
+        // NOT filtered on `special`. Qwen2.5-Coder marks the FIM/repo tokens
+        // (<|fim_prefix|>, <|repo_name|>, ...) as special=false, and those are
+        // exactly the ones the model emits where ` add` belongs — filtering on
+        // the flag suppressed 14 tokens that were never the problem and left
+        // all 6 that were, reproducing the unsuppressed numbers bit for bit.
+        // Every added_token is a control token here, so suppress the lot and
+        // keep only EOS so generation can still terminate.
+        let ids: Vec<u32> = tj["added_tokens"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter(|t| t["content"].as_str() != Some("<|endoftext|>"))
+                    .filter_map(|t| t["id"].as_u64().map(|x| x as u32))
+                    .collect()
+            })
+            .unwrap_or_default();
+        println!(
+            "[Phase23] suppressing {} special tokens (EOS kept)",
+            ids.len()
+        );
+        model = model.with_suppressed_tokens(ids);
+    }
     let system = ActorSystem::new("phase23-probe");
     let model_ref = system.spawn(model, "qwen-model").await?;
 
