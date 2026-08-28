@@ -66,6 +66,16 @@ struct Args {
     max_new_tokens: usize,
     #[arg(long, default_value_t = 7)]
     seed: u64,
+    /// Call format to probe.
+    ///   `lisp` — the stack's own DSL, `(arith add a b)`, which Phase 4
+    ///            trained into a 1M model.
+    ///   `qwen` — the model's *native* Hermes-style format,
+    ///            `<tool_call>{"name":...,"arguments":{...}}</tool_call>`.
+    ///            `<tool_call>` / `</tool_call>` are already in this
+    ///            tokenizer's vocab (151657/151658), so this asks whether
+    ///            meeting the model where it is beats teaching it our DSL.
+    #[arg(long, default_value = "lisp")]
+    format: String,
     /// Mask every *special* token except EOS out of sampling. The base model
     /// emits `<|fim_prefix|>` where ` add` belongs; this tests whether the
     /// exact-call rate is recoverable by decoding alone. EOS is left alone so
@@ -77,6 +87,57 @@ struct Args {
     /// problems with different fixes).
     #[arg(long, default_value_t = 6)]
     show: usize,
+}
+
+/// Parse the model's *native* call format out of a completion:
+/// `<tool_call>{"name": ..., "arguments": {...}}</tool_call>`.
+///
+/// Deliberately local to the probe. Whether the stack should adopt this
+/// grammar is a decision for after the measurement, not before it — changing
+/// `parse_first_tool_call` now would rewrite Phase 4's contract on a
+/// hypothesis.
+fn parse_qwen_tool_call(text: &str) -> Option<(String, serde_json::Value, bool)> {
+    // The tag is the *delimiter*, not the call. Scoring a well-formed JSON
+    // call as a failure because the delimiter is missing would repeat the
+    // mistake the lisp probe already made once (see git history: the first
+    // run measured 2.8% because the shots demoed a string the parser skips
+    // by design). So parse both, and report them separately.
+    let (rest, tagged) = match text.find("<tool_call>") {
+        Some(i) => (&text[i + "<tool_call>".len()..], true),
+        None => (text, false),
+    };
+    // Tolerate a missing closing tag: max_new can cut it off mid-emission,
+    // and we do not want to score a well-formed call as a failure just
+    // because the budget ran out.
+    let body = match rest.find("</tool_call>") {
+        Some(e) => &rest[..e],
+        None => rest,
+    };
+    let start = body.find('{')?;
+    // Scan to the matching brace so trailing prose does not break the parse.
+    let bytes = body.as_bytes();
+    let mut depth = 0i32;
+    let mut end = None;
+    for (i, &b) in bytes.iter().enumerate().skip(start) {
+        match b {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = Some(i + 1);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let json: serde_json::Value = serde_json::from_str(&body[start..end?]).ok()?;
+    let name = json.get("name")?.as_str()?.to_string();
+    let args = json
+        .get("arguments")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    Some((name, args, tagged))
 }
 
 fn pick_device() -> Device {
@@ -121,6 +182,10 @@ async fn main() -> Result<()> {
     let tk = Arc::new(NgptTokenizer::from_hf_file(
         snapshot.join("tokenizer.json"),
     )?);
+    let qwen_fmt = args.format == "qwen";
+    if !matches!(args.format.as_str(), "lisp" | "qwen") {
+        anyhow::bail!("--format must be lisp or qwen");
+    }
     let mut model = QwenModelActor::from_snapshot_dir(&snapshot, device.clone(), DType::F16)?;
     if args.suppress_special {
         let tj: serde_json::Value =
@@ -136,7 +201,15 @@ async fn main() -> Result<()> {
             .as_array()
             .map(|a| {
                 a.iter()
-                    .filter(|t| t["content"].as_str() != Some("<|endoftext|>"))
+                    .filter(|t| {
+                        let c = t["content"].as_str().unwrap_or("");
+                        // EOS must survive so generation can terminate. In
+                        // qwen mode the tool-call delimiters ARE the grammar,
+                        // so suppressing them would guarantee 0% — they are
+                        // added_tokens like the FIM ones.
+                        c != "<|endoftext|>"
+                            && !(qwen_fmt && (c == "<tool_call>" || c == "</tool_call>"))
+                    })
                     .filter_map(|t| t["id"].as_u64().map(|x| x as u32))
                     .collect()
             })
@@ -171,7 +244,13 @@ async fn main() -> Result<()> {
         let a = (i as u32 * 3 + 1) % 10;
         let b = (i as u32 * 5 + 2) % 10;
         let r = a + b;
-        shots.push_str(&format!("Q: {a}+{b}=\n(arith add {a} {b})\nA: {r}\n"));
+        if qwen_fmt {
+            shots.push_str(&format!(
+                "Q: {a}+{b}=\n<tool_call>\n{{\"name\": \"arith\", \"arguments\": {{\"op\": \"add\", \"a\": {a}, \"b\": {b}}}}}\n</tool_call>\nA: {r}\n"
+            ));
+        } else {
+            shots.push_str(&format!("Q: {a}+{b}=\n(arith add {a} {b})\nA: {r}\n"));
+        }
     }
 
     // Held-out problems, disjoint from the shot pairs by construction
@@ -186,6 +265,8 @@ async fn main() -> Result<()> {
     }
 
     let (mut n_grammar, mut n_tool, mut n_args, mut n_total) = (0usize, 0usize, 0usize, 0usize);
+    // qwen mode only: of the parseable calls, how many carried the delimiter.
+    let mut n_tagged = 0usize;
     let mut pass_prompts = 0usize;
     let mut shown = 0usize;
 
@@ -218,6 +299,41 @@ async fn main() -> Result<()> {
             let text = tk.decode(comp_ids)?;
             n_total += 1;
 
+            if qwen_fmt {
+                match parse_qwen_tool_call(&text) {
+                    None => {
+                        if shown < args.show {
+                            println!(
+                                "  [no-call] {a}+{b} -> {:?}",
+                                text.chars().take(70).collect::<String>()
+                            );
+                            shown += 1;
+                        }
+                    }
+                    Some((name, jargs, tagged)) => {
+                        n_grammar += 1;
+                        if tagged {
+                            n_tagged += 1;
+                        }
+                        let tool_ok = known.iter().any(|n| n == &name);
+                        if tool_ok {
+                            n_tool += 1;
+                        }
+                        let ok = tool_ok
+                            && jargs.get("op").and_then(|v| v.as_str()) == Some("add")
+                            && jargs.get("a").and_then(|v| v.as_u64()) == Some(a as u64)
+                            && jargs.get("b").and_then(|v| v.as_u64()) == Some(b as u64);
+                        if ok {
+                            n_args += 1;
+                            any = true;
+                        } else if shown < args.show {
+                            println!("  [call ok, args off] {a}+{b} -> ({name} {jargs})");
+                            shown += 1;
+                        }
+                    }
+                }
+                continue;
+            }
             match parse_first_tool_call(&text) {
                 None => {
                     if shown < args.show {
@@ -270,6 +386,12 @@ async fn main() -> Result<()> {
         "  grammar    = {n_grammar:5} ({:.1}%)   <- THE GATE",
         pct(n_grammar)
     );
+    if qwen_fmt {
+        println!(
+            "  ...tagged  = {n_tagged:5} ({:.1}%)   <- of which carried <tool_call>",
+            pct(n_tagged)
+        );
+    }
     println!("  tool ok    = {n_tool:5} ({:.1}%)", pct(n_tool));
     println!("  args ok    = {n_args:5} ({:.1}%)", pct(n_args));
     println!(
