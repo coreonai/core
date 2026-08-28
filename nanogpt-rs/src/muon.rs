@@ -225,10 +225,30 @@ mod tests {
     }
 
     #[test]
-    fn newton_schulz_random_matrix_has_orthogonal_columns() {
+    fn newton_schulz_gives_orthogonal_columns() {
         // After NS, X^T X should be near identity (columns orthonormal).
+        //
+        // Fixed matrix, not `randn`. Unseeded this test failed about 1 run in
+        // 6: a random 4x4 Gaussian is occasionally near-singular, and 5
+        // Newton-Schulz iterations do not bring such a matrix inside the 0.1
+        // tolerance. That made it assert "NS orthogonalizes ANY random matrix
+        // in 5 steps", which is false and not what it is here to check — and
+        // CI runs `cargo test --workspace` as a strict gate, so it was a ~17%
+        // chance of a red build for no reason. `Device::Cpu` rejects
+        // `set_seed` ("cannot seed the CPU rng"), so the fix is a literal
+        // well-conditioned matrix rather than a seeded draw.
         let device = Device::Cpu;
-        let x = Tensor::randn(0_f32, 1.0, (4, 4), &device).unwrap();
+        let x = Tensor::from_vec(
+            vec![
+                1.2_f32, -0.4, 0.3, 0.1, //
+                0.5, 1.4, -0.2, 0.6, //
+                -0.3, 0.2, 1.1, -0.5, //
+                0.4, -0.6, 0.7, 1.3,
+            ],
+            (4, 4),
+            &device,
+        )
+        .unwrap();
         let q = newton_schulz(&x, 5).unwrap();
         // Q^T Q ≈ I_4
         let qtq = q.t().unwrap().matmul(&q).unwrap();
