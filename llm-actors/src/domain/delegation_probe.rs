@@ -56,6 +56,10 @@ impl Domain for ProbeDomain {
     fn task_id(&self, i: usize) -> Option<String> {
         (i < 3).then(|| format!("q{i}"))
     }
+    /// Default is `None`; return `Some(_)`.
+    fn repair_prompt(&self, _p: &str, _c: &str, _v: &Verdict) -> Option<String> {
+        Some("probe-repair".to_string())
+    }
 }
 
 /// Assert that a `Domain` wrapper delegates **every** defaulted method — i.e.
@@ -102,6 +106,17 @@ macro_rules! assert_domain_fully_delegates {
             $crate::domain::Domain::task_id(&wrapper, 0).is_some(),
             "Domain::task_id not delegated — wrapper fell back to the None default"
         );
+        // repair_prompt: trait default is None; the probe returns Some(_).
+        assert!(
+            $crate::domain::Domain::repair_prompt(
+                &wrapper,
+                "p",
+                "c",
+                &$crate::types::Verdict::Correct
+            )
+            .is_some(),
+            "Domain::repair_prompt not delegated — wrapper fell back to the None default"
+        );
     }};
 }
 pub(crate) use assert_domain_fully_delegates;
@@ -120,6 +135,7 @@ mod tests {
         assert_eq!(p.nth_prompt(0).as_deref(), Some("probe0"));
         assert_eq!(p.truncate_completion("keepCUTdrop"), "keep");
         assert_eq!(p.task_id(0).as_deref(), Some("q0"));
+        assert!(p.repair_prompt("p", "c", &Verdict::Correct).is_some());
     }
 
     /// A correct pass-through wrapper passes the guard.
@@ -150,6 +166,9 @@ mod tests {
             }
             fn task_id(&self, i: usize) -> Option<String> {
                 self.0.task_id(i)
+            }
+            fn repair_prompt(&self, p: &str, c: &str, v: &Verdict) -> Option<String> {
+                self.0.repair_prompt(p, c, v)
             }
         }
         assert_domain_fully_delegates!(FullDelegator);

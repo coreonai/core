@@ -22,6 +22,7 @@ pub mod mbpp;
 pub mod python_code;
 pub mod rust_code;
 pub mod tool_use;
+pub mod tool_use_python;
 
 pub trait Domain: Send + Sync {
     /// Sample a fresh prompt. Caller-owned RNG so domains stay deterministic.
@@ -87,6 +88,28 @@ pub trait Domain: Send + Sync {
     /// a defaulted method a wrapper forgets is a silent-failure surface (see
     /// the `domain-wrapper-equivalence` skill).
     fn task_id(&self, _i: usize) -> Option<String> {
+        None
+    }
+
+    /// Phase 23 — the next-turn prompt after a failed attempt, or `None` if
+    /// the domain has no notion of repair.
+    ///
+    /// Some capabilities cannot be reached by sampling. The tool-use domain
+    /// measured **0 imports in 576 samples** at temperature 0.8: the model is
+    /// certain `math` is preloaded, so no amount of harvesting turns up a
+    /// working snippet. The information only exists in one place — the error
+    /// the tool returned — and this is how the loop hands it back. In that
+    /// domain the second turn fixes 4/96 of the failures, against 0/24 first
+    /// turns, which is the difference between a loop that can bootstrap and
+    /// one that cannot.
+    ///
+    /// The repaired *call* is what gets harvested, paired with the ORIGINAL
+    /// prompt. Training on the two-turn transcript would teach the model to
+    /// fail first.
+    ///
+    /// Defaulted, and therefore a wrapper hazard — see
+    /// `delegation_probe::assert_domain_fully_delegates`.
+    fn repair_prompt(&self, _prompt: &str, _completion: &str, _v: &Verdict) -> Option<String> {
         None
     }
 }

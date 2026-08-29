@@ -72,12 +72,60 @@ where
     /// Source label written into Trajectory.source.
     pub source: String,
     pub per_request_timeout: Duration,
+    /// Phase 23 — retry a failed attempt once, with the verifier's reason
+    /// handed back through [`Domain::repair_prompt`].
+    ///
+    /// Off by default, so every Phase 22 path is unchanged. On, it is the
+    /// difference between a loop that can bootstrap and one that cannot:
+    /// where sampling cannot reach a behaviour at all (the tool-use domain
+    /// wrote an import in 0 of 576 samples), the only source of the missing
+    /// information is the tool's own error. The harvested trajectory keeps
+    /// the ORIGINAL prompt paired with the repaired completion — training on
+    /// the two-turn transcript would teach the model to fail first.
+    pub repair_failures: bool,
 }
 
 impl<M> GeneratorActor<M>
 where
     M: Actor<Message = ModelMessage>,
 {
+    /// Harvest a repaired second attempt when the first fails. See
+    /// [`Self::repair_failures`].
+    pub fn with_repair_failures(mut self, on: bool) -> Self {
+        self.repair_failures = on;
+        self
+    }
+
+    /// One repair turn. Returns the repaired trajectory only if it verifies —
+    /// an unverified repair is just another failure and must not be
+    /// harvested.
+    async fn repair_one(
+        &self,
+        prompt: &str,
+        first: &Trajectory,
+        sampling: GenerateConfig,
+    ) -> Option<Trajectory> {
+        let verdict = self.domain.verify(prompt, &first.completion);
+        if verdict.is_correct() {
+            return None;
+        }
+        let next_prompt = self
+            .domain
+            .repair_prompt(prompt, &first.completion, &verdict)?;
+        let repaired = self.generate_one(next_prompt, sampling).await.ok()?;
+        // Re-pair with the ORIGINAL prompt: what we want to train is a
+        // first-turn call that works, not the recovery transcript.
+        let candidate = Trajectory {
+            prompt: prompt.to_string(),
+            completion: repaired.completion,
+            source: first.source.clone(),
+        };
+        self.domain
+            .verify(prompt, &candidate.completion)
+            .is_correct()
+            .then_some(candidate)
+    }
+
     pub fn new(
         model: ActorRef<M>,
         tokenizer: Arc<Tokenizer>,
@@ -92,6 +140,7 @@ where
             stop_char,
             source,
             per_request_timeout: Duration::from_secs(60),
+            repair_failures: false,
         }
     }
 
@@ -242,6 +291,7 @@ where
                     };
                     let mut out = Vec::with_capacity(n_prompts * k);
                     let mut errs = 0usize;
+                    let mut repaired = 0usize;
                     for i in 0..n_prompts {
                         let Some(prompt) = self.domain.nth_prompt(i) else {
                             warn!(index = i, "nth_prompt returned None; skipping");
@@ -260,8 +310,23 @@ where
                                 base.wrapping_add((i as u64).wrapping_mul(10_000))
                                     .wrapping_add(j as u64),
                             );
-                            match self.generate_one(prompt.clone(), s).await {
-                                Ok(t) => out.push(t),
+                            match self.generate_one(prompt.clone(), s.clone()).await {
+                                Ok(t) => {
+                                    if self.repair_failures {
+                                        // Offset the repair seed so the retry
+                                        // is not a re-draw of the attempt that
+                                        // just failed.
+                                        let mut rs = s.clone();
+                                        rs.seed = s.seed.map(|x| x.wrapping_add(0x5eed));
+                                        if let Some(fixed) = self.repair_one(&prompt, &t, rs).await
+                                        {
+                                            repaired += 1;
+                                            out.push(fixed);
+                                            continue;
+                                        }
+                                    }
+                                    out.push(t);
+                                }
                                 Err(e) => {
                                     warn!(error = %e, prompt_index = i, sample = j,
                                           "generate_one (systematic) failed");
@@ -275,6 +340,7 @@ where
                         errors = errs,
                         n_prompts,
                         samples_per_prompt = k,
+                        repaired,
                         "GeneratorActor systematic done"
                     );
                     let _ = reply.send(Ok(out));

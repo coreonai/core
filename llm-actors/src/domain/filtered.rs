@@ -134,6 +134,14 @@ impl Domain for FilteredDomain {
     fn truncate_completion(&self, completion: &str) -> String {
         self.inner.truncate_completion(completion)
     }
+
+    /// Delegates for the same reason as `truncate_completion` above: a
+    /// forgotten defaulted method returns `None` here, which silently turns
+    /// self-repair off for every filtered run and looks like the mechanism
+    /// simply does not work.
+    fn repair_prompt(&self, prompt: &str, completion: &str, v: &Verdict) -> Option<String> {
+        self.inner.repair_prompt(prompt, completion, v)
+    }
 }
 
 #[cfg(test)]
