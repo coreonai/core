@@ -31,7 +31,9 @@ pub mod trainer_handle;
 pub mod types;
 pub mod verifier_actor;
 
-pub use agentic_generator_actor::{AgenticGeneratorActor, AgenticMessage, AgenticReport};
+pub use agentic_generator_actor::{
+    AgenticGeneratorActor, AgenticMessage, AgenticReport, StopReason,
+};
 pub use inference_server_actor::{
     InferenceMessage, InferenceRequest, InferenceResponse, InferenceServerActor,
 };

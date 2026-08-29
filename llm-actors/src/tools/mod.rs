@@ -11,6 +11,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 pub mod arithmetic_tool;
+pub mod python_tool;
 
 /// A parsed tool call. The grammar shipped here is intentionally minimal —
 /// `(name arg1 arg2 ...)\n`. Newline anchors the call so streaming
@@ -67,15 +68,26 @@ impl ToolRegistry {
     }
 }
 
+/// Marks a tool call as already dispatched.
+///
+/// Was `=` (Phase 4). That choice made the grammar unable to carry code: `=`
+/// is the most common character in almost any program, so `(python x = 1)`
+/// parsed as "already resolved" and was skipped, and the call could never be
+/// dispatched. U+2192 does not occur in Python, Rust or shell source, so a
+/// code tool can pass its argument through unescaped.
+///
+/// Anything used here must satisfy two properties: it cannot appear in a
+/// tool's arguments, and it must survive tokenisation as text.
+pub const RESOLVED_MARKER: &str = "\u{2192}";
+
 /// Parse the FIRST complete, *unresolved* tool call inside `text`. Returns
 /// `(byte_range_in_text, ToolCall)` — caller splices the result back in.
 /// `None` if no complete `( ... )\n` is found.
 ///
-/// "Unresolved" means the body contains no `=`. After dispatch we splice
-/// `(name args=result)\n` back in; the `=` marker keeps subsequent scans
-/// from re-firing on the same call (avoiding an infinite loop). It also
-/// means args containing `=` (e.g. `key=value`) cannot be passed — fine for
-/// the minimal grammar shipped here.
+/// "Unresolved" means the body contains no [`RESOLVED_MARKER`]. After
+/// dispatch we splice `(name args→result)\n` back in; the marker keeps
+/// subsequent scans from re-firing on the same call (avoiding an infinite
+/// loop). Arguments containing the marker itself cannot be passed.
 pub fn parse_first_tool_call(text: &str) -> Option<(std::ops::Range<usize>, ToolCall)> {
     let bytes = text.as_bytes();
     let mut search_from = 0;
@@ -91,7 +103,7 @@ pub fn parse_first_tool_call(text: &str) -> Option<(std::ops::Range<usize>, Tool
         }
         let close = close?;
         let body = &text[open + 1..close];
-        if body.contains('=') {
+        if body.contains(RESOLVED_MARKER) {
             // Already-resolved call. Skip past it and keep looking.
             search_from = close + 2;
             continue;
@@ -107,7 +119,7 @@ pub fn parse_first_tool_call(text: &str) -> Option<(std::ops::Range<usize>, Tool
     }
 }
 
-/// Replace the first tool call with `(call_text=result)\n` so subsequent
+/// Replace the first tool call with `(call_text→result)\n` so subsequent
 /// generation reads the completed call inline. Idempotent on `text` with
 /// no tool call.
 pub fn splice_result(text: &str, range: std::ops::Range<usize>, result: &str) -> String {
@@ -118,7 +130,7 @@ pub fn splice_result(text: &str, range: std::ops::Range<usize>, result: &str) ->
     let mut out = String::with_capacity(text.len() + result.len() + 4);
     out.push_str(&text[..range.start]);
     out.push_str(trimmed);
-    out.push('=');
+    out.push_str(RESOLVED_MARKER);
     out.push_str(result);
     out.push_str(")\n");
     out.push_str(&text[range.end..]);
@@ -154,7 +166,7 @@ mod tests {
         let s = "(add 3 4)\nmore";
         let (range, _) = parse_first_tool_call(s).unwrap();
         let out = splice_result(s, range, "7");
-        assert_eq!(out, "(add 3 4=7)\nmore");
+        assert_eq!(out, "(add 3 4\u{2192}7)\nmore");
     }
 
     #[test]
@@ -178,16 +190,34 @@ mod tests {
 
     #[test]
     fn parse_skips_resolved_call() {
-        // Already-resolved calls (containing `=` in body) must NOT match.
-        let s = "(arith add 3 4=7)\nrest";
+        // Already-resolved calls (containing the marker) must NOT match.
+        let s = "(arith add 3 4\u{2192}7)\nrest";
         assert!(parse_first_tool_call(s).is_none());
+    }
+
+    /// The reason the marker moved off `=`. Phase 4's grammar could not carry
+    /// a code tool at all: `=` is ubiquitous in source, so any real snippet
+    /// looked "already resolved" and was silently skipped.
+    #[test]
+    fn parse_accepts_code_containing_equals() {
+        let s = "(python x = 1; print(x + 41))\n";
+        let (range, call) = parse_first_tool_call(s).expect("code call must parse");
+        assert_eq!(call.name, "python");
+        assert_eq!(call.args, "x = 1; print(x + 41)");
+        // and splicing a result marks it resolved, so the next scan skips it
+        let spliced = splice_result(s, range, "42");
+        assert!(spliced.contains(RESOLVED_MARKER));
+        assert!(
+            parse_first_tool_call(&spliced).is_none(),
+            "resolved code call must not re-fire: {spliced:?}"
+        );
     }
 
     #[test]
     fn parse_picks_unresolved_after_resolved() {
         // Resolved first, fresh second — parser should skip the resolved
         // one and surface the second.
-        let s = "(arith add 3 4=7)\n(arith add 5 6)\n";
+        let s = "(arith add 3 4\u{2192}7)\n(arith add 5 6)\n";
         let (_, call) = parse_first_tool_call(s).unwrap();
         assert_eq!(call.name, "arith");
         assert_eq!(call.args, "add 5 6");

@@ -11,13 +11,13 @@
 //!
 //! ```text
 //! Q: 3+4=
-//! (arith add 3 4=7)     <- RESOLVED; this is what the model READS BACK
+//! (arith add 3 4\u{2192}7)     <- RESOLVED; this is what the model READS BACK
 //! A: 7                     after the executor splices a result in
 //! ```
 //!
 //! Training on that teaches the model to emit `=7` itself, and
-//! `parse_first_tool_call` skips bodies containing `=` by design ("already
-//! resolved"), so the loop would never dispatch. The probe already made this
+//! `parse_first_tool_call` skips bodies containing the resolved marker by
+//! design, so the loop would never dispatch. The probe already made this
 //! exact mistake once and measured 2.8% instead of 72%.
 //!
 //! So the pairs are built here, two per problem, covering both turns of the
@@ -25,7 +25,7 @@
 //!
 //! ```text
 //! turn 1   prompt "Q: a+b=\n"                  -> "(arith add a b)\n"
-//! turn 2   prompt "Q: a+b=\n(arith add a b=r)\n" -> "A: r\n"
+//! turn 2   prompt "Q: a+b=\n(arith add a b\u{2192}r)\n" -> "A: r\n"
 //! ```
 //!
 //! Completion-only loss (`TrainSftPairs`) — CE on the completion span only.
@@ -39,12 +39,24 @@
 //! both files rather than shared, because it is the one thing a reader has to
 //! check before trusting a held-out number.
 //!
+//! ## `--tool python`
+//!
+//! Same treatment for `PythonTool`. Few-shot prompting the base model to emit
+//! a python call gives 0/12: it derails into filename completion
+//! (`(python/sum_of.py`), a repo-context habit, even with control tokens
+//! suppressed. So the answer is the same one `arith` needed — train the
+//! format in. The tasks (sums of squares, multiples, prime counts) are ones
+//! the model cannot answer by guessing, so a correct final answer is evidence
+//! the tool ran.
+//!
+//! Held-out here is by problem size: `PYTHON_EVAL_N` is excluded from
+//! training and is exactly what `phase23_python_tool_7b` evaluates.
+//!
 //! Run:
 //!   cargo run -p llm-actors --example phase23_toolcall_sft --features cuda --release -- \
 //!       --train-steps 200 --out scratch-7b-sft/p23_fmt_sft.safetensors
 
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use candle_core::{DType, Device};
@@ -77,6 +89,42 @@ struct Args {
     /// Train the turn-2 pairs (resolved call -> answer) as well as turn-1.
     #[arg(long, default_value_t = true)]
     both_turns: bool,
+    /// Which tool's call format to train.
+    #[arg(long, default_value = "arith")]
+    tool: String,
+}
+
+/// Problem sizes held out of `--tool python` training. Must match the values
+/// `phase23_python_tool_7b` evaluates — this is the one thing a reader has to
+/// check before trusting the held-out number, so it is written out in both
+/// files rather than shared through a helper.
+const PYTHON_EVAL_N: [u32; 12] = [37, 53, 71, 96, 23, 41, 67, 88, 17, 29, 43, 61];
+
+/// The three task families, as (question, one-line snippet, answer).
+///
+/// The snippet must be a single line: the grammar closes a call at the first
+/// `)` followed by a newline, so a multi-line body cannot be expressed (see
+/// `tools::python_tool`).
+fn python_task(family: usize, n: u32) -> (String, String, i64) {
+    match family {
+        0 => (
+            format!("sum of squares from 1 to {n}?"),
+            format!("print(sum(i*i for i in range(1,{n}+1)))"),
+            (1..=n as i64).map(|i| i * i).sum(),
+        ),
+        1 => (
+            format!("sum of numbers below {n} divisible by 3 or 5?"),
+            format!("print(sum(i for i in range(1,{n}) if i%3==0 or i%5==0))"),
+            (1..n as i64).filter(|i| i % 3 == 0 || i % 5 == 0).sum(),
+        ),
+        _ => (
+            format!("how many primes below {n}?"),
+            format!("print(sum(1 for d in range(2,{n}) if all(d%k for k in range(2,d))))"),
+            (2..n as i64)
+                .filter(|&d| (2..d).all(|k| d % k != 0))
+                .count() as i64,
+        ),
+    }
 }
 
 fn pick_device() -> Device {
@@ -119,36 +167,66 @@ async fn main() -> Result<()> {
 
     let snapshot = resolve_snapshot(args.model_dir.as_deref(), &args.model_id)?;
 
-    // Training side of the split: i % 5 != 0 (80 of 100 pairs).
-    let all: Vec<(u32, u32)> = (0..=9u32)
-        .flat_map(|a| (0..=9u32).map(move |b| (a, b)))
-        .collect();
-    let train_pairs: Vec<(u32, u32)> = all
-        .iter()
-        .copied()
-        .enumerate()
-        .filter(|(i, _)| i % 5 != 0)
-        .map(|(_, p)| p)
-        .collect();
-
+    let marker = llm_actors::tools::RESOLVED_MARKER;
     let mut pairs: Vec<(String, String)> = Vec::new();
-    for &(a, b) in &train_pairs {
-        let r = a + b;
-        // turn 1 — the call the parser must be able to dispatch (no `=`)
-        pairs.push((format!("Q: {a}+{b}=\n"), format!("(arith add {a} {b})\n")));
-        if args.both_turns {
-            // turn 2 — after the executor splices the result back in
-            pairs.push((
-                format!("Q: {a}+{b}=\n(arith add {a} {b}={r})\n"),
-                format!("A: {r}\n"),
-            ));
+    let n_problems;
+
+    match args.tool.as_str() {
+        "arith" => {
+            // Training side of the split: i % 5 != 0 (80 of 100 pairs).
+            let all: Vec<(u32, u32)> = (0..=9u32)
+                .flat_map(|a| (0..=9u32).map(move |b| (a, b)))
+                .collect();
+            let train_pairs: Vec<(u32, u32)> = all
+                .iter()
+                .copied()
+                .enumerate()
+                .filter(|(i, _)| i % 5 != 0)
+                .map(|(_, p)| p)
+                .collect();
+            n_problems = train_pairs.len();
+            for &(a, b) in &train_pairs {
+                let r = a + b;
+                // turn 1 — the call the parser must dispatch (unresolved)
+                pairs.push((format!("Q: {a}+{b}=\n"), format!("(arith add {a} {b})\n")));
+                if args.both_turns {
+                    // turn 2 — after the executor splices the result back in
+                    pairs.push((
+                        format!("Q: {a}+{b}=\n(arith add {a} {b}{marker}{r})\n"),
+                        format!("A: {r}\n"),
+                    ));
+                }
+            }
+            println!(
+                "[Phase23SFT] {} pairs from {n_problems} held-in problems (i%5!=0); probe uses the other 20",
+                pairs.len()
+            );
         }
+        "python" => {
+            let train_n: Vec<u32> = (10u32..=99)
+                .filter(|n| !PYTHON_EVAL_N.contains(n))
+                .collect();
+            n_problems = train_n.len() * 3;
+            for family in 0..3usize {
+                for &n in &train_n {
+                    let (q, code, r) = python_task(family, n);
+                    pairs.push((format!("Q: {q}\n"), format!("(python {code})\n")));
+                    if args.both_turns {
+                        pairs.push((
+                            format!("Q: {q}\n(python {code}{marker}{r})\n"),
+                            format!("A: {r}\n"),
+                        ));
+                    }
+                }
+            }
+            println!(
+                "[Phase23SFT] {} pairs from {n_problems} held-in problems (n not in PYTHON_EVAL_N); probe uses the other {}",
+                pairs.len(),
+                PYTHON_EVAL_N.len()
+            );
+        }
+        other => anyhow::bail!("unknown --tool {other:?} (expected arith or python)"),
     }
-    println!(
-        "[Phase23SFT] {} training pairs from {} held-in problems (i%5!=0); probe uses the other 20",
-        pairs.len(),
-        train_pairs.len()
-    );
     println!("[Phase23SFT] sample: {:?} -> {:?}", pairs[0].0, pairs[0].1);
 
     let trainer = QwenTrainerActor::from_snapshot_dir(

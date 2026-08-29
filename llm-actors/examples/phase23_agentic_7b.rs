@@ -19,6 +19,31 @@
 //! Prompted 0-shot, matching the SFT condition — few-shot measurably hurts a
 //! fine-tuned model here (100% → 0% exact calls, see 5dbc737).
 //!
+//! F16 inference is fine *here* because an `arith` completion is ~8 tokens.
+//! It is not fine in general: `phase23_python_tool_7b` generates ~25 tokens of
+//! dense syntax and F16 corrupts it into `(p):` even on trained inputs, at
+//! loss 1e-4. That example defaults to F32. See CLAUDE.md gotcha #10.
+//!
+//! ## Termination
+//!
+//! The first run of this example dispatched 21 tool errors over 20 problems.
+//! Two causes, both fixed in the actor:
+//!
+//!   - the model emits the call and then, in the same chunk, guesses what
+//!     follows — usually a second copy of the call, which the next step then
+//!     dispatched for real. The loop now truncates at the call boundary.
+//!   - after answering it keeps generating. `--stop "\n"` cuts each chunk at
+//!     the end of a line, which is the granularity this format works at: one
+//!     line is the call, the next is the answer.
+//!
+//! `stop_reason` on the report says which exit fired; `StepBudget` means the
+//! loop never concluded on its own.
+//!
+//! Both tools are registered, so `--python` can point the same loop at
+//! `PythonTool` instead. That is the interesting direction: `arith` is a
+//! toy the model can shortcut by guessing, while a code result is not
+//! guessable, which is what makes it usable as a training signal.
+//!
 //! Run:
 //!   cargo run -p llm-actors --example phase23_agentic_7b --features cuda --release -- \
 //!       --checkpoint scratch-7b-sft/p23_fmt_sft.safetensors --n-problems 20
@@ -31,8 +56,8 @@ use anyhow::{anyhow, Context, Result};
 use candle_core::{DType, Device};
 use clap::Parser;
 use llm_actors::{
-    tools::{arithmetic_tool::ArithmeticTool, Tool, ToolRegistry},
-    AgenticGeneratorActor, AgenticMessage, QwenModelActor, ToolExecutorActor,
+    tools::{arithmetic_tool::ArithmeticTool, python_tool::PythonTool, Tool, ToolRegistry},
+    AgenticGeneratorActor, AgenticMessage, QwenModelActor, StopReason, ToolExecutorActor,
 };
 use nanogpt_rs::{generate::GenerateConfig, Tokenizer as NgptTokenizer};
 use pekko_actor::ActorSystem;
@@ -60,6 +85,14 @@ struct Args {
     temperature: f64,
     #[arg(long, default_value_t = 6)]
     show: usize,
+    /// Stop sequences, matched against newly generated text only. This format
+    /// is line-oriented, so a newline ends the chunk. Pass `--stop ""` to
+    /// measure the pre-fix behaviour.
+    #[arg(long, num_args = 1.., default_values_t = vec!["\n".to_string()])]
+    stop: Vec<String>,
+    /// Consecutive failed dispatches tolerated before the loop gives up.
+    #[arg(long, default_value_t = 2)]
+    max_tool_errors: usize,
 }
 
 fn pick_device() -> Device {
@@ -126,7 +159,10 @@ async fn main() -> Result<()> {
         }
     };
 
-    let registry = ToolRegistry::from_tools(vec![Arc::new(ArithmeticTool) as Arc<dyn Tool>]);
+    let registry = ToolRegistry::from_tools(vec![
+        Arc::new(ArithmeticTool) as Arc<dyn Tool>,
+        Arc::new(PythonTool::new()) as Arc<dyn Tool>,
+    ]);
     let system = ActorSystem::new("phase23-loop");
     let model_ref = system.spawn(model, "qwen-model").await?;
     let exec_ref = system
@@ -139,7 +175,9 @@ async fn main() -> Result<()> {
                 model_ref.clone(),
                 exec_ref.clone(),
                 tk.clone(),
-            ),
+            )
+            .with_stop_sequences(args.stop.iter().filter(|s| !s.is_empty()).cloned())
+            .with_max_consecutive_errors(args.max_tool_errors),
             "agentic",
         )
         .await?;
@@ -159,6 +197,11 @@ async fn main() -> Result<()> {
 
     let (mut dispatched, mut tool_ok, mut answered) = (0usize, 0usize, 0usize);
     let mut shown = 0usize;
+    // The termination fix is judged on these two, not on pass rate: errors
+    // are calls the loop should never have dispatched, and a `StepBudget`
+    // exit means it ran to the wall instead of concluding.
+    let mut tool_errors = 0usize;
+    let mut budget_exits = 0usize;
 
     for &(a, b) in &probes {
         let want = a + b;
@@ -196,6 +239,14 @@ async fn main() -> Result<()> {
         if exec_right {
             tool_ok += 1;
         }
+        tool_errors += report
+            .trace
+            .iter()
+            .filter(|s| matches!(&s.tool_result, Some(Err(_))))
+            .count();
+        if report.stop_reason == StopReason::StepBudget {
+            budget_exits += 1;
+        }
         // And did the model then state that answer? `A: <want>` is what the
         // turn-2 pairs trained.
         let said = report.final_text.contains(&format!("A: {want}"));
@@ -204,10 +255,11 @@ async fn main() -> Result<()> {
         }
         if shown < args.show && !(exec_right && said) {
             println!(
-                "  [{a}+{b}={want}] calls={} exec_ok={} said={} final={:?}",
+                "  [{a}+{b}={want}] calls={} exec_ok={} said={} stop={:?} final={:?}",
                 report.tool_calls,
                 exec_right,
                 said,
+                report.stop_reason,
                 report
                     .final_text
                     .replace('\n', "\\n")
@@ -235,6 +287,11 @@ async fn main() -> Result<()> {
         "  model stated A:    = {answered:3}/{} ({:.0}%)",
         probes.len(),
         100.0 * answered as f64 / n
+    );
+    println!("  tool dispatch errors = {tool_errors} (want 0)");
+    println!(
+        "  ran out of steps     = {budget_exits}/{} (want 0)",
+        probes.len()
     );
     println!("\nphase23_agentic_7b: PASS");
     Ok(())

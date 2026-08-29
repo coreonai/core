@@ -4,7 +4,7 @@
 //! trajectory has three lines:
 //!
 //!   Q: A+B=                       ← prompt (sampled by the domain)
-//!   (arith add A B=A+B)           ← tool-call line, RESOLVED form
+//!   (arith add A B→A+B)           ← tool-call line, RESOLVED form
 //!   A: A+B                        ← final answer
 //!
 //! The training corpus uses the *resolved* tool-call form so the model
@@ -12,7 +12,7 @@
 //! `AgenticGeneratorActor` happily handles either flavor:
 //!   - if the model emits `(arith add 3 4)\n` (unresolved), the executor
 //!     dispatches and splices the result;
-//!   - if it emits `(arith add 3 4=7)\n` directly (resolved, learned from
+//!   - if it emits `(arith add 3 4→7)\n` directly (resolved, learned from
 //!     the corpus), the parser recognizes it and leaves it alone.
 //!
 //! Verification: parse the first `A: N\n` line of the completion and
@@ -45,7 +45,8 @@ impl ToolUseArithmeticDomain {
     /// Full trajectory used for training (resolved tool call inline).
     pub fn render_full_trajectory(&self, a: u32, b: u32) -> String {
         let r = a + b;
-        format!("Q: {a}+{b}=\n(arith add {a} {b}={r})\nA: {r}\n")
+        let m = crate::tools::RESOLVED_MARKER;
+        format!("Q: {a}+{b}=\n(arith add {a} {b}{m}{r})\nA: {r}\n")
     }
 
     /// Concatenated corpus of `n` random trajectories. Deterministic in
@@ -172,14 +173,14 @@ mod tests {
     fn render_full_traj_round_trips() {
         let d = ToolUseArithmeticDomain::default();
         let traj = d.render_full_trajectory(3, 4);
-        assert_eq!(traj, "Q: 3+4=\n(arith add 3 4=7)\nA: 7\n");
+        assert_eq!(traj, "Q: 3+4=\n(arith add 3 4\u{2192}7)\nA: 7\n");
     }
 
     #[test]
     fn verify_correct_when_answer_matches() {
         let d = ToolUseArithmeticDomain::default();
         let p = d.render_prompt(3, 4);
-        let comp = "(arith add 3 4=7)\nA: 7\n";
+        let comp = "(arith add 3 4\u{2192}7)\nA: 7\n";
         assert!(matches!(d.verify(&p, comp), Verdict::Correct));
     }
 
@@ -187,7 +188,7 @@ mod tests {
     fn verify_incorrect_on_wrong_answer() {
         let d = ToolUseArithmeticDomain::default();
         let p = d.render_prompt(3, 4);
-        let comp = "(arith add 3 4=7)\nA: 8\n";
+        let comp = "(arith add 3 4\u{2192}7)\nA: 8\n";
         assert!(matches!(d.verify(&p, comp), Verdict::Incorrect { .. }));
     }
 

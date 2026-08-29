@@ -407,8 +407,8 @@ async fn main() -> Result<()> {
                         any = true;
                     } else if shown < args.show {
                         println!(
-                            "  [call ok, args off] {a}+{b} -> ({} {}) want ({} {})",
-                            call.name, call.args, "arith", want
+                            "  [call ok, args off] {a}+{b} -> ({} {}) want (arith {})",
+                            call.name, call.args, want
                         );
                         shown += 1;
                     }

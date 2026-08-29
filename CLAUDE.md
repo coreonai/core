@@ -253,7 +253,47 @@ in-domain compression, HF wins on coverage).
     follow-up: F32 rotary in a vendored `candle-transformers` qwen2 to
     keep BF16 weights (found `39f038e`).
 
-11. **Match the eval metric to where the training signal lives.** SFT
+11. **Precision failures are not only a long-prompt problem — dense
+    code generation breaks too, and at F16, not just BF16.** Gotcha #10
+    is about BF16 past ~500 tokens. Phase 23's `PythonTool` hit the same
+    class of failure with a ~40-token prompt in **F16**: an SFT'd 7B that
+    reached training loss 1e-4 emitted `(p):` and `(Python(Python`
+    instead of `(python print(sum(i*i for i in range(1,20+1))))`. It
+    failed on **held-IN** inputs, which is what ruled out a
+    generalization story and pointed at the inference path. F32 gives
+    12/12 on held-out. The distinguishing feature is not prompt length
+    but **completion density**: `arith` completions (~8 tokens) are
+    clean at F16; python calls (~25 tokens of nested syntax) are not.
+    Rule: **any example that generates code runs F32 by default**, and
+    when an SFT'd model produces garbage at a loss that says it
+    memorised, test held-IN before touching the recipe — a
+    train/inference mismatch and an overfitting story look identical
+    from the held-out number alone.
+
+12. **The agentic loop must truncate at the tool-call boundary.** The
+    model does not stop when it finishes a call: it emits the call and
+    then, in the same chunk, guesses what follows — usually including a
+    second copy of the call. `splice_result` preserved that tail, so the
+    next step dispatched the guess as a real call (21 spurious
+    dispatches over 20 arithmetic problems, and a wrong final answer
+    where the duplicate polluted the buffer). `agentic_generator_actor`
+    now drops everything past a newly generated call, and stop
+    sequences (`with_stop_sequences`) end a chunk — **not the loop**, so
+    a call inside the cut text still dispatches and still continues.
+    That is what makes `"\n"` a usable stop for line-oriented formats.
+    Errors went 21 → 0 and the answer rate 19/20 → 20/20.
+
+13. **The resolved-call marker is `→` (`tools::RESOLVED_MARKER`), not
+    `=`.** Phase 4 wrote `=` into a dispatched call's body and
+    `parse_first_tool_call` skips bodies containing the marker. That
+    made a code-execution tool inexpressible: `=` is ubiquitous in
+    source, so `(python x = 1)` read as already-resolved and was never
+    dispatched. If you change the marker again, it must appear in
+    neither code nor prose the model emits — and the format SFT corpora
+    (`phase23_toolcall_sft` turn-2 pairs, `tool_use::render_full_trajectory`)
+    embed it, so any checkpoint trained on the old marker is stale.
+
+14. **Match the eval metric to where the training signal lives.** SFT
     self-improve **sharpens the sampling distribution**: it lifts
     aggregate pass@1 / pass@k but can *drop* the single greedy mode.
     A full-set SFT checkpoint measured 0.756 vs base 0.656 at aggregate
