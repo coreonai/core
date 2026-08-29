@@ -16,11 +16,40 @@
 //! the tool result and answers from its own guess scores on the middle line
 //! and fails the last.
 //!
-//! What this does *not* establish: that the model could not have reached the
-//! answer without the tool. It writes the snippet, the executor runs it, and
-//! the model then states what came back — but nothing here feeds it a wrong
-//! result to see whether it would copy that too. The tasks are chosen to be
-//! awkward to do mentally (299536 for n=96), not proven impossible.
+//! ## `--sabotage` — does the answer actually come from the tool?
+//!
+//! "The tool computed it and the model said it" is consistent with two very
+//! different stories: the model read the result, or the model reached the
+//! same number on its own and the tool was decoration. `--sabotage N`
+//! separates them by wrapping the tool so it returns `true + N`. Then:
+//!
+//!   - the model states the **sabotaged** value → it is reading the tool
+//!   - the model states the **true** value → it computed it unaided, and the
+//!     unsabotaged 12/12 was not evidence of tool use at all
+//!
+//! Measured on the held-out sizes, F32, 0-shot:
+//!
+//! ```text
+//!   sabotage      stated the tool's value   stated the TRUE value
+//!   +0                    12/12                    12/12   (identical)
+//!   +1                    12/12                     0/12
+//!   +100000               10/12                     0/12
+//! ```
+//!
+//! `0/12` true in both sabotaged conditions: the answer is tool-derived, not
+//! recomputed. The two misses at +100000 did not state the true value either
+//! — they state a *truncated* copy (`A: 10` for a delivered `100009`), so the
+//! failure is in copying a wildly implausible magnitude, not a fallback to
+//! the model's own arithmetic. It is not a tokenizer artifact: Qwen splits
+//! all of 100006/100009/100013/100017 digit by digit, yet two copy cleanly
+//! and two truncate. With 4 problems in that family the split is not worth a
+//! mechanism story.
+//!
+//! Note what a "reads the tool" result does and does not mean. The turn-2
+//! SFT pairs are literally "resolved call in, that number out", so copying is
+//! trained behaviour, not reasoning. What the test establishes is that the
+//! loop's data path — execute, splice, continue — is what determines the
+//! answer, which is the property the whole mechanism depends on.
 //!
 //! ## Held-out
 //!
@@ -91,6 +120,11 @@ struct Args {
     /// 28 GB, which fits a 40 GB card for inference.
     #[arg(long, default_value = "f32")]
     dtype: String,
+    /// Perturb every tool result by this much before it reaches the model.
+    /// `0` disables. See the module docs — this is the falsifier for "the
+    /// answer came from the tool".
+    #[arg(long, default_value_t = 0)]
+    sabotage: i64,
     /// Keep Qwen's control tokens in play. They are suppressed by default:
     /// without that the base model derails into `(python<|fim_prefix|>`, the
     /// FIM tokens outranking the code it should be writing. Same finding and
@@ -200,6 +234,33 @@ fn problems(train_side: bool) -> Vec<(String, i64)> {
     v
 }
 
+/// Wraps a tool and shifts its numeric result. Non-numeric output (an error
+/// string, `<no output>`) passes through untouched — perturbing that would
+/// test the model's error handling, which is a different question.
+///
+/// `Tool` has no defaulted methods, so this delegates everything there is to
+/// delegate. If that ever changes, `assert_domain_fully_delegates!`-style
+/// scrutiny applies here too: a wrapper that silently drops a defaulted
+/// method is the failure mode `rust-guardrails` exists for.
+struct SabotagedTool {
+    inner: PythonTool,
+    delta: i64,
+}
+
+impl Tool for SabotagedTool {
+    fn name(&self) -> &str {
+        self.inner.name()
+    }
+
+    fn execute(&self, args: &str) -> Result<String, llm_actors::tools::ToolError> {
+        let out = self.inner.execute(args)?;
+        match out.trim().parse::<i64>() {
+            Ok(v) => Ok((v + self.delta).to_string()),
+            Err(_) => Ok(out),
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -266,7 +327,19 @@ async fn main() -> Result<()> {
         model
     };
 
-    let registry = ToolRegistry::from_tools(vec![Arc::new(PythonTool::new()) as Arc<dyn Tool>]);
+    let tool: Arc<dyn Tool> = if args.sabotage != 0 {
+        println!(
+            "[Phase23Py] SABOTAGE: every tool result shifted by {:+}",
+            args.sabotage
+        );
+        Arc::new(SabotagedTool {
+            inner: PythonTool::new(),
+            delta: args.sabotage,
+        })
+    } else {
+        Arc::new(PythonTool::new())
+    };
+    let registry = ToolRegistry::from_tools(vec![tool]);
     let system = ActorSystem::new("phase23-py");
     let model_ref = system.spawn(model, "qwen-model").await?;
     let exec_ref = system
@@ -293,6 +366,7 @@ async fn main() -> Result<()> {
 
     let (mut emitted, mut tool_ok, mut answered) = (0usize, 0usize, 0usize);
     let (mut tool_errors, mut budget_exits, mut shown) = (0usize, 0usize, 0usize);
+    let mut said_true_n = 0usize;
 
     for (q, want) in &probes {
         let cfg = GenerateConfig {
@@ -329,19 +403,28 @@ async fn main() -> Result<()> {
         if called_python {
             emitted += 1;
         }
-        // The executor's own output — the tool actually ran and was right.
+        // What the tool actually handed back. Under `--sabotage` this is
+        // deliberately not `want`.
+        let delivered = want + args.sabotage;
         let exec_right = report
             .trace
             .iter()
-            .any(|s| matches!(&s.tool_result, Some(Ok(r)) if r.trim() == want.to_string()));
+            .any(|s| matches!(&s.tool_result, Some(Ok(r)) if r.trim() == delivered.to_string()));
         if exec_right {
             tool_ok += 1;
         }
-        // ...and the model then used it.
-        let said = report.final_text.contains(&format!("A: {want}"));
-        if said {
+        // Did the model state what the TOOL said, or what is actually TRUE?
+        // Identical without sabotage; the whole point of the flag is to pull
+        // them apart.
+        let said_tool = report.final_text.contains(&format!("A: {delivered}"));
+        let said_true = report.final_text.contains(&format!("A: {want}"));
+        if said_tool {
             answered += 1;
         }
+        if said_true {
+            said_true_n += 1;
+        }
+        let said = said_tool;
         tool_errors += report
             .trace
             .iter()
@@ -387,6 +470,13 @@ async fn main() -> Result<()> {
         probes.len(),
         100.0 * answered as f64 / n
     );
+    if args.sabotage != 0 {
+        println!(
+            "  ...stated TRUE value  = {said_true_n:3}/{} ({:.0}%)  <- would mean the tool was ignored",
+            probes.len(),
+            100.0 * said_true_n as f64 / n
+        );
+    }
     println!("  tool dispatch errors  = {tool_errors}");
     println!("  ran out of steps      = {budget_exits}/{}", probes.len());
     println!("\nphase23_python_tool_7b: PASS");

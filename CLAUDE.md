@@ -282,6 +282,14 @@ in-domain compression, HF wins on coverage).
     a call inside the cut text still dispatches and still continues.
     That is what makes `"\n"` a usable stop for line-oriented formats.
     Errors went 21 → 0 and the answer rate 19/20 → 20/20.
+    **The answer is tool-derived, and that is measured, not assumed**:
+    `phase23_python_tool_7b --sabotage N` shifts every tool result by
+    `N`. At +1 the model states the sabotaged value 12/12 and the true
+    value 0/12; at +100000, 10/12 and still 0/12 (the two misses
+    truncate the copy — `A: 10` for a delivered `100009` — rather than
+    falling back to the true value). Run this before believing any
+    "the tool computed it and the model said it" number: without it,
+    tool use and independent recomputation are indistinguishable.
 
 13. **The resolved-call marker is `→` (`tools::RESOLVED_MARKER`), not
     `=`.** Phase 4 wrote `=` into a dispatched call's body and
