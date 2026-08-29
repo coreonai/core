@@ -290,6 +290,21 @@ in-domain compression, HF wins on coverage).
     falling back to the true value). Run this before believing any
     "the tool computed it and the model said it" number: without it,
     tool use and independent recomputation are indistinguishable.
+    It also reframes what the format SFT is for. The **base** model,
+    given *unresolved* few-shot examples, already emits 12/12
+    dispatchable python calls and gets 10/12 correct tool results —
+    and then writes `A: 20826` for a tool that returned `17575`. Only
+    3/12 of its answers track the tool, against 12/12 after SFT.
+    **SFT buys grounding, not the call format.** An earlier claim here
+    that the base scored 0/12 was an artifact of *resolved* shots: the
+    base copies the resolved form, `parse_first_tool_call` skips it,
+    and every counter reads zero. Shots must be rendered unresolved to
+    measure a base model, with shot dispatches then discounted —
+    `StepRecord.tool_args` exists for exactly that. And beware the
+    mirror trap: on the novel families the base states the *true*
+    answer 8/12 even under sabotage, because those are memorised
+    Fibonacci values. Correct answers from a model holding a tool are
+    not evidence the tool was used.
 
 13. **The resolved-call marker is `→` (`tools::RESOLVED_MARKER`), not
     `=`.** Phase 4 wrote `=` into a dispatched call's body and

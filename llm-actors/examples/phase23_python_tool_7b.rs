@@ -51,6 +51,57 @@
 //! loop's data path — execute, splice, continue — is what determines the
 //! answer, which is the property the whole mechanism depends on.
 //!
+//! ## Results
+//!
+//! Held-out sizes, F32, 128-token budget. The base is given the shots
+//! *unresolved* (`--unresolved-shots`), which is the only rendering that
+//! measures it fairly — see `SHOTS_RAW`.
+//!
+//! ```text
+//!                                    base + 2-shot     SFT'd, 0-shot
+//!   emits a dispatchable call            12/12             12/12
+//!   tool computes it (trained families)  10/12             12/12
+//!   tool computes it (novel families)     4/12              4/12
+//!   answer is tool-derived (sabotage +1)  3/12             12/12
+//! ```
+//!
+//! Three things fall out, and only the third was expected:
+//!
+//!   - **The call format transfers few-shot.** An earlier version of this
+//!     example reported 0/12 for the base and concluded the format had to be
+//!     SFT'd in, as `arith` did. That was an artifact of *resolved* shots: the
+//!     base copied the resolved form, the parser skipped it, and every counter
+//!     read zero. With unresolved shots it emits 12/12.
+//!   - **What SFT buys is grounding, not format.** The base writes a correct
+//!     snippet, the tool returns 17575 — and it then writes `A: 20826`. It
+//!     ignores the result and invents an answer. Under `--sabotage 1` only
+//!     3/12 of its answers track the tool, against 12/12 for the SFT'd model.
+//!   - **The format generalises; task-solving does not.** On families absent
+//!     from the corpus the SFT'd model still emits 12/12 valid calls but only
+//!     4/12 correct ones — the same 4/12 as the base. It learned the grammar
+//!     and the discipline of using the result, not how to solve new problems.
+//!     That gap is what a self-improve loop would close.
+//!
+//! One trap in reading the novel-family numbers: the base states the *true*
+//! answer 8/12 there even under sabotage, because those answers (6765,
+//! 832040, 102334155) are famous Fibonacci values it has memorised. Correct
+//! answers from a model with a tool are not evidence the tool was used.
+//!
+//! ## `--novel` — did it learn the format, or three templates?
+//!
+//! The default held-out set is weak on its own: same three task families as
+//! training, only a different `n`. A model that memorised three snippets and
+//! substitutes the number scores 12/12 on it without having learned anything
+//! transferable. `--novel` swaps in three families that appear nowhere in the
+//! SFT corpus (divisor counts, Fibonacci, Collatz lengths), so the model has
+//! to write code it was never shown.
+//!
+//! Three things come apart here and are counted separately: whether a call is
+//! emitted at all (the grammar), whether it runs (valid Python), and whether
+//! the value is right (the model actually solved the task). Grammar
+//! transferring while correctness does not is a perfectly good outcome — it
+//! is the gap a self-improve loop would close.
+//!
 //! ## Held-out
 //!
 //! The problem sizes below must match `PYTHON_EVAL_N` in
@@ -74,7 +125,8 @@ use candle_core::{DType, Device};
 use clap::Parser;
 use llm_actors::{
     tools::{python_tool::PythonTool, Tool, ToolRegistry},
-    AgenticGeneratorActor, AgenticMessage, QwenModelActor, StopReason, ToolExecutorActor,
+    AgenticGeneratorActor, AgenticMessage, QwenModelActor, StepRecord, StopReason,
+    ToolExecutorActor,
 };
 use nanogpt_rs::{generate::GenerateConfig, Tokenizer as NgptTokenizer};
 use pekko_actor::ActorSystem;
@@ -106,6 +158,10 @@ struct Args {
     temperature: f64,
     #[arg(long, default_value_t = 6)]
     show: usize,
+    /// Characters of each shown trajectory. The default clips long snippets;
+    /// raise it when the interesting part is *why* a call failed.
+    #[arg(long, default_value_t = 150)]
+    show_chars: usize,
     /// Drop the two worked examples. Few-shot measurably *hurts* a fine-tuned
     /// model here (the arith SFT went 100% → 0% exact calls when shots were
     /// added), so pass `--no-shots` with a checkpoint. Written as a negative
@@ -120,6 +176,16 @@ struct Args {
     /// 28 GB, which fits a 40 GB card for inference.
     #[arg(long, default_value = "f32")]
     dtype: String,
+    /// Render the shots as real (unresolved) calls. They are then dispatched
+    /// like any other call, and shot dispatches are discounted from the
+    /// counters — the only way to ask what the base model can do without the
+    /// resolved form for it to copy.
+    #[arg(long)]
+    unresolved_shots: bool,
+    /// Evaluate task families that appear nowhere in the SFT corpus. See the
+    /// module docs — this is the falsifier for "the format generalises".
+    #[arg(long)]
+    novel: bool,
     /// Perturb every tool result by this much before it reaches the model.
     /// `0` disables. See the module docs — this is the falsifier for "the
     /// answer came from the tool".
@@ -158,31 +224,100 @@ fn resolve_snapshot(dir: Option<&std::path::Path>, id: &str) -> Result<PathBuf> 
         .ok_or_else(|| anyhow!("no snapshot under {snaps:?}"))
 }
 
-/// Two worked examples, with their calls shown **resolved** (`...\u{2192}3025`).
+/// The two worked examples, as (question, snippet, answer).
 ///
-/// Not a stylistic choice — the loop scans the whole running buffer, and by
-/// design it dispatches a call found in the prompt (Phase 4's
-/// `agentic_arithmetic` relies on exactly that). Unresolved shots are
-/// therefore executed as real calls: the first version of this example
-/// reported "12/12 emitted a python call" while every one of those
-/// dispatches was the *shot*, not the model. Resolved shots are skipped by
-/// the parser, so a dispatch here can only have come from the model.
+/// Rendered two ways, because neither alone gives an honest base-model
+/// baseline:
 ///
-/// The cost is the known trap in the other direction: a model shown resolved
-/// calls tends to write `\u{2192}result` itself, which the parser then skips,
-/// and nothing dispatches (2.8% vs 72% grammar in `phase23_toolcall_probe`).
-/// Whether few-shot can thread that needle is what this measures — and if it
-/// cannot, the answer is the same as for `arith`: SFT the format in.
-const SHOTS: &str = "\
-Q: sum of the first 10 cubes?
-(python print(sum(i**3 for i in range(1, 11)))\u{2192}3025)
-A: 3025
+///   - **resolved** (default) — the shots carry `code\u{2192}answer`, so
+///     `parse_first_tool_call` skips them. Required, because the loop
+///     dispatches a call found in the prompt by design (Phase 4's
+///     `agentic_arithmetic` depends on that), and unresolved shots are
+///     therefore executed as real calls. But it invites the opposite failure:
+///     the base model copies the resolved form, writing `\u{2192}9` itself,
+///     which the parser then skips — 12/12 imitation, 0/12 dispatch, a zero
+///     that says nothing about whether it could write the code.
+///   - **unresolved** (`--unresolved-shots`) — the shots are real calls and do
+///     get dispatched. `SHOT_CODE` then lets us discount those two dispatches
+///     and count only the model's own.
+///
+/// The first version of this example used unresolved shots and no discount,
+/// and reported "12/12 emitted a python call" when every dispatch was a shot.
+const SHOTS_RAW: [(&str, &str, &str); 2] = [
+    (
+        "sum of the first 10 cubes?",
+        "print(sum(i**3 for i in range(1, 11)))",
+        "3025",
+    ),
+    (
+        "how many primes below 50?",
+        "print(sum(1 for n in range(2,50) if all(n%d for d in range(2,n))))",
+        "15",
+    ),
+];
 
-Q: how many primes below 50?
-(python print(sum(1 for n in range(2,50) if all(n%d for d in range(2,n))))\u{2192}15)
-A: 15
+/// Snippet text of each shot, used to tell a shot's dispatch from the model's.
+fn shot_code(i: usize) -> &'static str {
+    SHOTS_RAW[i].1
+}
 
-";
+/// Steps the loop needs when the shots are dispatched too: two for them,
+/// then the model's own turns.
+fn min_steps(unresolved_shots: bool, with_shots: bool) -> usize {
+    if unresolved_shots && with_shots {
+        SHOTS_RAW.len()
+    } else {
+        0
+    }
+}
+
+fn render_shots(resolved: bool) -> String {
+    let marker = llm_actors::tools::RESOLVED_MARKER;
+    let mut out = String::new();
+    for (q, code, a) in SHOTS_RAW {
+        out.push_str(&format!("Q: {q}\n"));
+        if resolved {
+            out.push_str(&format!("(python {code}{marker}{a})\n"));
+        } else {
+            out.push_str(&format!("(python {code})\n"));
+        }
+        out.push_str(&format!("A: {a}\n\n"));
+    }
+    out
+}
+
+/// Task families absent from the SFT corpus, which trains only sums of
+/// squares, multiples of 3 or 5, and prime counts. Answers are computed here
+/// so the model has to derive the code, not recall it.
+fn novel_problems() -> Vec<(String, i64)> {
+    let mut v: Vec<(String, i64)> = Vec::new();
+    for n in [36u32, 60, 84, 96] {
+        let want = (1..=n as i64).filter(|d| n as i64 % d == 0).count() as i64;
+        v.push((format!("how many divisors does {n} have?"), want));
+    }
+    for n in [20u32, 30, 40, 50] {
+        let (mut a, mut b) = (0i64, 1i64);
+        for _ in 0..n {
+            let t = a + b;
+            a = b;
+            b = t;
+        }
+        v.push((format!("what is the {n}th Fibonacci number?"), a));
+    }
+    for n in [27u32, 41, 54, 97] {
+        let mut x = n as i64;
+        let mut steps = 0i64;
+        while x != 1 {
+            x = if x % 2 == 0 { x / 2 } else { 3 * x + 1 };
+            steps += 1;
+        }
+        v.push((
+            format!("how many steps does the Collatz sequence from {n} take to reach 1?"),
+            steps,
+        ));
+    }
+    v
+}
 
 /// Tasks whose answers are not memorisable at a glance, each paired with the
 /// value a correct computation yields. The sizes are `PYTHON_EVAL_N` from
@@ -358,15 +493,41 @@ async fn main() -> Result<()> {
         )
         .await?;
 
-    let probes: Vec<(String, i64)> = problems(args.train_side)
-        .into_iter()
-        .take(args.n_problems)
-        .collect();
+    let all_problems = if args.novel {
+        println!("[Phase23Py] NOVEL families (absent from the SFT corpus)");
+        novel_problems()
+    } else {
+        problems(args.train_side)
+    };
+    let probes: Vec<(String, i64)> = all_problems.into_iter().take(args.n_problems).collect();
+    let shots = if args.no_shots {
+        String::new()
+    } else {
+        render_shots(!args.unresolved_shots)
+    };
+    if !args.no_shots {
+        println!(
+            "[Phase23Py] 2-shot, calls rendered {}",
+            if args.unresolved_shots {
+                "UNRESOLVED (dispatched, then discounted)"
+            } else {
+                "resolved (skipped by the parser)"
+            }
+        );
+    }
     println!("[Phase23Py] {} problems", probes.len());
 
     let (mut emitted, mut tool_ok, mut answered) = (0usize, 0usize, 0usize);
     let (mut tool_errors, mut budget_exits, mut shown) = (0usize, 0usize, 0usize);
     let mut said_true_n = 0usize;
+    // Distinct from `tool_ok`: the snippet was valid Python and produced a
+    // value, whether or not that value was the right one.
+    let mut tool_ran = 0usize;
+    // The shot-imitation confound: the model writes the RESOLVED form itself,
+    // copying it from the shots. The parser skips such a call, so nothing is
+    // dispatched and every other counter reads zero — indistinguishable from
+    // "could not write the code" unless it is counted separately.
+    let mut imitated_resolved = 0usize;
 
     for (q, want) in &probes {
         let cfg = GenerateConfig {
@@ -383,21 +544,25 @@ async fn main() -> Result<()> {
         let (tx, rx) = oneshot::channel();
         agent_ref
             .tell(AgenticMessage::Run {
-                prompt: if !args.no_shots {
-                    format!("{SHOTS}Q: {q}\n")
-                } else {
-                    format!("Q: {q}\n")
-                },
+                prompt: format!("{shots}Q: {q}\n"),
                 sampling: cfg,
-                max_steps: args.max_steps,
+                max_steps: args.max_steps + min_steps(args.unresolved_shots, !args.no_shots),
                 reply: tx,
             })
             .map_err(|e| anyhow!("{e:?}"))?;
         let report = tokio::time::timeout(Duration::from_secs(180), rx).await???;
 
-        // Shots are pre-resolved, so any dispatch is the model's own call.
-        let called_python = report
-            .trace
+        // A dispatch is the model's own only if its snippet is not one of the
+        // shots. With resolved shots nothing of theirs is dispatched and this
+        // is a no-op; with `--unresolved-shots` it is what keeps the shots out
+        // of the numbers.
+        let is_shot = |s: &&StepRecord| {
+            s.tool_args
+                .as_deref()
+                .is_some_and(|a| (0..SHOTS_RAW.len()).any(|i| a == shot_code(i)))
+        };
+        let model_steps: Vec<&StepRecord> = report.trace.iter().filter(|s| !is_shot(s)).collect();
+        let called_python = model_steps
             .iter()
             .any(|s| s.tool_called.as_deref() == Some("python"));
         if called_python {
@@ -406,12 +571,24 @@ async fn main() -> Result<()> {
         // What the tool actually handed back. Under `--sabotage` this is
         // deliberately not `want`.
         let delivered = want + args.sabotage;
-        let exec_right = report
-            .trace
+        let exec_right = model_steps
             .iter()
             .any(|s| matches!(&s.tool_result, Some(Ok(r)) if r.trim() == delivered.to_string()));
         if exec_right {
             tool_ok += 1;
+        }
+        if model_steps
+            .iter()
+            .any(|s| matches!(&s.tool_result, Some(Ok(r)) if r.trim() != "<no output>"))
+        {
+            tool_ran += 1;
+        }
+        let generated = report
+            .final_text
+            .strip_prefix(shots.as_str())
+            .unwrap_or(&report.final_text);
+        if !called_python && generated.contains(llm_actors::tools::RESOLVED_MARKER) {
+            imitated_resolved += 1;
         }
         // Did the model state what the TOOL said, or what is actually TRUE?
         // Identical without sabotage; the whole point of the flag is to pull
@@ -425,8 +602,7 @@ async fn main() -> Result<()> {
             said_true_n += 1;
         }
         let said = said_tool;
-        tool_errors += report
-            .trace
+        tool_errors += model_steps
             .iter()
             .filter(|s| matches!(&s.tool_result, Some(Err(_))))
             .count();
@@ -438,7 +614,7 @@ async fn main() -> Result<()> {
             // Only the model's own continuation matters; the shots are ours.
             let tail = report
                 .final_text
-                .strip_prefix(SHOTS)
+                .strip_prefix(shots.as_str())
                 .unwrap_or(&report.final_text);
             println!(
                 "  [{}] want={want} exec_ok={exec_right} said={said} stop={:?}\n      {}",
@@ -446,7 +622,7 @@ async fn main() -> Result<()> {
                 report.stop_reason,
                 tail.replace('\n', "\\n")
                     .chars()
-                    .take(150)
+                    .take(args.show_chars)
                     .collect::<String>()
             );
             shown += 1;
@@ -459,6 +635,11 @@ async fn main() -> Result<()> {
         "  emitted a python call = {emitted:3}/{} ({:.0}%)",
         probes.len(),
         100.0 * emitted as f64 / n
+    );
+    println!(
+        "  snippet ran clean     = {tool_ran:3}/{} ({:.0}%)",
+        probes.len(),
+        100.0 * tool_ran as f64 / n
     );
     println!(
         "  tool computed it      = {tool_ok:3}/{} ({:.0}%)",
@@ -475,6 +656,13 @@ async fn main() -> Result<()> {
             "  ...stated TRUE value  = {said_true_n:3}/{} ({:.0}%)  <- would mean the tool was ignored",
             probes.len(),
             100.0 * said_true_n as f64 / n
+        );
+    }
+    if imitated_resolved > 0 {
+        println!(
+            "  wrote a RESOLVED call = {imitated_resolved:3}/{} ({:.0}%)  <- imitated the shots; never dispatched",
+            probes.len(),
+            100.0 * imitated_resolved as f64 / n
         );
     }
     println!("  tool dispatch errors  = {tool_errors}");

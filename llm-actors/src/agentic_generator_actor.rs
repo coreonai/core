@@ -98,6 +98,11 @@ pub struct StepRecord {
     pub step: usize,
     pub generated_tokens: usize,
     pub tool_called: Option<String>,
+    /// Arguments the tool was dispatched with. Without this a trace records
+    /// *that* `python` ran but not what it ran, which is not enough to tell a
+    /// call the model wrote from one that was already in the prompt — the
+    /// distinction `phase23_python_tool_7b` needs to measure a base model.
+    pub tool_args: Option<String>,
     pub tool_result: Option<Result<String, String>>,
 }
 
@@ -247,6 +252,7 @@ where
                     step,
                     generated_tokens: new_tokens,
                     tool_called: Some(call.name.clone()),
+                    tool_args: Some(call.args.clone()),
                     tool_result: Some(res),
                 });
                 info!(step, tool = %call.name, inserted = %inserted, "tool call resolved");
@@ -273,6 +279,7 @@ where
                 step,
                 generated_tokens: new_tokens,
                 tool_called: None,
+                tool_args: None,
                 tool_result: None,
             });
             stop_reason = if hit_stop {
