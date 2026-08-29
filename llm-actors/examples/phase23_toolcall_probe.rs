@@ -66,6 +66,14 @@ struct Args {
     max_new_tokens: usize,
     #[arg(long, default_value_t = 7)]
     seed: u64,
+    /// Evaluate the TRAINING side (i%5!=0) instead of held-out. Only useful
+    /// as a memorisation check: if a format-SFT model is right on held-in
+    /// pairs and wrong on held-out, it memorised rather than learned.
+    #[arg(long, default_value_t = false)]
+    train_side: bool,
+    /// Merged safetensors to evaluate instead of the base snapshot.
+    #[arg(long)]
+    checkpoint: Option<std::path::PathBuf>,
     /// Call format to probe.
     ///   `lisp` — the stack's own DSL, `(arith add a b)`, which Phase 4
     ///            trained into a 1M model.
@@ -186,7 +194,26 @@ async fn main() -> Result<()> {
     if !matches!(args.format.as_str(), "lisp" | "qwen") {
         anyhow::bail!("--format must be lisp or qwen");
     }
-    let mut model = QwenModelActor::from_snapshot_dir(&snapshot, device.clone(), DType::F16)?;
+    // Same pattern as phase22_humaneval_baseline: snapshot config + tokenizer,
+    // override's weights.
+    let mut model = match &args.checkpoint {
+        Some(ckpt) => {
+            println!("[Phase23] checkpoint override = {}", ckpt.display());
+            let cfg_text = std::fs::read_to_string(snapshot.join("config.json"))?;
+            let config: candle_transformers::models::qwen2::Config =
+                serde_json::from_str(&cfg_text)?;
+            let tokenizer = tokenizers::Tokenizer::from_file(snapshot.join("tokenizer.json"))
+                .map_err(|e| anyhow!("tokenizer: {e}"))?;
+            QwenModelActor::new(
+                ckpt.clone(),
+                Arc::new(tokenizer),
+                config,
+                device.clone(),
+                DType::F16,
+            )?
+        }
+        None => QwenModelActor::from_snapshot_dir(&snapshot, device.clone(), DType::F16)?,
+    };
     if args.suppress_special {
         let tj: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(snapshot.join("tokenizer.json"))?)?;
@@ -253,16 +280,39 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Held-out problems, disjoint from the shot pairs by construction
-    // (shots use a small deterministic set; probes are drawn from the rest).
-    let mut probes: Vec<(u32, u32)> = Vec::new();
-    let mut a = 2u32;
-    let mut b = 7u32;
-    while probes.len() < args.n_problems {
-        a = (a * 7 + 3) % 10;
-        b = (b * 3 + 5) % 10;
-        probes.push((a, b));
-    }
+    // Held-out split over the domain's full (a, b) grid.
+    //
+    // The previous generator iterated `a = (a*7+3) % 10, b = (b*3+5) % 10`,
+    // which cycles with period 4: "40 problems" were the same FOUR pairs
+    // repeated ten times. Per-sample rates were still averages over 400
+    // samples and stand, but the problem count was misleading and a held-out
+    // train/test split was impossible — which matters now that a format-SFT
+    // model has to be evaluated on pairs it did not train on.
+    //
+    // `i % 5 == 0` is the test side (20 pairs); phase23_toolcall_sft trains on
+    // the complement. The rule is duplicated in both files on purpose — it is
+    // one line, and a shared helper would hide the one thing a reader must
+    // check when trusting a held-out number.
+    let all: Vec<(u32, u32)> = (0..=9u32)
+        .flat_map(|a| (0..=9u32).map(move |b| (a, b)))
+        .collect();
+    let probes: Vec<(u32, u32)> = all
+        .iter()
+        .copied()
+        .enumerate()
+        .filter(|(i, _)| (i % 5 == 0) != args.train_side)
+        .map(|(_, p)| p)
+        .take(args.n_problems)
+        .collect();
+    println!(
+        "[Phase23] {} problems ({} side)",
+        probes.len(),
+        if args.train_side {
+            "TRAIN i%5!=0 — memorisation check"
+        } else {
+            "held-out i%5==0"
+        }
+    );
 
     let (mut n_grammar, mut n_tool, mut n_args, mut n_total) = (0usize, 0usize, 0usize, 0usize);
     // qwen mode only: of the parseable calls, how many carried the delimiter.
