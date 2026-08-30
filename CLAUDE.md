@@ -316,7 +316,58 @@ in-domain compression, HF wins on coverage).
     (`phase23_toolcall_sft` turn-2 pairs, `tool_use::render_full_trajectory`)
     embed it, so any checkpoint trained on the old marker is stale.
 
-14. **Match the eval metric to where the training signal lives.** SFT
+14. **A free verifier does not make a self-improve harvest safe, and
+    self-harvest amplifies whatever it lets through.** Phase 23's
+    tool-use loop verifies by executing the model's own snippet against
+    a ground-truth integer — 784 completions in 6.9s, no harness to
+    build. It still went wrong. Repair-derived completions were
+    generated in a two-turn context and paired verbatim with the
+    ORIGINAL prompt, so they carried an `A: <guess>` line ahead of the
+    call. Five such pairs seeded 17%; from the next round on the loop
+    harvested its own contaminated output and reached **82%** — the
+    model stating an answer *before* the tool ran, which is exactly the
+    property gotcha #12's `--sabotage` exists to establish. The
+    verifier never sees it: the executor only ever receives the call.
+    Rules: trim harvested trajectories to exactly what you intend to
+    train; measure an artifact on the RAW text, because a fix that
+    strips it also blinds a detector placed after the fix; and when a
+    function runs on both the training and eval paths
+    (`truncate_completion` does), re-score an OLD checkpoint with the
+    NEW binary before believing a gain — here it confirmed 0.837 →
+    0.837, so the fix moved the model and not the ruler.
+    Full write-up: `docs/phase23-tooluse-self-improve.md`.
+
+15. **Some capabilities are unreachable by sampling; the loop needs a
+    channel, not more draws.** The 7B wrote `math.gcd(...)` with no
+    import and failed every time — a correct algorithm against the
+    tool's actual contract. **0 of 576 sampled snippets contained an
+    import**, and pass@16 stayed 0/12, so a turn-1-only harvest is
+    empty and the loop cannot bootstrap no matter how much you sample.
+    The information existed only in the tool's error message.
+    `Domain::repair_prompt` + `GeneratorActor::with_repair_failures`
+    hand it back for one retry and harvest the fix only if it verifies:
+    4/96 repaired against 0/24 first turns, and by the next round the
+    model solved 177 first try. **The repair turn is a bootstrap
+    ladder, not a crutch.** Note it does not learn what you assume —
+    shown the `NameError` it dropped `math` rather than adding the
+    import.
+
+16. **A narrow harvest narrows the model; replay is free wherever
+    verification is free.** Harvesting only the two unsolved families
+    took them 0.000 → 1.000 and cost retention on five untouched
+    families (0.988 → **0.806**, one halving) and transfer to unseen
+    families (12/12 → **4/12** dispatchable calls). It over-generalised
+    the idiom it had just learned — 87/160 imports where none was
+    needed. Widening the harvest to all eight families restored
+    retention to 1.000 and transfer to 11/12 while keeping the targets
+    at 1.000, with imports **0/160** where unneeded and 49/98 where
+    needed. Two riders: **saturating in a single round is a warning,
+    not a success** (nothing left to learn means later rounds only
+    narrow), and **scale train-steps to the corpus when you widen** —
+    the rare target signal was 0.3% of the widened pool and would never
+    have been sampled at the previous step count.
+
+17. **Match the eval metric to where the training signal lives.** SFT
     self-improve **sharpens the sampling distribution**: it lifts
     aggregate pass@1 / pass@k but can *drop* the single greedy mode.
     A full-set SFT checkpoint measured 0.756 vs base 0.656 at aggregate
