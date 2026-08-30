@@ -207,6 +207,7 @@ async fn run_baseline(
     let mut with_import = 0usize;
     let mut attempts = 0usize;
     let (mut repair_attempts, mut repair_ok, mut repair_import) = (0usize, 0usize, 0usize);
+    let mut answer_before_call = 0usize;
     let mut shown_repair = 0usize;
     let mut looks_hardcoded = 0usize;
 
@@ -240,7 +241,12 @@ async fn run_baseline(
                 .map_err(|e| anyhow!("{e:?}"))?;
             let tokens = tokio::time::timeout(std::time::Duration::from_secs(180), rx).await???;
             let full = tk.decode(&tokens)?;
-            let completion = domain.truncate_completion(&full[prompt.len().min(full.len())..]);
+            // Measure contamination on the RAW text. `truncate_completion`
+            // now strips anything before the call, so checking the truncated
+            // string would report 0 by construction and blind the detector to
+            // the very artifact it was added to catch.
+            let raw = full[prompt.len().min(full.len())..].to_string();
+            let completion = domain.truncate_completion(&raw);
             let verdict = domain.verify(&prompt, &completion);
             let code = ToolUsePythonDomain::snippet_of(&completion);
             match &code {
@@ -255,6 +261,16 @@ async fn run_baseline(
                 }
             }
             attempts += 1;
+            // Text before the call. The harvested repair completions carried
+            // an `A: <guess>` line ahead of the fixed call — it made sense in
+            // the two-turn context it came from, but paired with the original
+            // prompt it trains the model to state an answer BEFORE computing
+            // one. The snippet still verifies, so nothing else here catches
+            // it.
+            if !raw.trim_start().starts_with('(') && ToolUsePythonDomain::snippet_of(&raw).is_some()
+            {
+                answer_before_call += 1;
+            }
             // Second turn: the model sees its own call with the error where
             // the result would be. Same splice the agentic loop performs.
             if !verdict.is_correct() && args.repair {
@@ -351,6 +367,7 @@ async fn run_baseline(
     println!("  overall   {tc:3}/{tt:3}  {:.3}", tc as f32 / tt as f32);
     println!("  attempts: {attempts}, no dispatchable call: {no_call}");
     println!("  snippets containing an import: {with_import}/{attempts}");
+    println!("  text before the call (answer stated first): {answer_before_call}/{attempts}");
     if args.repair {
         println!(
             "  self-repair after the error: {repair_ok}/{repair_attempts} fixed, \

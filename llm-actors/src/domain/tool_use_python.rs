@@ -287,18 +287,34 @@ impl Domain for ToolUsePythonDomain {
         self.tasks.get(i).map(|t| render_prompt(&t.question))
     }
 
-    /// Keep the call line and drop everything after it.
+    /// Reduce the completion to exactly the first call — dropping text on
+    /// BOTH sides of it.
     ///
-    /// The model does not stop once the call is closed — it guesses the answer
-    /// line, and often a whole next problem. Harvesting that would train on
-    /// text the loop truncates away at inference anyway
-    /// (`agentic_generator_actor` cuts at the call boundary), so harvest,
-    /// training and eval would each see a different string.
+    /// Cutting only the tail is not enough, and the shortfall is not
+    /// cosmetic. Repair-harvested completions arrived as
+    ///
+    /// ```text
+    /// A: 2
+    /// (python print(sum([12//5**i for i in range(1,10)])))
+    /// ```
+    ///
+    /// The answer line made sense in the two-turn context it was generated
+    /// in, but the harvested pair uses the ORIGINAL prompt, so training on it
+    /// teaches the model to state an answer *before* computing one. The
+    /// snippet still verifies — the executor only ever sees the call — so
+    /// nothing downstream catches it. It compounded from ~0 to 17% after five
+    /// such pairs and to 82% two rounds later, because from round 1 on the
+    /// loop was harvesting its own contaminated output.
+    ///
+    /// That also destroys the property `--sabotage` was built to check: an
+    /// answer written before the tool ran cannot have come from the tool.
     fn truncate_completion(&self, completion: &str) -> String {
-        match completion.find(")\n") {
-            Some(i) => completion[..i + 2].to_string(),
-            None => completion.to_string(),
-        }
+        let Some((range, _)) = parse_first_tool_call(completion) else {
+            // No call: hand it back untouched so verification still fails
+            // with an honest reason instead of an empty string.
+            return completion.to_string();
+        };
+        completion[range].to_string()
     }
 
     /// Hand the tool's own error back, spliced exactly where the result
@@ -469,6 +485,25 @@ mod tests {
         let d = dom();
         let raw = "(python print(1+1))\nA: 2\nQ: next problem\n";
         assert_eq!(d.truncate_completion(raw), "(python print(1+1))\n");
+    }
+
+    /// The contamination that ran the first self-improve loop off the rails:
+    /// an answer stated BEFORE the call. Cutting only the tail leaves it in
+    /// the harvested training pair.
+    #[test]
+    fn truncation_drops_text_before_the_call() {
+        let d = dom();
+        let raw = "A: 2\n(python print(sum([12//5**i for i in range(1,10)])))\nA: 2\n";
+        assert_eq!(
+            d.truncate_completion(raw),
+            "(python print(sum([12//5**i for i in range(1,10)])))\n"
+        );
+    }
+
+    #[test]
+    fn truncation_leaves_a_callless_completion_alone() {
+        let d = dom();
+        assert_eq!(d.truncate_completion("A: 2\n"), "A: 2\n");
     }
 
     #[test]
