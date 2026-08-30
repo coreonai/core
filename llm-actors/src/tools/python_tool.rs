@@ -17,12 +17,27 @@
 //! ## Grammar constraints on the snippet
 //!
 //! A call is `(name args)\n`, and the parser closes at the first `)` that is
-//! *followed by a newline*. Two consequences:
+//! *followed by a newline*. So the real constraint is narrow: **no internal
+//! `)` may be immediately followed by a newline.** Everything else is fair
+//! game.
 //!
-//!   - **The snippet is one line.** Use `;` to sequence statements. Blocks
-//!     that need real indentation have to go through `exec("...")`.
-//!   - Internal parens are fine (`print(len(x))`), because none of them is
-//!     followed by a newline.
+//!   - Internal parens are fine (`print(len(x))`) — none is followed by a
+//!     newline.
+//!   - **Multi-line snippets work**, as long as no line ends in `)`. The
+//!     self-improve loop discovered this on its own and uses it:
+//!
+//!     ```text
+//!     (python import math
+//!     print(sum(1 for i in range(1,12+1) if math.gcd(i,12)==1)))
+//!     ```
+//!
+//!     `python3 -c` accepts embedded newlines, so this runs. An earlier
+//!     version of this comment claimed the snippet had to be one line and
+//!     told the reader to use `;`. That was a description of the author's
+//!     assumption, not of the parser — the model read the grammar more
+//!     carefully than the docs did.
+//!   - A line that *does* end in `)` closes the call early and leaves the
+//!     rest dangling, which surfaces as `SyntaxError: unexpected EOF`.
 //!
 //! The result is spliced back inline as `(python ...→result)\n`, so it must
 //! also be one line: newlines in the output are escaped to `\n` rather than
