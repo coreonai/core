@@ -53,13 +53,34 @@ pub struct PyTask {
 }
 
 /// The eight task families this domain harvests over.
-///
+//
 /// Deliberately disjoint from both the three families `phase23_toolcall_sft`
 /// trains (sums of squares, multiples of 3 or 5, prime counts — already
 /// solved 12/12, so no headroom) and the three `phase23_python_tool_7b
 /// --novel` evaluates (divisor counts, Fibonacci, Collatz — kept clean as a
 /// transfer set). Mixing either in would make a lift here unreadable.
-pub const N_FAMILIES: usize = 8;
+pub const N_FAMILIES: usize = 10;
+
+// Families 8 and 9 exist to test one thing: whether "import what you
+// reference" can be learned as a rule rather than as the single instance
+// `import math`.
+//
+// The 8-family run taught the model to import `math` for `gcd` and nothing
+// else — 0/160 imports where none was needed, 49/98 exactly on the phi
+// family, and 0 imports across 12 transfer problems, four of which reference
+// `itertools`. Of eight families exactly one needed an import and it was
+// always `math`, so there was nothing to generalise from.
+//
+// These two are chosen so the model's own instinct reaches for a DIFFERENT
+// module: `functools.reduce` for a digit product (confirmed — it writes
+// `reduce(...)` unimported and fails 0/32), and `statistics.median` for a
+// median. Nothing forces an import; both are writable with a plain loop, and
+// the model taking that route is itself a result — it did exactly that for
+// trailing zeros, dropping `math` for Legendre's formula.
+//
+// `itertools` is deliberately absent. The transfer probe's Collatz problems
+// reach for it, so training on it would turn the transfer test into "does
+// the same module carry over" instead of "was the rule learned".
 
 fn is_prime(x: i64) -> bool {
     if x < 2 {
@@ -145,10 +166,48 @@ pub fn task(family: usize, n: u32) -> PyTask {
             }
             (format!("what is the largest prime factor of {n}?"), best)
         }
-        _ => (
+        7 => (
             format!("what is the sum of all primes below {n}?"),
             (2..ni).filter(|&x| is_prime(x)).sum(),
         ),
+        8 => {
+            // Nonzero digits only: `n**3` hits a 0 digit constantly, and a
+            // family whose answer is 0 for half its inputs teaches the model
+            // to print 0.
+            let mut prod = 1i64;
+            let mut x = ni * ni * ni;
+            while x > 0 {
+                let d = x % 10;
+                if d != 0 {
+                    prod *= d;
+                }
+                x /= 10;
+            }
+            (
+                format!("what is the product of the nonzero digits of {n} cubed?"),
+                prod,
+            )
+        }
+        _ => {
+            // Doubled so the answer stays an integer for an even divisor
+            // count. The first version of this family asked for the most
+            // common digit's COUNT; its answers were 2..5, and the model
+            // scored 9/32 by hardcoding a digit
+            // (`sum(int(c)==1 for c in str(21**5))`) that happened to be the
+            // most common. A wide answer space is what makes a free verifier
+            // hard to hit by luck.
+            let divs: Vec<i64> = (1..=ni).filter(|d| ni % d == 0).collect();
+            let m = divs.len();
+            let twice_median = if m % 2 == 1 {
+                2 * divs[m / 2]
+            } else {
+                divs[m / 2 - 1] + divs[m / 2]
+            };
+            (
+                format!("what is twice the median of the divisors of {n}?"),
+                twice_median,
+            )
+        }
     };
     PyTask {
         question,
@@ -173,7 +232,7 @@ impl ToolUsePythonDomain {
     }
 
     /// Restrict to a subset of families.
-    ///
+    //
     /// Needed because the eight are not equally hard: some are structurally
     /// near-identical to what the format SFT already trained (counting
     /// multiples of 7 is the trained "multiples of 3 or 5" with one constant
@@ -289,15 +348,15 @@ impl Domain for ToolUsePythonDomain {
 
     /// Reduce the completion to exactly the first call — dropping text on
     /// BOTH sides of it.
-    ///
+    //
     /// Cutting only the tail is not enough, and the shortfall is not
     /// cosmetic. Repair-harvested completions arrived as
-    ///
+    //
     /// ```text
     /// A: 2
     /// (python print(sum([12//5**i for i in range(1,10)])))
     /// ```
-    ///
+    //
     /// The answer line made sense in the two-turn context it was generated
     /// in, but the harvested pair uses the ORIGINAL prompt, so training on it
     /// teaches the model to state an answer *before* computing one. The
@@ -305,7 +364,7 @@ impl Domain for ToolUsePythonDomain {
     /// nothing downstream catches it. It compounded from ~0 to 17% after five
     /// such pairs and to 82% two rounds later, because from round 1 on the
     /// loop was harvesting its own contaminated output.
-    ///
+    //
     /// That also destroys the property `--sabotage` was built to check: an
     /// answer written before the tool ran cannot have come from the tool.
     fn truncate_completion(&self, completion: &str) -> String {
@@ -319,7 +378,7 @@ impl Domain for ToolUsePythonDomain {
 
     /// Hand the tool's own error back, spliced exactly where the result
     /// would have gone — the same shape `agentic_generator_actor` produces.
-    ///
+    //
     /// This is the only channel through which the missing information can
     /// reach the model: it never writes an import on its own (0 in 576
     /// samples), because it is confident `math` is preloaded. Shown the
@@ -366,6 +425,20 @@ mod tests {
 
     /// Ground truth is computed in Rust, so it is worth checking against
     /// values a reader can verify by hand.
+    /// Hand-checkable values for the two families added to test whether
+    /// importing generalises past `math`.
+    #[test]
+    fn known_answers_for_the_module_probe_families() {
+        // 12^3 = 1728 -> 1*7*2*8
+        assert_eq!(task(8, 12).answer, 112);
+        // 60^3 = 216000 -> 2*1*6 (zeros skipped)
+        assert_eq!(task(8, 60).answer, 12);
+        // divisors of 12: 1 2 3 4 6 12 -> median 3.5 -> 7
+        assert_eq!(task(9, 12).answer, 7);
+        // divisors of 16: 1 2 4 8 16 -> median 4 -> 8
+        assert_eq!(task(9, 16).answer, 8);
+    }
+
     #[test]
     fn known_answers() {
         assert_eq!(task(0, 3).answer, 36); // 1 + 8 + 27
@@ -390,6 +463,10 @@ mod tests {
         let d = dom();
         let n = d.n_prompts().unwrap();
         assert_eq!(n, N_FAMILIES * 21);
+        assert_eq!(
+            N_FAMILIES, 10,
+            "the module-probe families must be in the pool"
+        );
         assert!(d.nth_prompt(n - 1).is_some());
         assert!(d.nth_prompt(n).is_none());
     }
