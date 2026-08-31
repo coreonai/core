@@ -366,6 +366,17 @@ in-domain compression, HF wins on coverage).
     narrow), and **scale train-steps to the corpus when you widen** —
     the rare target signal was 0.3% of the widened pool and would never
     have been sampled at the previous step count.
+    **Widening restored transfer without improving it** (4/12 correct
+    both before and after), and the twelve trajectories say why: half
+    the failures are wrong mathematics on code that runs clean —
+    nothing a tool-contract loop addresses — and the other half
+    reference `itertools` with no import, the exact class the loop
+    fixed for `math`. Of eight harvested families exactly one needed an
+    import and it was always `math`, so the model learned that
+    *instance*, not the rule (0/160 imports where unneeded, 0 in 12
+    transfer problems). **A loop generalises only as far as its harvest
+    varies**, and averaging failure classes into one "transfer" number
+    hides which of them the loop could ever have fixed.
 
 17. **Match the eval metric to where the training signal lives.** SFT
     self-improve **sharpens the sampling distribution**: it lifts
