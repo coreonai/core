@@ -234,7 +234,71 @@ family-5 prompts.** The model learned *when* to import, not "always import".
 Transfer returns to the pre-loop level: 11/12 emitted, 4/12 correct. Note
 what this is and is not — the regression is repaired, but there is **no
 transfer gain**. Whatever the loop taught did not make the model better at
-unfamiliar families, only no worse.
+unfamiliar families, only no worse. The next section takes that apart.
+
+## Why there is no transfer gain
+
+Transfer emission was repaired (4/12 → 11/12) but correctness stayed at the
+pre-loop 4/12. Reading all twelve trajectories, the eight failures split into
+two groups, and only one of them is anything the loop trained on.
+
+**Divisors, 4/4 both before and after.** Already worked; untouched.
+
+**Fibonacci, 0/4 → 0/4 — wrong mathematics, not a tool-contract failure.**
+
+```
+(python print(sum([1<<i for i in range(20) if (i*(3*i-1))%20==0])))
+  → 36993, want 6765
+```
+
+No `NameError`, no syntax error — the snippet runs clean and computes the
+wrong thing. The model invents a closed form that does not exist. The loop
+trained on contract corrections, so it had no reason to touch this. The only
+visible change is that `print(fibonacci(40))` (an undefined helper) stopped
+appearing.
+
+**Collatz, 0/4 → 0/4 — `itertools` used without importing.**
+
+```
+(python print(sum(1 for i in itertools.takewhile(...))))
+  → NameError: name 'itertools' is not defined
+```
+
+This is *exactly* the failure class the loop fixed for `math`. It did not
+transfer.
+
+### The loop learned the instance, not the principle
+
+What it acquired is "when you need gcd, `import math`" — not "this tool has
+an empty namespace, so import whatever you reference." Three measurements
+agree:
+
+- retention families: **0/160** imports, where none is needed
+- target families: **49/98** imports — exactly the 49 family-5 prompts
+- transfer set: **0 imports in 12 problems**, including the 4 that need
+  `itertools`
+
+Which follows from the harvest. Of the eight families, exactly one needs an
+import, and it is always `math`. No example requiring any other module ever
+entered training, so there was nothing to generalise from. An earlier draft
+of this document said the model "learned WHEN to import"; the sharper reading
+is that the module choice is bound to the situation it was learned in.
+
+This is a fixable limitation rather than a ceiling: adding families that
+require `itertools`, `functools`, and so on would test whether "import what
+you use" can be learned as a rule. That hypothesis is **untested** — nothing
+here establishes it.
+
+### One regression worth watching
+
+```
+Collatz n=27:  exec_ok=false  said=true   A: 111   (correct)
+```
+
+The tool errored and the model stated the right answer anyway. That is the
+pre-SFT invent-an-answer behaviour resurfacing on an out-of-domain prompt,
+i.e. the grounding that `--sabotage` established may hold only in-domain.
+Worth measuring directly: run `--sabotage` on the transfer set.
 
 ## What to reuse
 
@@ -256,6 +320,14 @@ unfamiliar families, only no worse.
 - **Replay is free wherever verification is free.** Harvesting saturated
   tasks costs only generation, and it bought back 0.19 of retention and
   7/12 of transfer emission here.
+- **A loop generalises only as far as its harvest varies.** Exactly one of
+  eight families needed an import and it was always `math`, so the model
+  learned that instance and failed the same way on `itertools`. If you want a
+  rule learned, the harvest has to contain more than one instance of it.
+- **Check what class each failure belongs to before blaming the loop.** Half
+  the transfer failures here were wrong mathematics on code that ran cleanly
+  — nothing a tool-contract loop was ever going to fix, and averaging them
+  into one "transfer" number hides that.
 
 ## Reproducing
 
