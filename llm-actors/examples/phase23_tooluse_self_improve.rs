@@ -455,8 +455,10 @@ async fn main() -> Result<()> {
     };
     let tud = ToolUsePythonDomain::with_families(args.n_lo, args.n_hi, &families);
     println!(
-        "[Phase23SI] ToolUsePythonDomain: {} tasks (8 families x n={}..={})",
+        "[Phase23SI] ToolUsePythonDomain: {} tasks ({} families {:?} x n={}..={})",
         tud.n_tasks(),
+        families.len(),
+        families,
         args.n_lo,
         args.n_hi
     );
