@@ -1,28 +1,455 @@
-{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\\nfn main() { assert_eq!(", "completion": "2 + 3, 5); }\n"}
-{"family": "f0_expr", "prompt": "Fill the expression slot (equals_5):\\nfn main() { assert_eq!(", "completion": "2 + 3, 5); }\n"}
-{"family": "f0_expr", "prompt": "RHS that makes this pass:\\nfn main() { assert_eq!(", "completion": "2 + 3, 5); }\n"}
-{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\\nfn main() { assert_eq!(2 * (", "completion": "7), 14); }\n"}
-{"family": "f0_expr", "prompt": "Fill the expression slot (equals_14_via_doubling):\\nfn main() { assert_eq!(2 * (", "completion": "7), 14); }\n"}
-{"family": "f0_expr", "prompt": "RHS that makes this pass:\\nfn main() { assert_eq!(2 * (", "completion": "7), 14); }\n"}
-{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\\nfn main() { let s: &str = ", "completion": "\"hello\"; assert_eq!(s.len(), 5); }\n"}
-{"family": "f0_expr", "prompt": "Fill the expression slot (len_5_string):\\nfn main() { let s: &str = ", "completion": "\"hello\"; assert_eq!(s.len(), 5); }\n"}
-{"family": "f0_expr", "prompt": "RHS that makes this pass:\\nfn main() { let s: &str = ", "completion": "\"hello\"; assert_eq!(s.len(), 5); }\n"}
-{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\\nfn main() { let x: i32 = ", "completion": "5 + 5; assert_eq!(x, 10); }\n"}
-{"family": "f0_expr", "prompt": "Fill the expression slot (equals_10):\\nfn main() { let x: i32 = ", "completion": "5 + 5; assert_eq!(x, 10); }\n"}
-{"family": "f0_expr", "prompt": "RHS that makes this pass:\\nfn main() { let x: i32 = ", "completion": "5 + 5; assert_eq!(x, 10); }\n"}
-{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\\nfn main() { let o: Option<i32> = ", "completion": "Some(5); assert_eq!(o, Some(5)); }\n"}
-{"family": "f0_expr", "prompt": "Fill the expression slot (option_some_5):\\nfn main() { let o: Option<i32> = ", "completion": "Some(5); assert_eq!(o, Some(5)); }\n"}
-{"family": "f0_expr", "prompt": "RHS that makes this pass:\\nfn main() { let o: Option<i32> = ", "completion": "Some(5); assert_eq!(o, Some(5)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "0, 0); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "0, 0); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "0 + 2, 2); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "2 + 2, 4); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "3 + 2, 5); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "5 + 2, 7); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "6 + 2, 8); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "7 + 2, 9); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "9 + 2, 11); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "10 + 2, 12); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "12 + 2, 14); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "13 + 2, 15); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "14 + 2, 16); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "16 + 2, 18); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "17 + 2, 19); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "0; assert_eq!(x, 0); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "1; assert_eq!(x, 1); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "2; assert_eq!(x, 2); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "4; assert_eq!(x, 4); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "5; assert_eq!(x, 5); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "7; assert_eq!(x, 7); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "8; assert_eq!(x, 8); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "9; assert_eq!(x, 9); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "11; assert_eq!(x, 11); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "12; assert_eq!(x, 12); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "14; assert_eq!(x, 14); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "15; assert_eq!(x, 15); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "16; assert_eq!(x, 16); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "18; assert_eq!(x, 18); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "19; assert_eq!(x, 19); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(2 * (", "completion": "0), 0); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(2 * (", "completion": "1), 2); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(2 * (", "completion": "2), 4); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(2 * (", "completion": "4), 8); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(2 * (", "completion": "5), 10); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(2 * (", "completion": "7), 14); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(2 * (", "completion": "8), 16); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(2 * (", "completion": "9), 18); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(0); assert_eq!(o, Some(0)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(1); assert_eq!(o, Some(1)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(3); assert_eq!(o, Some(3)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(4); assert_eq!(o, Some(4)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(5); assert_eq!(o, Some(5)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(7); assert_eq!(o, Some(7)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(8); assert_eq!(o, Some(8)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(10); assert_eq!(o, Some(10)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(11); assert_eq!(o, Some(11)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(12); assert_eq!(o, Some(12)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(14); assert_eq!(o, Some(14)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(15); assert_eq!(o, Some(15)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(17); assert_eq!(o, Some(17)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(18); assert_eq!(o, Some(18)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(19); assert_eq!(o, Some(19)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let s: &str = ", "completion": "\"a\"; assert_eq!(s.len(), 1); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let s: &str = ", "completion": "\"aa\"; assert_eq!(s.len(), 2); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let s: &str = ", "completion": "\"aaaa\"; assert_eq!(s.len(), 4); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let s: &str = ", "completion": "\"aaaaa\"; assert_eq!(s.len(), 5); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let s: &str = ", "completion": "\"aaaaaa\"; assert_eq!(s.len(), 6); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let s: &str = ", "completion": "\"aaaaaaaa\"; assert_eq!(s.len(), 8); }\n"}
+{"family": "f1_tool", "prompt": "Tool echo: identity on args.\n", "completion": "pub struct EchoTool;\nimpl Tool for EchoTool {\n    fn name(&self) -> &str { \"echo\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { Ok(args.to_string()) }\n}\n"}
+{"family": "f1_tool", "prompt": "Implement UpperTool: name upper, execute to_ascii_uppercase.\n", "completion": "pub struct UpperTool;\nimpl Tool for UpperTool {\n    fn name(&self) -> &str { \"upper\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { Ok(args.to_ascii_uppercase()) }\n}\n"}
+{"family": "f2_domain", "prompt": "OkOnlyDomain: verify returns Correct iff completion == \"ok\".\n", "completion": "pub struct OkOnlyDomain;\nimpl Domain for OkOnlyDomain {\n    fn sample_prompt(&self) -> String { \"say ok\".into() }\n    fn verify(&self, _prompt: &str, completion: &str) -> Verdict {\n        if completion == \"ok\" { Verdict::Correct } else { Verdict::Incorrect { reason: \"expected ok\".into() } }\n    }\n    fn charset(&self) -> &str { \"ok\" }\n}\n"}
+{"family": "f2_domain", "prompt": "빈 완성은 실패하는 Domain.\n", "completion": "pub struct NonEmptyDomain;\nimpl Domain for NonEmptyDomain {\n    fn sample_prompt(&self) -> String { \"anything\".into() }\n    fn verify(&self, _: &str, completion: &str) -> Verdict {\n        if completion.is_empty() { Verdict::Incorrect { reason: \"empty\".into() } } else { Verdict::Correct }\n    }\n    fn charset(&self) -> &str { \"abcdefghijklmnopqrstuvwxyz\" }\n}\n"}
+{"family": "f4_repair", "prompt": "cargo check stderr: cannot find type `HashMap` — repair count_keys.\n", "completion": "use std::collections::HashMap;\npub fn count_keys(pairs: &[(&str, i32)]) -> usize {\n    let mut m = HashMap::new();\n    for (k, v) in pairs { m.insert(*k, *v); }\n    m.len()\n}\n"}
+{"family": "f4_repair", "prompt": "non-exhaustive patterns: `Green` not covered — repair color_name.\n", "completion": "pub fn color_name(c: Color) -> &'static str {\n    match c {\n        Color::Red => \"red\",\n        Color::Blue => \"blue\",\n        Color::Green => \"green\",\n    }\n}\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "0, 0); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "0, 0); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "0, 0); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "0, 0); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "0, 0); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "0, 0); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "0, 0); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "0, 0); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "0 + 2, 2); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "0 + 2, 2); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "0 + 2, 2); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "0 + 2, 2); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "1 + 2, 3); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "1 + 2, 3); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "1 + 2, 3); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "1 + 2, 3); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "1 + 2, 3); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "2 + 2, 4); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "2 + 2, 4); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "2 + 2, 4); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "2 + 2, 4); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "3 + 2, 5); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "3 + 2, 5); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "3 + 2, 5); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "3 + 2, 5); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "4 + 2, 6); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "4 + 2, 6); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "4 + 2, 6); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "4 + 2, 6); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "4 + 2, 6); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "5 + 2, 7); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "5 + 2, 7); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "5 + 2, 7); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "5 + 2, 7); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "6 + 2, 8); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "6 + 2, 8); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "6 + 2, 8); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "6 + 2, 8); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "7 + 2, 9); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "7 + 2, 9); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "7 + 2, 9); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "7 + 2, 9); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "8 + 2, 10); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "8 + 2, 10); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "8 + 2, 10); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "8 + 2, 10); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "8 + 2, 10); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "9 + 2, 11); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "9 + 2, 11); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "9 + 2, 11); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "9 + 2, 11); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "10 + 2, 12); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "10 + 2, 12); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "10 + 2, 12); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "10 + 2, 12); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "11 + 2, 13); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "11 + 2, 13); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "11 + 2, 13); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "11 + 2, 13); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "11 + 2, 13); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "12 + 2, 14); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "12 + 2, 14); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "12 + 2, 14); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "12 + 2, 14); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "13 + 2, 15); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "13 + 2, 15); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "13 + 2, 15); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "13 + 2, 15); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "14 + 2, 16); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "14 + 2, 16); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "14 + 2, 16); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "14 + 2, 16); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "15 + 2, 17); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "15 + 2, 17); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "15 + 2, 17); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "15 + 2, 17); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "15 + 2, 17); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "16 + 2, 18); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "16 + 2, 18); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "16 + 2, 18); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "16 + 2, 18); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "17 + 2, 19); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "17 + 2, 19); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "17 + 2, 19); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "17 + 2, 19); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(", "completion": "18 + 2, 20); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(", "completion": "18 + 2, 20); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(", "completion": "18 + 2, 20); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(", "completion": "18 + 2, 20); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(", "completion": "18 + 2, 20); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "0; assert_eq!(x, 0); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "0; assert_eq!(x, 0); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "0; assert_eq!(x, 0); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "0; assert_eq!(x, 0); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "1; assert_eq!(x, 1); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "1; assert_eq!(x, 1); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "1; assert_eq!(x, 1); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "1; assert_eq!(x, 1); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "2; assert_eq!(x, 2); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "2; assert_eq!(x, 2); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "2; assert_eq!(x, 2); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "2; assert_eq!(x, 2); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "3; assert_eq!(x, 3); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "3; assert_eq!(x, 3); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "3; assert_eq!(x, 3); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "3; assert_eq!(x, 3); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "3; assert_eq!(x, 3); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "4; assert_eq!(x, 4); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "4; assert_eq!(x, 4); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "4; assert_eq!(x, 4); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "4; assert_eq!(x, 4); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "5; assert_eq!(x, 5); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "5; assert_eq!(x, 5); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "5; assert_eq!(x, 5); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "5; assert_eq!(x, 5); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "6; assert_eq!(x, 6); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "6; assert_eq!(x, 6); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "6; assert_eq!(x, 6); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "6; assert_eq!(x, 6); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "6; assert_eq!(x, 6); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "7; assert_eq!(x, 7); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "7; assert_eq!(x, 7); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "7; assert_eq!(x, 7); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "7; assert_eq!(x, 7); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "8; assert_eq!(x, 8); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "8; assert_eq!(x, 8); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "8; assert_eq!(x, 8); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "8; assert_eq!(x, 8); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "9; assert_eq!(x, 9); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "9; assert_eq!(x, 9); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "9; assert_eq!(x, 9); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "9; assert_eq!(x, 9); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "10; assert_eq!(x, 10); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "10; assert_eq!(x, 10); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "10; assert_eq!(x, 10); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "10; assert_eq!(x, 10); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "10; assert_eq!(x, 10); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "11; assert_eq!(x, 11); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "11; assert_eq!(x, 11); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "11; assert_eq!(x, 11); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "11; assert_eq!(x, 11); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "12; assert_eq!(x, 12); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "12; assert_eq!(x, 12); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "12; assert_eq!(x, 12); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "12; assert_eq!(x, 12); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "13; assert_eq!(x, 13); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "13; assert_eq!(x, 13); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "13; assert_eq!(x, 13); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "13; assert_eq!(x, 13); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "13; assert_eq!(x, 13); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "14; assert_eq!(x, 14); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "14; assert_eq!(x, 14); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "14; assert_eq!(x, 14); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "14; assert_eq!(x, 14); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "15; assert_eq!(x, 15); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "15; assert_eq!(x, 15); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "15; assert_eq!(x, 15); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "15; assert_eq!(x, 15); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "16; assert_eq!(x, 16); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "16; assert_eq!(x, 16); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "16; assert_eq!(x, 16); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "16; assert_eq!(x, 16); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "17; assert_eq!(x, 17); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "17; assert_eq!(x, 17); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "17; assert_eq!(x, 17); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "17; assert_eq!(x, 17); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "17; assert_eq!(x, 17); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "18; assert_eq!(x, 18); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "18; assert_eq!(x, 18); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "18; assert_eq!(x, 18); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "18; assert_eq!(x, 18); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "19; assert_eq!(x, 19); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "19; assert_eq!(x, 19); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "19; assert_eq!(x, 19); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "19; assert_eq!(x, 19); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let x: i32 = ", "completion": "20; assert_eq!(x, 20); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let x: i32 = ", "completion": "20; assert_eq!(x, 20); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let x: i32 = ", "completion": "20; assert_eq!(x, 20); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let x: i32 = ", "completion": "20; assert_eq!(x, 20); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let x: i32 = ", "completion": "20; assert_eq!(x, 20); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(2 * (", "completion": "0), 0); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(2 * (", "completion": "0), 0); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(2 * (", "completion": "0), 0); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(2 * (", "completion": "0), 0); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(2 * (", "completion": "1), 2); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(2 * (", "completion": "1), 2); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(2 * (", "completion": "1), 2); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(2 * (", "completion": "1), 2); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(2 * (", "completion": "2), 4); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(2 * (", "completion": "2), 4); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(2 * (", "completion": "2), 4); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(2 * (", "completion": "2), 4); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(2 * (", "completion": "3), 6); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(2 * (", "completion": "3), 6); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(2 * (", "completion": "3), 6); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(2 * (", "completion": "3), 6); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(2 * (", "completion": "3), 6); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(2 * (", "completion": "4), 8); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(2 * (", "completion": "4), 8); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(2 * (", "completion": "4), 8); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(2 * (", "completion": "4), 8); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(2 * (", "completion": "5), 10); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(2 * (", "completion": "5), 10); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(2 * (", "completion": "5), 10); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(2 * (", "completion": "5), 10); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(2 * (", "completion": "6), 12); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(2 * (", "completion": "6), 12); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(2 * (", "completion": "6), 12); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(2 * (", "completion": "6), 12); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(2 * (", "completion": "6), 12); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(2 * (", "completion": "7), 14); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(2 * (", "completion": "7), 14); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(2 * (", "completion": "7), 14); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(2 * (", "completion": "7), 14); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(2 * (", "completion": "8), 16); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(2 * (", "completion": "8), 16); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(2 * (", "completion": "8), 16); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(2 * (", "completion": "8), 16); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(2 * (", "completion": "9), 18); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(2 * (", "completion": "9), 18); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(2 * (", "completion": "9), 18); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(2 * (", "completion": "9), 18); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { assert_eq!(2 * (", "completion": "10), 20); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { assert_eq!(2 * (", "completion": "10), 20); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { assert_eq!(2 * (", "completion": "10), 20); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { assert_eq!(2 * (", "completion": "10), 20); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { assert_eq!(2 * (", "completion": "10), 20); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(0); assert_eq!(o, Some(0)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(0); assert_eq!(o, Some(0)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(0); assert_eq!(o, Some(0)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(0); assert_eq!(o, Some(0)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(1); assert_eq!(o, Some(1)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(1); assert_eq!(o, Some(1)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(1); assert_eq!(o, Some(1)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(1); assert_eq!(o, Some(1)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(2); assert_eq!(o, Some(2)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(2); assert_eq!(o, Some(2)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(2); assert_eq!(o, Some(2)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(2); assert_eq!(o, Some(2)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(2); assert_eq!(o, Some(2)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(3); assert_eq!(o, Some(3)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(3); assert_eq!(o, Some(3)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(3); assert_eq!(o, Some(3)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(3); assert_eq!(o, Some(3)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(4); assert_eq!(o, Some(4)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(4); assert_eq!(o, Some(4)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(4); assert_eq!(o, Some(4)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(4); assert_eq!(o, Some(4)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(5); assert_eq!(o, Some(5)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(5); assert_eq!(o, Some(5)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(5); assert_eq!(o, Some(5)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(5); assert_eq!(o, Some(5)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(6); assert_eq!(o, Some(6)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(6); assert_eq!(o, Some(6)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(6); assert_eq!(o, Some(6)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(6); assert_eq!(o, Some(6)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(6); assert_eq!(o, Some(6)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(7); assert_eq!(o, Some(7)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(7); assert_eq!(o, Some(7)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(7); assert_eq!(o, Some(7)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(7); assert_eq!(o, Some(7)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(8); assert_eq!(o, Some(8)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(8); assert_eq!(o, Some(8)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(8); assert_eq!(o, Some(8)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(8); assert_eq!(o, Some(8)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(9); assert_eq!(o, Some(9)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(9); assert_eq!(o, Some(9)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(9); assert_eq!(o, Some(9)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(9); assert_eq!(o, Some(9)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(9); assert_eq!(o, Some(9)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(10); assert_eq!(o, Some(10)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(10); assert_eq!(o, Some(10)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(10); assert_eq!(o, Some(10)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(10); assert_eq!(o, Some(10)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(11); assert_eq!(o, Some(11)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(11); assert_eq!(o, Some(11)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(11); assert_eq!(o, Some(11)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(11); assert_eq!(o, Some(11)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(12); assert_eq!(o, Some(12)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(12); assert_eq!(o, Some(12)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(12); assert_eq!(o, Some(12)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(12); assert_eq!(o, Some(12)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(13); assert_eq!(o, Some(13)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(13); assert_eq!(o, Some(13)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(13); assert_eq!(o, Some(13)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(13); assert_eq!(o, Some(13)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(13); assert_eq!(o, Some(13)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(14); assert_eq!(o, Some(14)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(14); assert_eq!(o, Some(14)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(14); assert_eq!(o, Some(14)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(14); assert_eq!(o, Some(14)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(15); assert_eq!(o, Some(15)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(15); assert_eq!(o, Some(15)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(15); assert_eq!(o, Some(15)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(15); assert_eq!(o, Some(15)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(16); assert_eq!(o, Some(16)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(16); assert_eq!(o, Some(16)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(16); assert_eq!(o, Some(16)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(16); assert_eq!(o, Some(16)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(16); assert_eq!(o, Some(16)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(17); assert_eq!(o, Some(17)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(17); assert_eq!(o, Some(17)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(17); assert_eq!(o, Some(17)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(17); assert_eq!(o, Some(17)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(18); assert_eq!(o, Some(18)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(18); assert_eq!(o, Some(18)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(18); assert_eq!(o, Some(18)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(18); assert_eq!(o, Some(18)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(19); assert_eq!(o, Some(19)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(19); assert_eq!(o, Some(19)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(19); assert_eq!(o, Some(19)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(19); assert_eq!(o, Some(19)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let o: Option<i32> = ", "completion": "Some(20); assert_eq!(o, Some(20)); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let o: Option<i32> = ", "completion": "Some(20); assert_eq!(o, Some(20)); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let o: Option<i32> = ", "completion": "Some(20); assert_eq!(o, Some(20)); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let o: Option<i32> = ", "completion": "Some(20); assert_eq!(o, Some(20)); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let o: Option<i32> = ", "completion": "Some(20); assert_eq!(o, Some(20)); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let s: &str = ", "completion": "\"a\"; assert_eq!(s.len(), 1); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let s: &str = ", "completion": "\"a\"; assert_eq!(s.len(), 1); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let s: &str = ", "completion": "\"a\"; assert_eq!(s.len(), 1); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let s: &str = ", "completion": "\"a\"; assert_eq!(s.len(), 1); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let s: &str = ", "completion": "\"aa\"; assert_eq!(s.len(), 2); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let s: &str = ", "completion": "\"aa\"; assert_eq!(s.len(), 2); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let s: &str = ", "completion": "\"aa\"; assert_eq!(s.len(), 2); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let s: &str = ", "completion": "\"aa\"; assert_eq!(s.len(), 2); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let s: &str = ", "completion": "\"aaa\"; assert_eq!(s.len(), 3); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let s: &str = ", "completion": "\"aaa\"; assert_eq!(s.len(), 3); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let s: &str = ", "completion": "\"aaa\"; assert_eq!(s.len(), 3); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let s: &str = ", "completion": "\"aaa\"; assert_eq!(s.len(), 3); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let s: &str = ", "completion": "\"aaa\"; assert_eq!(s.len(), 3); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let s: &str = ", "completion": "\"aaaa\"; assert_eq!(s.len(), 4); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let s: &str = ", "completion": "\"aaaa\"; assert_eq!(s.len(), 4); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let s: &str = ", "completion": "\"aaaa\"; assert_eq!(s.len(), 4); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let s: &str = ", "completion": "\"aaaa\"; assert_eq!(s.len(), 4); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let s: &str = ", "completion": "\"aaaaa\"; assert_eq!(s.len(), 5); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let s: &str = ", "completion": "\"aaaaa\"; assert_eq!(s.len(), 5); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let s: &str = ", "completion": "\"aaaaa\"; assert_eq!(s.len(), 5); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let s: &str = ", "completion": "\"aaaaa\"; assert_eq!(s.len(), 5); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let s: &str = ", "completion": "\"aaaaaa\"; assert_eq!(s.len(), 6); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let s: &str = ", "completion": "\"aaaaaa\"; assert_eq!(s.len(), 6); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let s: &str = ", "completion": "\"aaaaaa\"; assert_eq!(s.len(), 6); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let s: &str = ", "completion": "\"aaaaaa\"; assert_eq!(s.len(), 6); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let s: &str = ", "completion": "\"aaaaaaa\"; assert_eq!(s.len(), 7); }\n"}
+{"family": "f0_expr", "prompt": "Fill the expression slot:\nfn main() { let s: &str = ", "completion": "\"aaaaaaa\"; assert_eq!(s.len(), 7); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let s: &str = ", "completion": "\"aaaaaaa\"; assert_eq!(s.len(), 7); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let s: &str = ", "completion": "\"aaaaaaa\"; assert_eq!(s.len(), 7); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let s: &str = ", "completion": "\"aaaaaaa\"; assert_eq!(s.len(), 7); }\n"}
+{"family": "f0_expr", "prompt": "Complete the Rust so the program succeeds.\nfn main() { let s: &str = ", "completion": "\"aaaaaaaa\"; assert_eq!(s.len(), 8); }\n"}
+{"family": "f0_expr", "prompt": "RHS that makes this pass:\nfn main() { let s: &str = ", "completion": "\"aaaaaaaa\"; assert_eq!(s.len(), 8); }\n"}
+{"family": "f0_expr", "prompt": "Write only the missing expression for:\nfn main() { let s: &str = ", "completion": "\"aaaaaaaa\"; assert_eq!(s.len(), 8); }\n"}
+{"family": "f0_expr", "prompt": "이 프로그램이 통과하도록 빈칸을 채워라:\nfn main() { let s: &str = ", "completion": "\"aaaaaaaa\"; assert_eq!(s.len(), 8); }\n"}
 {"family": "f1_tool", "prompt": "Implement tool `echo` that returns its args unchanged.\n", "completion": "pub struct EchoTool;\nimpl Tool for EchoTool {\n    fn name(&self) -> &str { \"echo\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { Ok(args.to_string()) }\n}\n"}
 {"family": "f1_tool", "prompt": "Add a Tool named echo; dispatch should round-trip the argument.\n", "completion": "pub struct EchoTool;\nimpl Tool for EchoTool {\n    fn name(&self) -> &str { \"echo\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { Ok(args.to_string()) }\n}\n"}
 {"family": "f1_tool", "prompt": "`echo` 툴을 만들고 인자를 그대로 돌려줘.\n", "completion": "pub struct EchoTool;\nimpl Tool for EchoTool {\n    fn name(&self) -> &str { \"echo\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { Ok(args.to_string()) }\n}\n"}
+{"family": "f1_tool", "prompt": "Register EchoTool so ToolCall{name:echo,args:X} returns X.\n", "completion": "pub struct EchoTool;\nimpl Tool for EchoTool {\n    fn name(&self) -> &str { \"echo\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { Ok(args.to_string()) }\n}\n"}
 {"family": "f1_tool", "prompt": "Add a Tool named `ping` that always returns `pong`.\n", "completion": "pub struct PingTool;\nimpl Tool for PingTool {\n    fn name(&self) -> &str { \"ping\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { let _ = args; Ok(\"pong\".into()) }\n}\n"}
 {"family": "f1_tool", "prompt": "Implement ping tool → constant pong.\n", "completion": "pub struct PingTool;\nimpl Tool for PingTool {\n    fn name(&self) -> &str { \"ping\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { let _ = args; Ok(\"pong\".into()) }\n}\n"}
+{"family": "f1_tool", "prompt": "ping 툴은 항상 pong을 반환한다.\n", "completion": "pub struct PingTool;\nimpl Tool for PingTool {\n    fn name(&self) -> &str { \"ping\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { let _ = args; Ok(\"pong\".into()) }\n}\n"}
+{"family": "f1_tool", "prompt": "Tool ping ignores args and yields pong.\n", "completion": "pub struct PingTool;\nimpl Tool for PingTool {\n    fn name(&self) -> &str { \"ping\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { let _ = args; Ok(\"pong\".into()) }\n}\n"}
+{"family": "f1_tool", "prompt": "Tool `upper` returns args in ASCII uppercase.\n", "completion": "pub struct UpperTool;\nimpl Tool for UpperTool {\n    fn name(&self) -> &str { \"upper\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { Ok(args.to_ascii_uppercase()) }\n}\n"}
+{"family": "f1_tool", "prompt": "upper 툴로 인자를 대문자로 바꿔라.\n", "completion": "pub struct UpperTool;\nimpl Tool for UpperTool {\n    fn name(&self) -> &str { \"upper\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { Ok(args.to_ascii_uppercase()) }\n}\n"}
+{"family": "f1_tool", "prompt": "Tool `len` returns the byte length of args as decimal string.\n", "completion": "pub struct LenTool;\nimpl Tool for LenTool {\n    fn name(&self) -> &str { \"len\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { Ok(args.len().to_string()) }\n}\n"}
+{"family": "f1_tool", "prompt": "Implement LenTool returning args.len().to_string().\n", "completion": "pub struct LenTool;\nimpl Tool for LenTool {\n    fn name(&self) -> &str { \"len\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { Ok(args.len().to_string()) }\n}\n"}
+{"family": "f1_tool", "prompt": "len 툴은 인자 바이트 길이를 문자열로 돌려준다.\n", "completion": "pub struct LenTool;\nimpl Tool for LenTool {\n    fn name(&self) -> &str { \"len\" }\n    fn execute(&self, args: &str) -> Result<String, ToolError> { Ok(args.len().to_string()) }\n}\n"}
 {"family": "f2_domain", "prompt": "Domain that scores Correct only when completion is exactly `ok`.\n", "completion": "pub struct OkOnlyDomain;\nimpl Domain for OkOnlyDomain {\n    fn sample_prompt(&self) -> String { \"say ok\".into() }\n    fn verify(&self, _prompt: &str, completion: &str) -> Verdict {\n        if completion == \"ok\" { Verdict::Correct } else { Verdict::Incorrect { reason: \"expected ok\".into() } }\n    }\n    fn charset(&self) -> &str { \"ok\" }\n}\n"}
 {"family": "f2_domain", "prompt": "완성이 `ok`일 때만 통과하는 Domain을 구현해.\n", "completion": "pub struct OkOnlyDomain;\nimpl Domain for OkOnlyDomain {\n    fn sample_prompt(&self) -> String { \"say ok\".into() }\n    fn verify(&self, _prompt: &str, completion: &str) -> Verdict {\n        if completion == \"ok\" { Verdict::Correct } else { Verdict::Incorrect { reason: \"expected ok\".into() } }\n    }\n    fn charset(&self) -> &str { \"ok\" }\n}\n"}
+{"family": "f2_domain", "prompt": "Toy domain accepting only the token ok.\n", "completion": "pub struct OkOnlyDomain;\nimpl Domain for OkOnlyDomain {\n    fn sample_prompt(&self) -> String { \"say ok\".into() }\n    fn verify(&self, _prompt: &str, completion: &str) -> Verdict {\n        if completion == \"ok\" { Verdict::Correct } else { Verdict::Incorrect { reason: \"expected ok\".into() } }\n    }\n    fn charset(&self) -> &str { \"ok\" }\n}\n"}
+{"family": "f2_domain", "prompt": "Domain whose charset includes digits 0-9.\n", "completion": "pub struct DigitCharsetDomain;\nimpl Domain for DigitCharsetDomain {\n    fn sample_prompt(&self) -> String { \"n\".into() }\n    fn verify(&self, _: &str, _: &str) -> Verdict { Verdict::Correct }\n    fn charset(&self) -> &str { \"0123456789\" }\n}\n"}
+{"family": "f2_domain", "prompt": "DigitCharsetDomain charset must contain every decimal digit.\n", "completion": "pub struct DigitCharsetDomain;\nimpl Domain for DigitCharsetDomain {\n    fn sample_prompt(&self) -> String { \"n\".into() }\n    fn verify(&self, _: &str, _: &str) -> Verdict { Verdict::Correct }\n    fn charset(&self) -> &str { \"0123456789\" }\n}\n"}
+{"family": "f2_domain", "prompt": "숫자 0-9가 charset에 포함되는 Domain.\n", "completion": "pub struct DigitCharsetDomain;\nimpl Domain for DigitCharsetDomain {\n    fn sample_prompt(&self) -> String { \"n\".into() }\n    fn verify(&self, _: &str, _: &str) -> Verdict { Verdict::Correct }\n    fn charset(&self) -> &str { \"0123456789\" }\n}\n"}
+{"family": "f2_domain", "prompt": "Domain that rejects empty completions.\n", "completion": "pub struct NonEmptyDomain;\nimpl Domain for NonEmptyDomain {\n    fn sample_prompt(&self) -> String { \"anything\".into() }\n    fn verify(&self, _: &str, completion: &str) -> Verdict {\n        if completion.is_empty() { Verdict::Incorrect { reason: \"empty\".into() } } else { Verdict::Correct }\n    }\n    fn charset(&self) -> &str { \"abcdefghijklmnopqrstuvwxyz\" }\n}\n"}
+{"family": "f2_domain", "prompt": "NonEmptyDomain: Incorrect on empty, Correct otherwise.\n", "completion": "pub struct NonEmptyDomain;\nimpl Domain for NonEmptyDomain {\n    fn sample_prompt(&self) -> String { \"anything\".into() }\n    fn verify(&self, _: &str, completion: &str) -> Verdict {\n        if completion.is_empty() { Verdict::Incorrect { reason: \"empty\".into() } } else { Verdict::Correct }\n    }\n    fn charset(&self) -> &str { \"abcdefghijklmnopqrstuvwxyz\" }\n}\n"}
 {"family": "f3_message", "prompt": "Handle `Ping` by returning `Pong`; Inc bumps; Get returns count.\n", "completion": "impl Handler for CounterActor {\n    fn handle(&mut self, msg: Message) -> Response {\n        match msg {\n            Message::Ping => Response::Pong,\n            Message::Inc => { self.n += 1; Response::Count(self.n) }\n            Message::Get => Response::Count(self.n),\n        }\n    }\n}\n"}
 {"family": "f3_message", "prompt": "Ping 메시지를 받으면 Pong을 반환하는 핸들러를 작성해.\n", "completion": "impl Handler for CounterActor {\n    fn handle(&mut self, msg: Message) -> Response {\n        match msg {\n            Message::Ping => Response::Pong,\n            Message::Inc => { self.n += 1; Response::Count(self.n) }\n            Message::Get => Response::Count(self.n),\n        }\n    }\n}\n"}
+{"family": "f3_message", "prompt": "CounterActor: Ping->Pong, Inc increments, Get yields Count.\n", "completion": "impl Handler for CounterActor {\n    fn handle(&mut self, msg: Message) -> Response {\n        match msg {\n            Message::Ping => Response::Pong,\n            Message::Inc => { self.n += 1; Response::Count(self.n) }\n            Message::Get => Response::Count(self.n),\n        }\n    }\n}\n"}
+{"family": "f3_message", "prompt": "Implement Handler for CounterActor matching Message::{Ping,Inc,Get}.\n", "completion": "impl Handler for CounterActor {\n    fn handle(&mut self, msg: Message) -> Response {\n        match msg {\n            Message::Ping => Response::Pong,\n            Message::Inc => { self.n += 1; Response::Count(self.n) }\n            Message::Get => Response::Count(self.n),\n        }\n    }\n}\n"}
+{"family": "f3_message", "prompt": "when the actor receives Ping, reply Pong; Inc bumps an internal counter.\n", "completion": "impl Handler for CounterActor {\n    fn handle(&mut self, msg: Message) -> Response {\n        match msg {\n            Message::Ping => Response::Pong,\n            Message::Inc => { self.n += 1; Response::Count(self.n) }\n            Message::Get => Response::Count(self.n),\n        }\n    }\n}\n"}
+{"family": "f4_repair", "prompt": "Fix compile error: missing HashMap import for count_keys.\n", "completion": "use std::collections::HashMap;\npub fn count_keys(pairs: &[(&str, i32)]) -> usize {\n    let mut m = HashMap::new();\n    for (k, v) in pairs { m.insert(*k, *v); }\n    m.len()\n}\n"}
+{"family": "f4_repair", "prompt": "count_keys가 HashMap을 쓰도록 import를 고치고 구현해.\n", "completion": "use std::collections::HashMap;\npub fn count_keys(pairs: &[(&str, i32)]) -> usize {\n    let mut m = HashMap::new();\n    for (k, v) in pairs { m.insert(*k, *v); }\n    m.len()\n}\n"}
+{"family": "f4_repair", "prompt": "Repair: error[E0412]: cannot find type `HashMap` in this scope\n", "completion": "use std::collections::HashMap;\npub fn count_keys(pairs: &[(&str, i32)]) -> usize {\n    let mut m = HashMap::new();\n    for (k, v) in pairs { m.insert(*k, *v); }\n    m.len()\n}\n"}
+{"family": "f4_repair", "prompt": "Implement greet(name: &str) -> String as \"hi {name}\".\n", "completion": "pub fn greet(name: &str) -> String {\n    format!(\"hi {name}\")\n}\n"}
+{"family": "f4_repair", "prompt": "Fix String vs &str at greet boundary; take &str and format hi.\n", "completion": "pub fn greet(name: &str) -> String {\n    format!(\"hi {name}\")\n}\n"}
+{"family": "f4_repair", "prompt": "greet 함수가 &str을 받아 hi <name>을 반환하게 해.\n", "completion": "pub fn greet(name: &str) -> String {\n    format!(\"hi {name}\")\n}\n"}
+{"family": "f4_repair", "prompt": "Make color_name exhaustive for Color::{Red,Blue,Green}.\n", "completion": "pub fn color_name(c: Color) -> &'static str {\n    match c {\n        Color::Red => \"red\",\n        Color::Blue => \"blue\",\n        Color::Green => \"green\",\n    }\n}\n"}
+{"family": "f4_repair", "prompt": "Color::Green도 처리하는 color_name match를 작성해.\n", "completion": "pub fn color_name(c: Color) -> &'static str {\n    match c {\n        Color::Red => \"red\",\n        Color::Blue => \"blue\",\n        Color::Green => \"green\",\n    }\n}\n"}
 {"family": "f5_supervisor", "prompt": "Wire Verifier after Generator; keep only Correct samples; record order.\n", "completion": "pub fn one_round(gen: &mut dyn Generator, ver: &dyn Verifier, prompts: &[&str]) -> RoundResult {\n    let mut out = RoundResult::default();\n    for p in prompts {\n        out.order.push(\"generate\");\n        let c = gen.generate(p);\n        out.order.push(\"verify\");\n        if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); }\n    }\n    out\n}\n"}
 {"family": "f5_supervisor", "prompt": "Generator 다음에 Verifier가 오도록 한 라운드를 연결해.\n", "completion": "pub fn one_round(gen: &mut dyn Generator, ver: &dyn Verifier, prompts: &[&str]) -> RoundResult {\n    let mut out = RoundResult::default();\n    for p in prompts {\n        out.order.push(\"generate\");\n        let c = gen.generate(p);\n        out.order.push(\"verify\");\n        if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); }\n    }\n    out\n}\n"}
-{"family": "f4_repair", "prompt": "Fix compile error: missing HashMap import for count_keys.\n", "completion": "use std::collections::HashMap;\npub fn count_keys(pairs: &[(&str, i32)]) -> usize {\n    let mut m = HashMap::new();\n    for (k, v) in pairs { m.insert(*k, *v); }\n    m.len()\n}\n"}
-{"family": "f4_repair", "prompt": "cargo check stderr: cannot find type `HashMap` — repair count_keys.\n", "completion": "use std::collections::HashMap;\npub fn count_keys(pairs: &[(&str, i32)]) -> usize {\n    let mut m = HashMap::new();\n    for (k, v) in pairs { m.insert(*k, *v); }\n    m.len()\n}\n"}
+{"family": "f5_supervisor", "prompt": "one_round: for each prompt generate then verify; push Correct into kept; order tracks steps.\n", "completion": "pub fn one_round(gen: &mut dyn Generator, ver: &dyn Verifier, prompts: &[&str]) -> RoundResult {\n    let mut out = RoundResult::default();\n    for p in prompts {\n        out.order.push(\"generate\");\n        let c = gen.generate(p);\n        out.order.push(\"verify\");\n        if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); }\n    }\n    out\n}\n"}
+{"family": "f5_supervisor", "prompt": "Implement one self-improve round without training: Gen then Verify filter.\n", "completion": "pub fn one_round(gen: &mut dyn Generator, ver: &dyn Verifier, prompts: &[&str]) -> RoundResult {\n    let mut out = RoundResult::default();\n    for p in prompts {\n        out.order.push(\"generate\");\n        let c = gen.generate(p);\n        out.order.push(\"verify\");\n        if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); }\n    }\n    out\n}\n"}
+{"family": "f5_supervisor", "prompt": "Supervisor topology smoke: generate, verify, generate, verify for two prompts.\n", "completion": "pub fn one_round(gen: &mut dyn Generator, ver: &dyn Verifier, prompts: &[&str]) -> RoundResult {\n    let mut out = RoundResult::default();\n    for p in prompts {\n        out.order.push(\"generate\");\n        let c = gen.generate(p);\n        out.order.push(\"verify\");\n        if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); }\n    }\n    out\n}\n"}
