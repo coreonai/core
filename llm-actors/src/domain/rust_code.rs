@@ -236,6 +236,28 @@ impl Domain for RustCodeDomain {
         // hint. Real use of RustCodeDomain pairs it with a BPE tokenizer.
         " \n\t!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
     }
+
+    fn truncate_completion(&self, completion: &str) -> String {
+        let stops = ["\npub ", "\nfn ", "\nuse ", "\nstruct ", "\nimpl ", "\n\n", "<|fim_prefix|>"];
+        let mut cut = completion.len();
+        for s in stops {
+            if let Some(i) = completion.find(s) {
+                cut = cut.min(i);
+            }
+        }
+        completion[..cut].trim_end().to_string()
+    }
+
+    fn repair_prompt(&self, prompt: &str, completion: &str, v: &Verdict) -> Option<String> {
+        let reason = match v {
+            Verdict::Incorrect { reason } => reason.as_str(),
+            _ => return None,
+        };
+        // Hand the cargo stderr back; ask for a replacement slot only.
+        Some(format!(
+            "{prompt}{completion}\n// ERR:{reason}\n// Fix the expression for this prefix only:\n{prompt}"
+        ))
+    }
 }
 
 #[cfg(test)]

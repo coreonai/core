@@ -189,3 +189,8 @@ required-features = []
 name = "phase24_fmt_probe"
 path = "examples/phase24_fmt_probe.rs"
 required-features = []
+
+[[example]]
+name = "phase24_pekko_harvest"
+path = "examples/phase24_pekko_harvest.rs"
+required-features = []
