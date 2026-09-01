@@ -284,10 +284,55 @@ entered training, so there was nothing to generalise from. An earlier draft
 of this document said the model "learned WHEN to import"; the sharper reading
 is that the module choice is bound to the situation it was learned in.
 
-This is a fixable limitation rather than a ceiling: adding families that
-require `itertools`, `functools`, and so on would test whether "import what
-you use" can be learned as a rule. That hypothesis is **untested** — nothing
-here establishes it.
+### Run 4 — testing whether the rule is learnable (it was not)
+
+Two families were added whose natural solution reaches for a module other
+than `math`: a digit product (`functools.reduce` — the model writes
+`reduce(...)` unimported and scores 0/32) and twice the median of the
+divisors. **`itertools` was deliberately left out**, because the transfer
+probe's Collatz problems reach for it; training on it would have measured
+"does the same module carry over" instead of "was the rule learned".
+
+490 prompts over ten families, K=8, 2 rounds: pass@1 0.542 → 0.708 → 0.927.
+
+| | 8 families | **10 families** |
+|---|---|---|
+| target 3 / 5 / 8 | 1.000 / 1.000 / — | 1.000 / 1.000 / **1.000** |
+| target 9 (median) | — | 0.367 |
+| retention (0,1,2,4,6,7) | — | 0.917 |
+| transfer — emits a call | 11/12 | 10/12 |
+| transfer — correct | 4/12 | **4/12** |
+| imports where not needed | 0/160 | **0/192** |
+
+**The hypothesis is refuted.** With two distinct modules in training, the
+model still writes
+
+```
+(python print(sum(1 for i in itertools.takewhile(...))))
+  → NameError: name 'itertools' is not defined
+```
+
+on all four Collatz problems. Zero imports across the twelve transfer
+problems. Family 8 reached 1.000, so a *new* module is perfectly learnable —
+the ability simply does not extend to a module the harvest never contained.
+What is learned is "for gcd, import math; for reduce, import functools", not
+"this tool starts with an empty namespace".
+
+Two side findings from the same run:
+
+- **Family 6 (largest prime factor) sits at 0.500**, and the entire drop in
+  retention (1.000 → 0.917) is that one family. The earlier 8-family
+  retention figure omitted family 6, so it read 1.000; including it is the
+  honest number. The five others are all still 1.000.
+- **Family 9 only reached 0.367.** A median needs a sort and an even/odd
+  branch — an algorithm problem, not a contract violation, so it belongs with
+  Fibonacci among the failures this loop does not address.
+
+So the transfer decomposition holds exactly as stated: four Fibonacci
+failures the loop can never fix, and four Collatz failures it could fix in
+principle but does not, because module knowledge does not generalise across
+modules. Widening the harvest is not the lever here — going from one module
+to two changed nothing about the third.
 
 ### One regression worth watching
 

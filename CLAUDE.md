@@ -374,9 +374,17 @@ in-domain compression, HF wins on coverage).
     fixed for `math`. Of eight harvested families exactly one needed an
     import and it was always `math`, so the model learned that
     *instance*, not the rule (0/160 imports where unneeded, 0 in 12
-    transfer problems). **A loop generalises only as far as its harvest
-    varies**, and averaging failure classes into one "transfer" number
-    hides which of them the loop could ever have fixed.
+    transfer problems). Averaging failure classes into one "transfer"
+    number hides which of them the loop could ever have fixed.
+    **Widening the harvest does not fix this.** A follow-up added a
+    family needing `functools` (learned to 1.000) while deliberately
+    withholding `itertools`, so the transfer probe stayed honest. With
+    two distinct modules trained, the model still wrote
+    `itertools.takewhile` unimported on all four Collatz problems — 0
+    imports in 12 transfer problems, transfer correctness unchanged at
+    4/12. **A new module is learnable; the namespace rule is not.** The
+    unit the model acquires is "for gcd, import math", not "this tool
+    starts empty", and one→two modules changed nothing about the third.
 
 17. **Match the eval metric to where the training signal lives.** SFT
     self-improve **sharpens the sampling distribution**: it lifts
