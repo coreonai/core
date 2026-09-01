@@ -12,6 +12,7 @@
 //!     --out-dir scratch-7b-sft/p24_harvest_f0f5
 //! ```
 
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -84,6 +85,32 @@ struct Args {
     trainer_gpu: usize,
     #[arg(long, default_value_t = 0)]
     infer_gpu: usize,
+    /// Mask FIM/repo control tokens at decode (Phase 23 / fmt_probe lesson). Default on.
+    #[arg(long, default_value_t = true)]
+    suppress_special: bool,
+}
+
+fn flush_stdout() {
+    let _ = io::stdout().flush();
+}
+
+/// Collect non-EOS added_tokens ids from tokenizer.json (same as phase24_fmt_probe).
+fn control_token_ids(tokenizer_json: &PathBuf) -> anyhow::Result<Vec<u32>> {
+    let tj: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(tokenizer_json)?)?;
+    let ids = tj["added_tokens"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter(|t| {
+                    let c = t["content"].as_str().unwrap_or("");
+                    c != "<|endoftext|>"
+                })
+                .filter_map(|t| t["id"].as_u64().map(|x| x as u32))
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(ids)
 }
 
 fn pick_device(idx: usize) -> Device {
@@ -138,7 +165,7 @@ async fn main() -> Result<()> {
     )?);
 
     println!(
-        "[Phase24Harvest] init={} families={:?} n_prompts={} verify={} f0_scratch={} repair={} stop_char={:?} max_new={}",
+        "[Phase24Harvest] init={} families={:?} n_prompts={} verify={} f0_scratch={} repair={} stop_char={:?} max_new={} suppress_special={}",
         args.init_dir.display(),
         families.iter().map(|f| f.as_str()).collect::<Vec<_>>(),
         n_prompts,
@@ -146,11 +173,22 @@ async fn main() -> Result<()> {
         args.scratch_dir.display(),
         args.harvest_repair,
         stop_char,
-        args.max_new_tokens
+        args.max_new_tokens,
+        args.suppress_special
     );
+    flush_stdout();
 
-    let qwen_model =
+    let mut qwen_model =
         QwenModelActor::from_snapshot_dir(&args.init_dir, device.clone(), inference_dtype)?;
+    if args.suppress_special {
+        let ids = control_token_ids(&args.init_dir.join("tokenizer.json"))?;
+        println!(
+            "[Phase24Harvest] suppressing {} control tokens (EOS kept)",
+            ids.len()
+        );
+        flush_stdout();
+        qwen_model = qwen_model.with_suppressed_tokens(ids);
+    }
     let qwen_trainer = QwenTrainerActor::from_snapshot_dir(
         &args.init_dir,
         trainer_device,
@@ -269,6 +307,7 @@ async fn main() -> Result<()> {
                 fmt(rep.eval_correct_before),
                 fmt(rep.eval_correct_after),
             );
+            flush_stdout();
         },
     )
     .await?;
@@ -284,5 +323,6 @@ async fn main() -> Result<()> {
             rep.eval_total
         );
     }
+    flush_stdout();
     Ok(())
 }

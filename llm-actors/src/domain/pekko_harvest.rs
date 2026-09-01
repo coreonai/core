@@ -509,6 +509,9 @@ impl Domain for PekkoHarvestDomain {
 }
 
 /// Multi-line Rust slot truncation (F1–F5) with a fallback for F0-style expressions.
+///
+/// Also rejects FIM/path garbage (`<|repo_name|>`, `<|fim_…|>`, `/src/src/…` spam)
+/// so verify gets an empty completion instead of a poison `student.rs`.
 pub fn truncate_pekko_completion(completion: &str) -> String {
     let mut s = completion.trim_start();
     // Strip markdown fences if the model wraps the file.
@@ -520,12 +523,36 @@ pub fn truncate_pekko_completion(completion: &str) -> String {
         s = rest.trim_start_matches('\n');
     }
     let mut cut = s.len();
-    for stop in ["\n```", "<|fim_", "<|endof", "<|im_end|>"] {
+    for stop in [
+        "\n```",
+        "<|fim_",
+        "<|endof",
+        "<|im_end|>",
+        "<|repo_name|>",
+        "<|file_sep|>",
+        "<|fim_suffix|>",
+        "<|fim_middle|>",
+        "<|fim_prefix|>",
+    ] {
         if let Some(i) = s.find(stop) {
             cut = cut.min(i);
         }
     }
+    // Path-repetition spam (`/src/src/...`, `/main/main/...`): cut at first such line.
+    if let Some(i) = first_path_spam_offset(s) {
+        cut = cut.min(i);
+    }
     let body = s[..cut].trim_end();
+    if body.is_empty() || is_path_spam_body(body) {
+        return String::new();
+    }
+
+    // Module-task garbage: no Rust item keywords in the first ~80 chars → empty.
+    // (F0 short expressions are exempted below.)
+    let head = &body[..body.chars().take(80).map(|c| c.len_utf8()).sum::<usize>().min(body.len())];
+    let has_rust_kw = ["fn ", "impl ", "use ", "struct ", "pub ", "enum ", "const ", "type ", "#[", "mod "]
+        .iter()
+        .any(|k| head.contains(k));
 
     // Heuristic: module-shaped → keep multi-line; else F0 expression stops.
     let module_shaped = body.lines().next().is_some_and(|l| {
@@ -539,10 +566,18 @@ pub fn truncate_pekko_completion(completion: &str) -> String {
             || t.starts_with("const ")
             || t.starts_with("type ")
             || t.starts_with("enum ")
+            || t.starts_with("mod ")
     });
     if module_shaped {
         return body.to_string();
     }
+
+    // Short F0-ish expression: must look like code (ops/calls/literals), not prose.
+    if !has_rust_kw && !looks_like_rust_expr(body) {
+        // Module-task garbage / FIM residue without Rust items — fail clean.
+        return String::new();
+    }
+
     // F0-ish: cut at blank line / next item so a runaway generation doesn't poison cargo.
     let stops = [
         "\npub ",
@@ -552,6 +587,7 @@ pub fn truncate_pekko_completion(completion: &str) -> String {
         "\nimpl ",
         "\n\n",
         "<|fim_prefix|>",
+        "<|repo_name|>",
     ];
     let mut c = body.len();
     for st in stops {
@@ -560,6 +596,72 @@ pub fn truncate_pekko_completion(completion: &str) -> String {
         }
     }
     body[..c].trim_end().to_string()
+}
+
+/// Offset of the first line that looks like path-repetition spam, if any.
+fn first_path_spam_offset(s: &str) -> Option<usize> {
+    let mut offset = 0usize;
+    for line in s.split_inclusive('\n') {
+        if is_path_spam_line(line.trim_end_matches('\n')) {
+            return Some(offset);
+        }
+        offset += line.len();
+    }
+    None
+}
+
+fn is_path_spam_line(line: &str) -> bool {
+    let t = line.trim();
+    if t.is_empty() {
+        return false;
+    }
+    // Classic crash mode: `/src/src/src/...` or `/main/main/...`
+    if t.matches("/src/").count() >= 2 {
+        return true;
+    }
+    if t.starts_with('/') && t.matches('/').count() >= 3 && !t.contains(' ') {
+        let lower = t.to_ascii_lowercase();
+        if lower.contains("/src") || lower.contains("/main") || lower.contains("student") {
+            return true;
+        }
+    }
+    false
+}
+
+fn is_path_spam_body(body: &str) -> bool {
+    let lines: Vec<&str> = body.lines().filter(|l| !l.trim().is_empty()).collect();
+    if lines.is_empty() {
+        return true;
+    }
+    let spam = lines.iter().filter(|l| is_path_spam_line(l)).count();
+    spam * 2 >= lines.len() || body.matches("/src/").count() >= 3
+}
+
+
+fn looks_like_rust_expr(body: &str) -> bool {
+    let t = body.trim();
+    if t.is_empty() || t.len() > 120 || t.lines().count() > 2 {
+        return false;
+    }
+    if t.starts_with('/') || t.contains("/src/") || t.contains("<|") {
+        return false;
+    }
+    if t == "true" || t == "false" || t == "()" || t == "None" {
+        return true;
+    }
+    t.contains('+')
+        || t.contains('*')
+        || t.contains('(')
+        || t.contains('[')
+        || t.contains('.')
+        || t.contains("::")
+        || t.contains("=>")
+        || t.contains('"')
+        || t.contains('\'')
+        || t.chars().any(|c| c.is_ascii_digit())
+        || t.contains(" / ")
+        || t.contains(" - ")
+        || (t.contains('-') && !t.starts_with('-'))
 }
 
 fn ensure_empty_workspace_table(cargo_toml: &Path) -> io::Result<()> {
@@ -627,6 +729,35 @@ mod tests {
         let raw = "2 + 3\n\nfn other() {}";
         let t = truncate_pekko_completion(raw);
         assert_eq!(t, "2 + 3");
+    }
+
+    #[test]
+    fn truncate_cuts_repo_name_and_fim() {
+        let raw = "use super::Tool;\n<|repo_name|>foo\nmore";
+        let t = truncate_pekko_completion(raw);
+        assert!(t.contains("use super::Tool"));
+        assert!(!t.contains("repo_name"));
+        let raw2 = "impl Foo {}\n<|fim_prefix|>zzz";
+        let t2 = truncate_pekko_completion(raw2);
+        assert!(t2.starts_with("impl Foo"));
+        assert!(!t2.contains("fim_"));
+    }
+
+    #[test]
+    fn truncate_rejects_path_spam() {
+        let raw = "/src/src/src/student/src/src\n#[derive(Debu";
+        let t = truncate_pekko_completion(raw);
+        assert_eq!(t, "");
+        let raw2 = "/main/main/main/src/src\nfn";
+        let t2 = truncate_pekko_completion(raw2);
+        assert_eq!(t2, "");
+    }
+
+    #[test]
+    fn truncate_module_without_keywords_is_empty() {
+        let raw = "hello world this is not rust code at all and goes on";
+        let t = truncate_pekko_completion(raw);
+        assert_eq!(t, "");
     }
 
     #[test]
