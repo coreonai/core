@@ -3,7 +3,7 @@
 
 Serves the dashboard (SITE/index.html, a symlink to docs/dashboard.html) and a
 read-only /status.json snapshot the page polls for live state: GPU memory/util,
-active phase-22 runs, and git head/sync. Stdlib only; bound to localhost and
+active phase-22/23/24 runs, and git head/sync. Stdlib only; bound to localhost and
 exposed via the dedicated cloudflared tunnel (systemd: llm-dashboard.service).
 """
 import http.server
@@ -38,31 +38,32 @@ def status():
     busy = sum(1 for g in gpus if g["mem"] > 2000)
 
     runs, seen = [], set()
-    for line in sh(["pgrep", "-af", "phase22_"]).splitlines():
-        if "pgrep" in line or "dashboard_server" in line:
-            continue
-        m = re.search(r"(phase22_[a-z0-9_]+)", line)
-        if not m:
-            continue
-        name = m.group(1)
-        bits = []
-        s = re.search(r"--seed (\d+)", line)
-        if s:
-            bits.append("seed " + s.group(1))
-        r = re.search(r"--rl-steps (\d+)", line)
-        if r:
-            bits.append("rl-steps " + r.group(1))
-        rr = re.search(r"--rounds (\d+)", line)
-        if rr:
-            bits.append("rounds " + rr.group(1))
-        po = re.search(r"--pg-positive-only", line)
-        if po:
-            bits.append("posonly")
-        key = (name, tuple(bits))
-        if key in seen:
-            continue
-        seen.add(key)
-        runs.append({"name": name, "desc": " · ".join(bits)})
+    for pat in ("phase22_", "phase23_", "phase24_"):
+        for line in sh(["pgrep", "-af", pat]).splitlines():
+            if "pgrep" in line or "dashboard_server" in line:
+                continue
+            m = re.search(r"(phase2[234]_[a-z0-9_]+)", line)
+            if not m:
+                continue
+            name = m.group(1)
+            bits = []
+            s = re.search(r"--seed (\d+)", line)
+            if s:
+                bits.append("seed " + s.group(1))
+            r = re.search(r"--rl-steps (\d+)", line)
+            if r:
+                bits.append("rl-steps " + r.group(1))
+            rr = re.search(r"--rounds (\d+)", line)
+            if rr:
+                bits.append("rounds " + rr.group(1))
+            po = re.search(r"--pg-positive-only", line)
+            if po:
+                bits.append("posonly")
+            key = (name, tuple(bits))
+            if key in seen:
+                continue
+            seen.add(key)
+            runs.append({"name": name, "desc": " · ".join(bits)})
 
     head = sh(["git", "rev-parse", "--short", "HEAD"])
     sb = sh(["git", "status", "-sb"])

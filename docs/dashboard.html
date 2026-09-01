@@ -172,6 +172,14 @@
   .foot code{font-family:var(--mono);color:var(--muted);background:var(--surface-2);padding:1px 6px;border-radius:4px}
   .foot .cmd{display:block;margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--muted);
     background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow-x:auto;white-space:pre}
+  .p24-tbl{width:100%;border-collapse:collapse;font-size:13px;background:var(--surface);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:4px 0 12px}
+  .p24-tbl th,.p24-tbl td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);
+    font-family:var(--mono);font-size:12px}
+  .p24-tbl th{color:var(--faint);font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;
+    background:var(--surface-2)}
+  .p24-tbl tr:last-child td{border-bottom:0}
+  .p24-tbl .sans{font-family:var(--sans);color:var(--muted);font-size:12.5px}
   @media (max-width:560px){.ph{grid-template-columns:52px 1fr;gap:10px}}
 </style>
 
@@ -183,6 +191,7 @@
       <span class="chip" id="c-runs"><span class="dot idle" id="d-runs"></span>no active runs</span>
       <span class="chip" id="c-gpu">8&times;A100-40GB</span>
       <span class="chip" id="c-sync">synced <span class="mono" id="t-head">&mdash;</span></span>
+      <a class="chip" href="/phase24-progress.html" style="text-decoration:none;color:var(--accent)" title="Phase 24 Pekko harvest long board">phase 24 &rarr;</a>
       <a class="chip" href="/benchmarking.html" style="text-decoration:none;color:var(--accent)" title="LiveCodeBench + BigCodeBench + RL variance">benchmarking &rarr;</a>
       <a class="chip" href="/benchmarking-explained.html" style="text-decoration:none;color:var(--accent)" title="벤치마킹 결과 쉬운 설명 (한국어)">쉬운 설명 &rarr;</a>
       <button class="theme" id="tg" type="button">theme</button>
@@ -306,9 +315,50 @@
     <p class="memnote"><b>Memory profile (bf16):</b> 7B inference <code>15.1 GB</code>; LoRA training <code>15.2 GB</code> after the candle patch (was OOM &gt;60 GB); working config <code>--trainer-gpu 1 + batch_size=2</code> &rarr; trainer 27.8 GB, model 15.1 GB. Candle fix upstreamed as <a href="https://github.com/huggingface/candle/pull/3773">huggingface/candle#3773</a> &mdash; drop the vendored <code>[patch.crates-io]</code> once it merges.</p>
   </section>
 
+  <!-- PHASE 24 -->
+  <section>
+    <div class="h-row"><h2>Phase 24</h2><span class="count">Pekko/MSA harvest &middot; cargo-graded &middot; not LCB</span></div>
+    <div class="grid">
+      <div class="card info">
+        <div class="card-top"><span class="card-cat">Harvest &middot; PekkoHarvestDomain</span><span class="pill info">live track</span></div>
+        <h3>Pekko/MSA cargo-graded harvest (not LCB)</h3>
+        <div class="metric">F0&ndash;F5 <small>body slots</small></div>
+        <p>Domain <code class="mono">PekkoHarvestDomain</code>. F0&ndash;F5 body slots; F3 per-arm; F5 split helpers. Gen &rarr; cargo verify &rarr; repair &rarr; SFT.</p>
+        <div class="note">Best fmt init <code class="mono">p24_fmt_sft_v8_dir</code>. Latest merge <code class="mono">p24_harvest_f0f5_v8c/r0_merged.r1.safetensors</code>. Commit <code class="mono">14109a7</code>.</div>
+      </div>
+      <div class="card warn">
+        <div class="card-top"><span class="card-cat">Eval &middot; 12-prompt board</span><span class="pill warn">plateau</span></div>
+        <h3>F5 still weak; eval stuck at 2/12</h3>
+        <div class="metric">2/12 <small>eval plateau</small></div>
+        <p>Harvest held ~35/106 after gentle train (v8c). F5 slot remains the weak arm; eval did not collapse, but it also did not move.</p>
+        <div class="note"><a href="/phase24-progress.html">Long board: /phase24-progress.html</a></div>
+      </div>
+    </div>
+    <table class="p24-tbl">
+      <thead>
+        <tr><th>Run</th><th>Init</th><th>Harvest</th><th>Eval</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>F0 smoke</td><td>v3</td><td>7/20</td><td>2&rarr;3</td><td class="sans">expression slots; first green loop</td></tr>
+        <tr><td>F0&ndash;F5 full-file</td><td>v5</td><td>0/24</td><td>&mdash;</td><td class="sans">full-file harvest failed</td></tr>
+        <tr><td>body-slot</td><td>v6b</td><td>10/82</td><td>2&rarr;0</td><td class="sans">todo! fills; train wiped eval</td></tr>
+        <tr><td>F3/F5 boost</td><td>v7 r0</td><td>12/82 then 0</td><td>2&rarr;0</td><td class="sans">more paraphrases did not lock F3/F5</td></tr>
+        <tr><td>short slots + gentle</td><td>v8 r0</td><td>37/106</td><td>3&rarr;1</td><td class="sans">F3 per-arm; F5 helpers</td></tr>
+        <tr><td></td><td>v8 r1</td><td>34/106</td><td>1&rarr;2</td><td class="sans"></td></tr>
+        <tr><td>continue r1 merge</td><td>v8c r0</td><td>35/106</td><td>2&rarr;2</td><td class="sans">from r1 merge</td></tr>
+        <tr><td></td><td>v8c r1</td><td>36/106</td><td>2&rarr;2</td><td class="sans">eval flat; harvest held</td></tr>
+      </tbody>
+    </table>
+    <div class="infra">
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">Best fmt init</div><div class="sub"><code class="mono">scratch-7b-sft/p24_fmt_sft_v8_dir</code></div></div><span class="hash">14109a7</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">Latest harvest merge</div><div class="sub"><code class="mono">scratch-7b-sft/p24_harvest_f0f5_v8c/r0_merged.r1.safetensors</code></div></div><span class="hash">v8c r1</span></div>
+    </div>
+  </section>
+  <!-- /PHASE 24 -->
+
   <!-- PHASE LINEAGE -->
   <section>
-    <div class="h-row"><h2>Phase lineage</h2><span class="count">11 infra + 11 measurement phases &middot; 2026-05 &rarr; 2026-08</span></div>
+    <div class="h-row"><h2>Phase lineage</h2><span class="count">P1&ndash;P24 &middot; 2026-05 &rarr; 2026-09</span></div>
     <div class="rail">
       <div class="ph"><span class="pn">P1&ndash;4</span><span class="pd"><b>Foundation.</b> 12-axis nanoGPT + KoWiki; 6-actor self-improve loop; evolutionary NAS <b>independently rediscovers the Llama recipe</b>; tools + agent loop + EWC + LoRA.</span></div>
       <div class="ph"><span class="pn">P5&ndash;9</span><span class="pd"><b>Measurement discipline.</b> Ensembles &amp; specialists (honest negatives); Shape-C LogitCritic AUC 0.727; external Qwen validation; 1-round LoRA 0.40&rarr;0.73.</span></div>
@@ -316,6 +366,8 @@
       <div class="ph"><span class="pn">P17&ndash;20</span><span class="pd"><b>First algorithmic wins.</b> Multi-round SFT + inference pass@k saturation curve; r=6 reaches 0.581, seed record 0.645 (3&times; base).</span></div>
       <div class="ph"><span class="pn">P21</span><span class="pd"><b>Pekko-native bridge.</b> Candle-native Qwen2 inference + LoRA training + REINFORCE, 10 stages &mdash; no Python sidecar.</span></div>
       <div class="ph"><span class="pn">P22</span><span class="pd"><b>Real benchmarks + 7B.</b> HumanEval/MBPP as Rust domains; 0.5B&rarr;7B migration; <b>C3&ndash;C5 corrections</b> re-frame the SFT/RL findings above.</span></div>
+      <div class="ph"><span class="pn">P23</span><span class="pd"><b>Tool-use SI.</b> Narrow integer/tool loop; LCB POST ~6.3% &mdash; not a coding generalist.</span></div>
+      <div class="ph"><span class="pn">P24</span><span class="pd"><b>Pekko harvest specialization.</b> Cargo-graded F0&ndash;F5 body slots on <code class="mono">PekkoHarvestDomain</code> (not LCB). Best harvest 37/106; eval plateau 2/12. <a href="/phase24-progress.html">long board &rarr;</a></span></div>
     </div>
   </section>
 
@@ -336,6 +388,10 @@
         <p>The docs carry layered retraction notes. A single clean writeup, everything scored with truncation on at pass@1, would make the corrected story canonical.</p>
       </div>
       <div class="step">
+        <div class="st-top"><span class="prio p1">now</span><h3>P24 eval plateau / F5 slot</h3></div>
+        <p>Harvest held ~35/106 after gentle train (v8c r0 35/106, r1 36/106); eval stuck 2/12. F5 still weak. <a href="/phase24-progress.html" style="color:var(--accent)">Phase 24 board &rarr;</a></p>
+      </div>
+      <div class="step">
         <div class="st-top"><span class="prio p2">watch</span><h3>candle #3773 merge</h3></div>
         <p>When the upstream frozen-operand-grad fix merges, drop the vendored <code style="font-family:var(--mono)">[patch.crates-io]</code> + <code style="font-family:var(--mono)">vendor/</code> dir and depend on the release.</p>
       </div>
@@ -348,7 +404,7 @@
 
   <div class="foot">
     Generated from the workLLM repo (<code>docs/phase22-7b-results.md</code>, <code>docs/phase22-c4-c5-rl-vs-sft.md</code>) &middot; a point-in-time snapshot for review &amp; planning.
-    <span class="cmd">deploy to llm.coreon.build:  scp docs/dashboard.html &lt;host&gt;:/var/www/llm.coreon.build/index.html</span>
+    <span class="cmd">live site: scripts/llm_dashboard_server.py serves scratch-7b-sft/llm_site (index.html &rarr; docs/dashboard.html) on :8137 &middot; cloudflared llm-dashboard.service &middot; https://llm.coreon.build</span>
   </div>
 </div>
 

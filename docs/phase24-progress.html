@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Phase 24 Pekko harvest — progress</title>
+<style>
+  :root { --bg:#0f1419; --card:#1a2332; --ink:#e7ecf3; --muted:#8b9bb4; --line:#2a3648; --ok:#3dd68c; --warn:#f5c542; --bad:#ff6b6b; --accent:#6ea8fe; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: ui-sans-serif, system-ui, sans-serif; background:var(--bg); color:var(--ink); line-height:1.45; }
+  header { padding:28px 32px 12px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0 0 6px; font-size:22px; font-weight:650; }
+  header p { margin:0; color:var(--muted); font-size:14px; }
+  main { max-width:980px; margin:0 auto; padding:24px 20px 64px; }
+  h2 { font-size:16px; margin:28px 0 12px; color:var(--accent); }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .card .k { font-size:12px; color:var(--muted); }
+  .card .v { font-size:22px; font-weight:650; margin-top:4px; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  th, td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:12px; }
+  tr:last-child td { border-bottom:none; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12.5px; }
+  ul { margin:0; padding-left:18px; color:var(--ink); }
+  li { margin:6px 0; }
+  .foot { margin-top:28px; color:var(--muted); font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Phase 24 — Pekko/MSA harvest</h1>
+  <p>Long board at <a href="https://llm.coreon.build/phase24-progress.html" style="color:var(--accent)">https://llm.coreon.build/phase24-progress.html</a> · dashboard summary on <a href="/" style="color:var(--accent)">llm.coreon.build</a></p>
+  <p>Updated 2026-09-02 07:32 KST · dgxa100 · workLLM · v8c continue from r1 merge <b>finished</b></p>
+</header>
+<main>
+  <div class="cards">
+    <div class="card"><div class="k">Best harvest</div><div class="v ok">37/106</div></div>
+    <div class="card"><div class="k">Best eval (after)</div><div class="v">2/12</div></div>
+    <div class="card"><div class="k">Loop</div><div class="v">Gen → cargo → repair → SFT</div></div>
+    <div class="card"><div class="k">Families</div><div class="v">F0–F5</div></div>
+  </div>
+
+  <h2>What this is</h2>
+  <ul>
+    <li>Specialize Qwen2.5-Coder-7B on cargo-graded Pekko/MSA slots (not LiveCodeBench).</li>
+    <li>Verifier writes a slot into a scratch crate and runs <span class="mono">cargo test --features student</span> (F0: <span class="mono">cargo run</span>).</li>
+    <li>Host: Tailscale <span class="mono">dgxa100</span> (<span class="mono">100.75.101.50</span>) as <span class="mono">paulyu</span>.</li>
+  </ul>
+
+  <h2>Harvest scoreboard</h2>
+  <table>
+    <tr><th>Run</th><th>Init</th><th>Harvest</th><th>Eval /12</th><th>Note</th></tr>
+    <tr><td>F0 smoke</td><td class="mono">v3</td><td>7/20</td><td>2 → 3</td><td>expression slots only; first green loop</td></tr>
+    <tr><td>F0–F5 full file</td><td class="mono">v5</td><td class="bad">0/24</td><td>1 → skip</td><td>FIM/path then <span class="mono">use::{Tool}</span> garbage</td></tr>
+    <tr><td>body-slot</td><td class="mono">v6b</td><td>10/82</td><td class="bad">2 → 0</td><td><span class="mono">todo!</span> fills; train wiped eval</td></tr>
+    <tr><td>F3/F5 SFT boost</td><td class="mono">v7</td><td>r0 12/82; r1–r2 0</td><td class="bad">2 → 0 then 0</td><td>more paraphrases did not lock F3/F5</td></tr>
+    <tr><td>short slots + gentle train</td><td class="mono">v8</td><td class="ok">r0 37/106; r1 34/106</td><td>3→1 then 1→2</td><td>F3 per-arm; F5 helpers; lr 5e-5 / 30 steps</td></tr>
+    <tr><td>continue r1 merge</td><td class="mono">v8 r1 → v8c</td><td class="ok">r0 35/106; r1 36/106</td><td>2→2 then 2→2</td><td>eval flat (no collapse); harvest held</td></tr>
+  </table>
+
+  <h2>Format-SFT checkpoints</h2>
+  <table>
+    <tr><th>Ckpt</th><th>From</th><th>What</th><th>Probe</th></tr>
+    <tr><td class="mono">p24_fmt_sft_v3</td><td>coder</td><td>F0 expression-only seeds (324)</td><td>F0 harvestable; F1–F5 FIM spam</td></tr>
+    <tr><td class="mono">v5</td><td>v3</td><td>full <span class="mono">student.rs</span> (112 pairs)</td><td>train exact 0%; drops <span class="mono">super</span></td></tr>
+    <tr><td class="mono">v6 / v6b</td><td>v3</td><td>body-slot seeds</td><td>holdout ~50% exact on tiny set</td></tr>
+    <tr><td class="mono">v7 / v7b</td><td>v6b</td><td>F3/F5-heavy mix</td><td>F3/F5 exact still 0/9</td></tr>
+    <tr><td class="mono">v8</td><td>v6b</td><td>short F3/F5 + F0/F2 retention, 200 steps</td><td>F3 Ping/Get/Inc train 3/5; F5 still weak</td></tr>
+  </table>
+
+  <h2>Infra lessons</h2>
+  <ul>
+    <li>Nested cargo scratch needs empty <span class="mono">[workspace]</span> or verify copies race/fail.</li>
+    <li>Domain needs <span class="mono">n_prompts</span> for GenerateSystematic.</li>
+    <li>Format seeds must match verifier contract (slot vs <span class="mono">); }</span> suffix).</li>
+    <li>Default probe stops (<span class="mono">\npub </span>, <span class="mono">\nfn </span>, <span class="mono">\nuse </span>) shred multi-line modules.</li>
+    <li>Unique <span class="mono">_verify_*</span> roots — shared dirs were raced by concurrent smokes.</li>
+    <li>Hard train after a small harvest collapses eval (v6b/v7); gentle 30 steps / 5e-5 kept r1 alive.</li>
+  </ul>
+
+  <h2>Code commits (local master)</h2>
+  <table>
+    <tr><th>SHA</th><th>What</th></tr>
+    <tr><td class="mono">ec8994f</td><td>harvest example Gen→verify→repair→SFT</td></tr>
+    <tr><td class="mono">579ecd1</td><td>RustCodeDomain n_prompts</td></tr>
+    <tr><td class="mono">1209f33</td><td>F0 seeds aligned to slots</td></tr>
+    <tr><td class="mono">b3dfe86</td><td>detach scratch from parent workspace</td></tr>
+    <tr><td class="mono">8ffa07a</td><td>PekkoHarvestDomain F0–F5</td></tr>
+    <tr><td class="mono">bc1f7ec</td><td>FIM suppress + truncate harden</td></tr>
+    <tr><td class="mono">185b03f</td><td>F1–F5 as todo! body slots</td></tr>
+    <tr><td class="mono">885e4b6 / 80f078b</td><td>v7 / v7b F3/F5 seed mixes</td></tr>
+    <tr><td class="mono">14109a7</td><td>F3 per-arm + F5 split helpers (v8)</td></tr>
+  </table>
+
+  <h2>Paths</h2>
+  <ul>
+    <li>Repo: <span class="mono">/raid/users/paul/workLLM</span></li>
+    <li>Plan: <span class="mono">docs/phase24-pekko-agent-harvest.md</span></li>
+    <li>Domain: <span class="mono">llm-actors/src/domain/pekko_harvest.rs</span></li>
+    <li>Best fmt init: <span class="mono">scratch-7b-sft/p24_fmt_sft_v8_dir</span></li>
+    <li>v8 harvest merges: <span class="mono">scratch-7b-sft/p24_harvest_f0f5_v8/r0_merged.r{0,1}.safetensors</span></li>
+    <li>Latest harvest merge: <span class="mono">scratch-7b-sft/p24_harvest_f0f5_v8c/r0_merged.r1.safetensors</span></li>
+  </ul>
+
+  <p class="foot">This page is the long board, served at https://llm.coreon.build/phase24-progress.html (symlink from llm_site). The dashboard at / has the Phase 24 summary. v8c landed: harvest held ~35–36/106, eval stayed 2/12 both rounds.</p>
+</main>
+</body>
+</html>
