@@ -3,7 +3,7 @@ use super::{Domain, Verdict};
 pub struct OkOnlyDomain;
 impl Domain for OkOnlyDomain {
     fn sample_prompt(&self) -> String { "say ok".into() }
-    fn verify(&self, _prompt: &str, _completion: &str) -> Verdict {
+    fn verify(&self, _prompt: &str, completion: &str) -> Verdict {
         todo!("Correct iff completion == ok")
     }
     fn charset(&self) -> &str { "ok" }
@@ -19,7 +19,7 @@ impl Domain for DigitCharsetDomain {
 pub struct NonEmptyDomain;
 impl Domain for NonEmptyDomain {
     fn sample_prompt(&self) -> String { "anything".into() }
-    fn verify(&self, _: &str, _completion: &str) -> Verdict {
+    fn verify(&self, _: &str, completion: &str) -> Verdict {
         todo!("reject empty")
     }
     fn charset(&self) -> &str { "abcdefghijklmnopqrstuvwxyz" }

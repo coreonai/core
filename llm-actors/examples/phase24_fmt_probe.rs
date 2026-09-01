@@ -18,6 +18,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, Context, Result};
 use candle_core::{DType, Device};
 use clap::Parser;
+use llm_actors::domain::pekko_harvest::truncate_pekko_completion;
 use llm_actors::{ModelMessage, QwenModelActor};
 use nanogpt_rs::{generate::GenerateConfig, Tokenizer as NgptTokenizer};
 use pekko_actor::ActorSystem;
@@ -43,16 +44,16 @@ struct Args {
     #[arg(long, default_value_t = 8)]
     show: usize,
     /// Stop strings matched against newly generated text only (post-truncate).
+    /// Module/body-safe stops (no default `\npub `/`\nfn ` — those kill F0 AND chop body slots).
     #[arg(long, num_args = 1.., default_values_t = vec![
-        "\npub ".to_string(),
-        "\nfn ".to_string(),
-        "\nuse ".to_string(),
-        "\nstruct ".to_string(),
-        "\nimpl ".to_string(),
-        "\n#".to_string(),
-        "\n\n".to_string(),
+        "\n```".to_string(),
         "<|fim_prefix|>".to_string(),
+        "<|fim_suffix|>".to_string(),
+        "<|fim_middle|>".to_string(),
         "<|repo_name|>".to_string(),
+        "<|file_sep|>".to_string(),
+        "<|endoftext|>".to_string(),
+        "<|im_end|>".to_string(),
     ])]
     stop: Vec<String>,
     /// Disable post-truncate (ablation).
@@ -256,7 +257,10 @@ async fn main() -> Result<()> {
                     .collect()
             })
             .unwrap_or_default();
-        println!("[Phase24Probe] suppressing {} control tokens (EOS kept)", ids.len());
+        println!(
+            "[Phase24Probe] suppressing {} control tokens (EOS kept)",
+            ids.len()
+        );
         model = model.with_suppressed_tokens(ids);
     }
     let system = ActorSystem::new("phase24-fmt-probe");
@@ -297,7 +301,9 @@ async fn main() -> Result<()> {
             let got = if args.no_truncate {
                 raw.clone()
             } else {
-                truncate_completion(&raw, &args.stop)
+                // Stop strings first, then domain body/F0 truncate (salvages one-liners).
+                let stepped = truncate_completion(&raw, &args.stop);
+                truncate_pekko_completion(&stepped)
             };
             score.add(&got, want);
             if shown < args.show {

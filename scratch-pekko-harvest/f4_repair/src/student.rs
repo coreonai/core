@@ -1,8 +1,8 @@
-pub fn count_keys(_pairs: &[(&str, i32)]) -> usize {
+pub fn count_keys(pairs: &[(&str, i32)]) -> usize {
     todo!("HashMap insert + len — remember the import")
 }
 
-pub fn greet(_name: &str) -> String {
+pub fn greet(name: &str) -> String {
     todo!("return hi <name>")
 }
 

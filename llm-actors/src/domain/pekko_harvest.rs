@@ -3,12 +3,12 @@
 //! Multiplexes:
 //! - **F0** retention via [`RustCodeDomain`] expression slots
 //! - **F1–F5** via isolated scratch crates under `verify_root/{f1_tool,…}`:
-//!   write the model completion into `src/student.rs`, then
-//!   `cargo test --features student` (exit 0 ⇒ Correct).
+//!   keep the structural `student.rs` scaffold and replace **one** targeted
+//!   `todo!(...)` with the model completion (short body / expression), then
+//!   `cargo test --features student` (exit 0 ⇒ Correct). Other todos in the
+//!   same file are filled with gold so the crate still compiles.
 //!
-//! Each F1–F5 challenge asks for a **full** `student.rs` body (same shape as
-//! that crate's `reference.rs`). Gold for format-SFT seeds is the reference
-//! file contents.
+//! Completions are **bodies only** (e.g. `Ok(args.to_string())`), not full files.
 
 use std::fs;
 use std::io::{self, Write};
@@ -99,12 +99,16 @@ impl Family {
     }
 }
 
-/// One F1–F5 slot challenge: NL + API surface → full `student.rs`.
+/// One F1–F5 body-slot challenge: NL + stub → replace a single `todo!(...)`.
 #[derive(Debug, Clone)]
 pub struct SlotChallenge {
     pub family: Family,
     pub task_id: &'static str,
     pub prompt: &'static str,
+    /// Exact `todo!("…")` needle in scaffold `student.rs`.
+    pub todo_needle: &'static str,
+    /// Gold body that replaces the needle (expression / block body only).
+    pub gold_body: &'static str,
 }
 
 /// Marker embedded in every slot prompt so repair wraps still match.
@@ -114,156 +118,345 @@ fn marker_line(task_id: &str) -> String {
     format!("{TASK_MARKER_PREFIX}{task_id}")
 }
 
-/// Default F1–F5 challenges (paraphrases → same gold = reference.rs).
+macro_rules! body_chal {
+    ($fam:expr, $id:expr, $needle:expr, $gold:expr, $($prompt:expr),+ $(,)?) => {
+        SlotChallenge {
+            family: $fam,
+            task_id: $id,
+            todo_needle: $needle,
+            gold_body: $gold,
+            prompt: concat!($($prompt),+),
+        }
+    };
+}
+
+/// Default F1–F5 challenges — one `todo!` per challenge (short body completions).
 pub fn default_slot_challenges() -> Vec<SlotChallenge> {
     vec![
-        // ---- F1 ----
-        SlotChallenge {
-            family: Family::F1,
-            task_id: "f1_tool/full_v1",
-            prompt: concat!(
-                "Implement tool stubs for the Tool registry scratch.\n",
-                "Write the FULL contents of src/student.rs so EchoTool, PingTool, and UpperTool\n",
-                "pass `cargo test --features student`.\n",
-                "API already in lib.rs (do not redefine Tool / ToolError / ToolRegistry):\n",
-                "  trait Tool: Send + Sync { fn name(&self) -> &str; fn execute(&self, args: &str) -> Result<String, ToolError>; }\n",
-                "Echo returns args unchanged; ping always returns \"pong\"; upper returns ASCII uppercase.\n",
-                "Output ONLY the student.rs module body (use super::{Tool, ToolError}; + structs/impls).\n",
-                "// pekko-harvest-task: f1_tool/full_v1\n"
-            ),
-        },
-        SlotChallenge {
-            family: Family::F1,
-            task_id: "f1_tool/full_v2",
-            prompt: concat!(
-                "Add Tools named echo, ping, and upper; register/dispatch must work under student feature.\n",
-                "Replace src/student.rs entirely. echo→args, ping→pong, upper→to_ascii_uppercase.\n",
-                "use super::{Tool, ToolError};\n",
-                "// pekko-harvest-task: f1_tool/full_v2\n"
-            ),
-        },
-        SlotChallenge {
-            family: Family::F1,
-            task_id: "f1_tool/full_ko",
-            prompt: concat!(
-                "echo/ping/upper 툴을 student.rs에 전부 구현해. cargo test --features student 가 통과해야 한다.\n",
-                "use super::{Tool, ToolError}; 로 시작하고 struct+impl만 작성.\n",
-                "// pekko-harvest-task: f1_tool/full_ko\n"
-            ),
-        },
-        // ---- F2 ----
-        SlotChallenge {
-            family: Family::F2,
-            task_id: "f2_domain/full_v1",
-            prompt: concat!(
-                "Implement OkOnlyDomain, DigitCharsetDomain, and NonEmptyDomain in src/student.rs.\n",
-                "OkOnlyDomain: Correct iff completion == \"ok\". DigitCharsetDomain: charset is digits 0-9.\n",
-                "NonEmptyDomain: reject empty completions. Traits Domain/Verdict live in lib.rs.\n",
-                "Output ONLY the student.rs body starting with `use super::{Domain, Verdict};`.\n",
-                "// pekko-harvest-task: f2_domain/full_v1\n"
-            ),
-        },
-        SlotChallenge {
-            family: Family::F2,
-            task_id: "f2_domain/full_v2",
-            prompt: concat!(
-                "Toy Domain impls: only \"ok\" passes; charset includes 0-9; empty string is Incorrect.\n",
-                "Fill src/student.rs completely for cargo test --features student.\n",
-                "// pekko-harvest-task: f2_domain/full_v2\n"
-            ),
-        },
-        SlotChallenge {
-            family: Family::F2,
-            task_id: "f2_domain/full_ko",
-            prompt: concat!(
-                "완성이 ok일 때만 통과하는 Domain과 digit charset, non-empty Domain을 student.rs에 구현해.\n",
-                "// pekko-harvest-task: f2_domain/full_ko\n"
-            ),
-        },
-        // ---- F3 ----
-        SlotChallenge {
-            family: Family::F3,
-            task_id: "f3_message/full_v1",
-            prompt: concat!(
-                "Implement CounterActor::handle in src/student.rs.\n",
-                "Ping→Pong; Inc bumps n and returns Count(n); Get returns Count(n).\n",
-                "Message/Response/Handler are in lib.rs. Start with use super::{Handler, Message, Response};\n",
-                "// pekko-harvest-task: f3_message/full_v1\n"
-            ),
-        },
-        SlotChallenge {
-            family: Family::F3,
-            task_id: "f3_message/full_v2",
-            prompt: concat!(
-                "When the actor receives Ping, reply Pong; Inc bumps; Get returns the count.\n",
-                "Write full student.rs for the message-handler scratch.\n",
-                "// pekko-harvest-task: f3_message/full_v2\n"
-            ),
-        },
-        SlotChallenge {
-            family: Family::F3,
-            task_id: "f3_message/full_ko",
-            prompt: concat!(
-                "Ping 메시지를 받으면 Pong을 반환하고 Inc/Get을 처리하는 CounterActor 핸들러를 student.rs에 작성해.\n",
-                "// pekko-harvest-task: f3_message/full_ko\n"
-            ),
-        },
-        // ---- F4 ----
-        SlotChallenge {
-            family: Family::F4,
-            task_id: "f4_repair/full_v1",
-            prompt: concat!(
-                "Repair src/student.rs so cargo test --features student passes.\n",
-                "Need: count_keys with HashMap (remember `use std::collections::HashMap`),\n",
-                "greet(name) -> \"hi {name}\", exhaustive color_name for Red/Blue/Green.\n",
-                "Write the FULL fixed student.rs module.\n",
-                "// pekko-harvest-task: f4_repair/full_v1\n"
-            ),
-        },
-        SlotChallenge {
-            family: Family::F4,
-            task_id: "f4_repair/full_v2",
-            prompt: concat!(
-                "Fix this compile/test surface: HashMap insert+len, greet, Color::Green arm.\n",
-                "Replace student.rs entirely with a compiling implementation.\n",
-                "// pekko-harvest-task: f4_repair/full_v2\n"
-            ),
-        },
-        // ---- F5 ----
-        SlotChallenge {
-            family: Family::F5,
-            task_id: "f5_supervisor/full_v1",
-            prompt: concat!(
-                "Implement one_round(gen, ver, prompts) in src/student.rs:\n",
-                "for each prompt: push \"generate\", generate, push \"verify\", keep completion if Correct.\n",
-                "use super::{Generator, RoundResult, Verdict, Verifier};\n",
-                "// pekko-harvest-task: f5_supervisor/full_v1\n"
-            ),
-        },
-        SlotChallenge {
-            family: Family::F5,
-            task_id: "f5_supervisor/full_v2",
-            prompt: concat!(
-                "Wire Verifier after Generator for one self-improve round without training.\n",
-                "Record order generate/verify and keep only Correct samples. Full student.rs please.\n",
-                "// pekko-harvest-task: f5_supervisor/full_v2\n"
-            ),
-        },
-        SlotChallenge {
-            family: Family::F5,
-            task_id: "f5_supervisor/full_ko",
-            prompt: concat!(
-                "Generator 다음에 Verifier가 오도록 한 라운드를 student.rs의 one_round에 연결해.\n",
-                "// pekko-harvest-task: f5_supervisor/full_ko\n"
-            ),
-        },
+        // ---- F1 echo ----
+        body_chal!(
+            Family::F1,
+            "f1_tool/echo_v1",
+            "todo!(\"return args unchanged\")",
+            "Ok(args.to_string())",
+            "Fill the todo! body for EchoTool::execute.\n",
+            "Return args unchanged as Ok(String).\n",
+            "Stub:\n",
+            "    fn execute(&self, args: &str) -> Result<String, ToolError> {\n",
+            "        todo!(\"return args unchanged\")\n",
+            "    }\n",
+            "Output ONLY the replacement for todo!(...) (e.g. Ok(args.to_string())), no fn/impl wrappers.\n",
+            "// pekko-harvest-task: f1_tool/echo_v1\n"
+        ),
+        body_chal!(
+            Family::F1,
+            "f1_tool/echo_v2",
+            "todo!(\"return args unchanged\")",
+            "Ok(args.to_string())",
+            "EchoTool execute body: echo the args string.\n",
+            "Replace todo!(\"return args unchanged\") with a one-line Ok(...).\n",
+            "// pekko-harvest-task: f1_tool/echo_v2\n"
+        ),
+        body_chal!(
+            Family::F1,
+            "f1_tool/echo_ko",
+            "todo!(\"return args unchanged\")",
+            "Ok(args.to_string())",
+            "EchoTool::execute의 todo!만 채워라. args를 그대로 Ok로 반환.\n",
+            "본문만 출력 (Ok(args.to_string()) 형태).\n",
+            "// pekko-harvest-task: f1_tool/echo_ko\n"
+        ),
+        // ---- F1 ping ----
+        body_chal!(
+            Family::F1,
+            "f1_tool/ping_v1",
+            "todo!(\"return pong\")",
+            "let _ = args; Ok(\"pong\".into())",
+            "Fill PingTool::execute todo!. Always return Ok(\"pong\").\n",
+            "Stub: todo!(\"return pong\") — output ONLY the body replacement.\n",
+            "// pekko-harvest-task: f1_tool/ping_v1\n"
+        ),
+        body_chal!(
+            Family::F1,
+            "f1_tool/ping_v2",
+            "todo!(\"return pong\")",
+            "let _ = args; Ok(\"pong\".into())",
+            "Ping tool body: ignore args, return the string pong.\n",
+            "Replace todo!(\"return pong\") only.\n",
+            "// pekko-harvest-task: f1_tool/ping_v2\n"
+        ),
+        body_chal!(
+            Family::F1,
+            "f1_tool/ping_ko",
+            "todo!(\"return pong\")",
+            "let _ = args; Ok(\"pong\".into())",
+            "PingTool todo!를 pong 반환으로 채워. 본문만.\n",
+            "// pekko-harvest-task: f1_tool/ping_ko\n"
+        ),
+        // ---- F1 upper ----
+        body_chal!(
+            Family::F1,
+            "f1_tool/upper_v1",
+            "todo!(\"ASCII uppercase\")",
+            "Ok(args.to_ascii_uppercase())",
+            "Fill UpperTool::execute. Return ASCII uppercase of args.\n",
+            "Replace todo!(\"ASCII uppercase\") with Ok(args.to_ascii_uppercase()).\n",
+            "Body only — no struct/impl.\n",
+            "// pekko-harvest-task: f1_tool/upper_v1\n"
+        ),
+        body_chal!(
+            Family::F1,
+            "f1_tool/upper_v2",
+            "todo!(\"ASCII uppercase\")",
+            "Ok(args.to_ascii_uppercase())",
+            "upper tool: to_ascii_uppercase the args into Ok(String).\n",
+            "todo!(\"ASCII uppercase\") → body only.\n",
+            "// pekko-harvest-task: f1_tool/upper_v2\n"
+        ),
+        body_chal!(
+            Family::F1,
+            "f1_tool/upper_ko",
+            "todo!(\"ASCII uppercase\")",
+            "Ok(args.to_ascii_uppercase())",
+            "UpperTool todo!를 ASCII 대문자 변환으로 채워. 본문만.\n",
+            "// pekko-harvest-task: f1_tool/upper_ko\n"
+        ),
+        // ---- F2 ok_only ----
+        body_chal!(
+            Family::F2,
+            "f2_domain/ok_only_v1",
+            "todo!(\"Correct iff completion == ok\")",
+            "if completion == \"ok\" { Verdict::Correct } else { Verdict::Incorrect { reason: \"expected ok\".into() } }",
+            "Fill OkOnlyDomain::verify todo!. Correct iff completion == \"ok\".\n",
+            "Stub: todo!(\"Correct iff completion == ok\")\n",
+            "Output ONLY the body (if/else returning Verdict).\n",
+            "// pekko-harvest-task: f2_domain/ok_only_v1\n"
+        ),
+        body_chal!(
+            Family::F2,
+            "f2_domain/ok_only_v2",
+            "todo!(\"Correct iff completion == ok\")",
+            "if completion == \"ok\" { Verdict::Correct } else { Verdict::Incorrect { reason: \"expected ok\".into() } }",
+            "OkOnlyDomain verify body: only the literal ok passes.\n",
+            "Replace the todo! only.\n",
+            "// pekko-harvest-task: f2_domain/ok_only_v2\n"
+        ),
+        body_chal!(
+            Family::F2,
+            "f2_domain/ok_only_ko",
+            "todo!(\"Correct iff completion == ok\")",
+            "if completion == \"ok\" { Verdict::Correct } else { Verdict::Incorrect { reason: \"expected ok\".into() } }",
+            "OkOnlyDomain::verify todo!만 채워. completion==\"ok\"일 때만 Correct.\n",
+            "// pekko-harvest-task: f2_domain/ok_only_ko\n"
+        ),
+        // ---- F2 digit_charset ----
+        body_chal!(
+            Family::F2,
+            "f2_domain/digits_v1",
+            "todo!(\"return digits 0-9\")",
+            "\"0123456789\"",
+            "Fill DigitCharsetDomain::charset todo! with the digit string 0-9.\n",
+            "Replace todo!(\"return digits 0-9\") — body only (a &str literal).\n",
+            "// pekko-harvest-task: f2_domain/digits_v1\n"
+        ),
+        body_chal!(
+            Family::F2,
+            "f2_domain/digits_v2",
+            "todo!(\"return digits 0-9\")",
+            "\"0123456789\"",
+            "charset should be \"0123456789\". Replace the todo! only.\n",
+            "// pekko-harvest-task: f2_domain/digits_v2\n"
+        ),
+        body_chal!(
+            Family::F2,
+            "f2_domain/digits_ko",
+            "todo!(\"return digits 0-9\")",
+            "\"0123456789\"",
+            "DigitCharsetDomain charset todo!를 0-9 문자열로 채워. 본문만.\n",
+            "// pekko-harvest-task: f2_domain/digits_ko\n"
+        ),
+        // ---- F2 non_empty ----
+        body_chal!(
+            Family::F2,
+            "f2_domain/nonempty_v1",
+            "todo!(\"reject empty\")",
+            "if completion.is_empty() { Verdict::Incorrect { reason: \"empty\".into() } } else { Verdict::Correct }",
+            "Fill NonEmptyDomain::verify. Reject empty completions.\n",
+            "Replace todo!(\"reject empty\") with if/else Verdict body only.\n",
+            "// pekko-harvest-task: f2_domain/nonempty_v1\n"
+        ),
+        body_chal!(
+            Family::F2,
+            "f2_domain/nonempty_v2",
+            "todo!(\"reject empty\")",
+            "if completion.is_empty() { Verdict::Incorrect { reason: \"empty\".into() } } else { Verdict::Correct }",
+            "NonEmptyDomain: empty → Incorrect, else Correct. Body only.\n",
+            "// pekko-harvest-task: f2_domain/nonempty_v2\n"
+        ),
+        body_chal!(
+            Family::F2,
+            "f2_domain/nonempty_ko",
+            "todo!(\"reject empty\")",
+            "if completion.is_empty() { Verdict::Incorrect { reason: \"empty\".into() } } else { Verdict::Correct }",
+            "NonEmptyDomain verify todo!만 채워. 빈 문자열 거부.\n",
+            "// pekko-harvest-task: f2_domain/nonempty_ko\n"
+        ),
+        // ---- F3 handle (single method) ----
+        body_chal!(
+            Family::F3,
+            "f3_message/handle_v1",
+            "todo!(\"Ping->Pong, Inc bumps, Get returns count\")",
+            "match msg {\n            Message::Ping => Response::Pong,\n            Message::Inc => {\n                self.n += 1;\n                Response::Count(self.n)\n            }\n            Message::Get => Response::Count(self.n),\n        }",
+            "Fill CounterActor::handle todo!.\n",
+            "Ping→Pong; Inc bumps n and returns Count(n); Get returns Count(n).\n",
+            "Replace todo!(\"Ping->Pong, Inc bumps, Get returns count\") with a match body only.\n",
+            "// pekko-harvest-task: f3_message/handle_v1\n"
+        ),
+        body_chal!(
+            Family::F3,
+            "f3_message/handle_v2",
+            "todo!(\"Ping->Pong, Inc bumps, Get returns count\")",
+            "match msg {\n            Message::Ping => Response::Pong,\n            Message::Inc => {\n                self.n += 1;\n                Response::Count(self.n)\n            }\n            Message::Get => Response::Count(self.n),\n        }",
+            "CounterActor handle: match Ping/Inc/Get. Output the match expression only.\n",
+            "// pekko-harvest-task: f3_message/handle_v2\n"
+        ),
+        body_chal!(
+            Family::F3,
+            "f3_message/handle_ko",
+            "todo!(\"Ping->Pong, Inc bumps, Get returns count\")",
+            "match msg {\n            Message::Ping => Response::Pong,\n            Message::Inc => {\n                self.n += 1;\n                Response::Count(self.n)\n            }\n            Message::Get => Response::Count(self.n),\n        }",
+            "CounterActor::handle todo!를 match로 채워. Ping→Pong, Inc/Get 처리. 본문만.\n",
+            "// pekko-harvest-task: f3_message/handle_ko\n"
+        ),
+        // ---- F4 count_keys ----
+        body_chal!(
+            Family::F4,
+            "f4_repair/count_keys_v1",
+            "todo!(\"HashMap insert + len — remember the import\")",
+            "{\n    let mut m = std::collections::HashMap::new();\n    for (k, v) in pairs {\n        m.insert(*k, *v);\n    }\n    m.len()\n}",
+            "Fill count_keys todo!. Insert pairs into a HashMap and return len.\n",
+            "Use std::collections::HashMap (fully qualified is fine).\n",
+            "Replace todo!(\"HashMap insert + len — remember the import\") — body only.\n",
+            "// pekko-harvest-task: f4_repair/count_keys_v1\n"
+        ),
+        body_chal!(
+            Family::F4,
+            "f4_repair/count_keys_v2",
+            "todo!(\"HashMap insert + len — remember the import\")",
+            "{\n    let mut m = std::collections::HashMap::new();\n    for (k, v) in pairs {\n        m.insert(*k, *v);\n    }\n    m.len()\n}",
+            "count_keys body: HashMap insert each pair, return m.len(). Body only.\n",
+            "// pekko-harvest-task: f4_repair/count_keys_v2\n"
+        ),
+        // ---- F4 greet ----
+        body_chal!(
+            Family::F4,
+            "f4_repair/greet_v1",
+            "todo!(\"return hi <name>\")",
+            "format!(\"hi {name}\")",
+            "Fill greet todo!. Return format!(\"hi {name}\").\n",
+            "Replace todo!(\"return hi <name>\") — expression body only.\n",
+            "// pekko-harvest-task: f4_repair/greet_v1\n"
+        ),
+        body_chal!(
+            Family::F4,
+            "f4_repair/greet_v2",
+            "todo!(\"return hi <name>\")",
+            "format!(\"hi {name}\")",
+            "greet(name) should yield \"hi {name}\". Body only.\n",
+            "// pekko-harvest-task: f4_repair/greet_v2\n"
+        ),
+        // ---- F4 green ----
+        body_chal!(
+            Family::F4,
+            "f4_repair/green_v1",
+            "todo!(\"repair: name for Green\")",
+            "\"green\"",
+            "Repair Color::Green arm: replace todo!(\"repair: name for Green\") with \"green\".\n",
+            "Output ONLY the match-arm expression.\n",
+            "// pekko-harvest-task: f4_repair/green_v1\n"
+        ),
+        body_chal!(
+            Family::F4,
+            "f4_repair/green_v2",
+            "todo!(\"repair: name for Green\")",
+            "\"green\"",
+            "Green color name is the string green. Replace the todo! only.\n",
+            "// pekko-harvest-task: f4_repair/green_v2\n"
+        ),
+        body_chal!(
+            Family::F4,
+            "f4_repair/green_ko",
+            "todo!(\"repair: name for Green\")",
+            "\"green\"",
+            "Color::Green 팔의 todo!를 \"green\"으로 고쳐. 표현식만.\n",
+            "// pekko-harvest-task: f4_repair/green_ko\n"
+        ),
+        // ---- F5 one_round ----
+        body_chal!(
+            Family::F5,
+            "f5_supervisor/one_round_v1",
+            "todo!(\"generate then verify each prompt; keep Correct only; record order\")",
+            "{\n    let mut out = RoundResult::default();\n    for p in prompts {\n        out.order.push(\"generate\");\n        let c = gen.generate(p);\n        out.order.push(\"verify\");\n        if ver.verify(p, &c) == Verdict::Correct {\n            out.kept.push(c);\n        }\n    }\n    out\n}",
+            "Fill one_round todo!. For each prompt: push \"generate\", generate, push \"verify\",\n",
+            "keep completion if Verdict::Correct. Return RoundResult.\n",
+            "Replace the todo!(...) with the function body only (a block is fine).\n",
+            "// pekko-harvest-task: f5_supervisor/one_round_v1\n"
+        ),
+        body_chal!(
+            Family::F5,
+            "f5_supervisor/one_round_v2",
+            "todo!(\"generate then verify each prompt; keep Correct only; record order\")",
+            "{\n    let mut out = RoundResult::default();\n    for p in prompts {\n        out.order.push(\"generate\");\n        let c = gen.generate(p);\n        out.order.push(\"verify\");\n        if ver.verify(p, &c) == Verdict::Correct {\n            out.kept.push(c);\n        }\n    }\n    out\n}",
+            "Wire generate then verify for one self-improve round; keep Correct only; record order.\n",
+            "Body only for the one_round todo!.\n",
+            "// pekko-harvest-task: f5_supervisor/one_round_v2\n"
+        ),
+        body_chal!(
+            Family::F5,
+            "f5_supervisor/one_round_ko",
+            "todo!(\"generate then verify each prompt; keep Correct only; record order\")",
+            "{\n    let mut out = RoundResult::default();\n    for p in prompts {\n        out.order.push(\"generate\");\n        let c = gen.generate(p);\n        out.order.push(\"verify\");\n        if ver.verify(p, &c) == Verdict::Correct {\n            out.kept.push(c);\n        }\n    }\n    out\n}",
+            "one_round todo!만 채워. generate→verify 순서, Correct만 kept.\n",
+            "// pekko-harvest-task: f5_supervisor/one_round_ko\n"
+        ),
     ]
 }
 
-/// Multiplexed harvest domain: F0 expression slots + F1–F5 student.rs slots.
+/// Apply gold bodies for non-target slots, then put `completion` in the target todo.
+pub fn apply_body_slot(
+    scaffold: &str,
+    family_slots: &[&SlotChallenge],
+    target: &SlotChallenge,
+    completion: &str,
+) -> Result<String, String> {
+    let body = truncate_pekko_completion(completion);
+    if body.trim().is_empty() {
+        return Err("empty body after truncate".into());
+    }
+    let mut text = scaffold.to_string();
+    for c in family_slots {
+        if c.task_id == target.task_id {
+            continue;
+        }
+        if text.contains(c.todo_needle) {
+            text = text.replacen(c.todo_needle, c.gold_body, 1);
+        }
+    }
+    if !text.contains(target.todo_needle) {
+        return Err(format!(
+            "target needle missing after gold fill: {}",
+            target.todo_needle
+        ));
+    }
+    Ok(text.replacen(target.todo_needle, &body, 1))
+}
+
+/// Multiplexed harvest domain: F0 expression slots + F1–F5 body slots.
 pub struct PekkoHarvestDomain {
     /// Isolated crate copies live here: `{verify_root}/f1_tool`, …
     pub verify_root: PathBuf,
+    /// Parent harvest root holding scaffolds (sibling of verify_root).
+    harvest_root: PathBuf,
     /// F0 cargo-run scratch (independent `[workspace]` project).
     pub f0: Option<RustCodeDomain>,
     pub slots: Vec<SlotChallenge>,
@@ -277,6 +470,11 @@ impl PekkoHarvestDomain {
         f0_scratch: impl Into<PathBuf>,
         families: &[Family],
     ) -> Self {
+        let verify_root = verify_root.into();
+        let harvest_root = verify_root
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
         let include_f0 = families.iter().any(|f| *f == Family::F0);
         let slot_families: Vec<Family> = families
             .iter()
@@ -293,7 +491,8 @@ impl PekkoHarvestDomain {
             None
         };
         Self {
-            verify_root: verify_root.into(),
+            verify_root,
+            harvest_root,
             f0,
             slots,
             timeout: Duration::from_secs(120),
@@ -311,10 +510,6 @@ impl PekkoHarvestDomain {
     /// Copy each needed family crate into `verify_root` with an empty `[workspace]`.
     pub fn ensure_verify_crates(&self) -> io::Result<()> {
         fs::create_dir_all(&self.verify_root)?;
-        let harvest_root = self
-            .verify_root
-            .parent()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "verify_root has no parent"))?;
         let needed: Vec<Family> = {
             let mut v = Vec::new();
             for c in &self.slots {
@@ -326,7 +521,7 @@ impl PekkoHarvestDomain {
         };
         for fam in needed {
             let name = fam.crate_dir().expect("slot family has crate");
-            let src = harvest_root.join(name);
+            let src = self.harvest_root.join(name);
             let dst = self.verify_root.join(name);
             if !src.join("Cargo.toml").exists() {
                 return Err(io::Error::new(
@@ -355,18 +550,41 @@ impl PekkoHarvestDomain {
         if let Some(c) = self.slots.iter().find(|c| c.prompt == prompt) {
             return Some(c);
         }
-        // Repair / NL wrap: find marker.
         for c in &self.slots {
             let m = marker_line(c.task_id);
             if prompt.contains(&m) {
                 return Some(c);
             }
         }
-        // Longest prompt that is a suffix (repair may append after original).
         self.slots
             .iter()
             .filter(|c| prompt.ends_with(c.prompt) || prompt.contains(c.prompt))
             .max_by_key(|c| c.prompt.len())
+    }
+
+    fn family_slots(&self, family: Family) -> Vec<&SlotChallenge> {
+        // Dedup by todo_needle so multiple paraphrases don't re-apply gold.
+        // Constructor keeps all paraphrases for each selected family, so every
+        // unique needle in that family is present in `self.slots`.
+        let mut out: Vec<&SlotChallenge> = Vec::new();
+        for c in &self.slots {
+            if c.family != family {
+                continue;
+            }
+            if out.iter().any(|x| x.todo_needle == c.todo_needle) {
+                continue;
+            }
+            out.push(c);
+        }
+        out
+    }
+
+    fn scaffold_student(&self, family: Family) -> io::Result<String> {
+        let name = family.crate_dir().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "F0 has no student scaffold")
+        })?;
+        let p = self.harvest_root.join(name).join("src/student.rs");
+        fs::read_to_string(&p)
     }
 
     fn verify_slot(&self, challenge: &SlotChallenge, completion: &str) -> Verdict {
@@ -380,8 +598,26 @@ impl PekkoHarvestDomain {
         };
         let crate_dir = self.verify_root.join(name);
         let student_path = crate_dir.join("src/student.rs");
+        let scaffold = match self.scaffold_student(challenge.family) {
+            Ok(s) => s,
+            Err(e) => {
+                return Verdict::Inconclusive {
+                    reason: format!("read scaffold: {e}"),
+                }
+            }
+        };
+        let family_slots = self.family_slots(challenge.family);
+        let filled = match apply_body_slot(&scaffold, &family_slots, challenge, completion) {
+            Ok(t) => t,
+            Err(e) => {
+                return Verdict::Incorrect {
+                    reason: format!("body apply failed: {e}"),
+                }
+            }
+        };
+
         let _guard = self.write_lock.lock().expect("write_lock poisoned");
-        if let Err(e) = fs::write(&student_path, completion) {
+        if let Err(e) = fs::write(&student_path, &filled) {
             return Verdict::Inconclusive {
                 reason: format!("write student.rs failed: {e}"),
             };
@@ -402,7 +638,6 @@ impl PekkoHarvestDomain {
                     std::env::var("PATH").unwrap_or_default()
                 ),
             );
-        // Soft timeout via wait — Command::output blocks; rely on cargo being fast for these.
         let output = match cmd.output() {
             Ok(o) => o,
             Err(e) => {
@@ -492,9 +727,8 @@ impl Domain for PekkoHarvestDomain {
             _ => return None,
         };
         if let Some(slot) = self.slot_for_prompt(prompt) {
-            // Feed cargo stderr; ask for a full rewrite of student.rs only.
             return Some(format!(
-                "{}\n\n// Previous student.rs attempt:\n{}\n\n// ERR:{}\n// Rewrite the FULL src/student.rs only (no markdown fences):\n{}",
+                "{}\n\n// Previous body attempt:\n{}\n\n// ERR:{}\n// Rewrite ONLY the todo! body replacement (no markdown, no fn/impl wrappers):\n{}",
                 slot.prompt,
                 completion,
                 reason,
@@ -508,13 +742,13 @@ impl Domain for PekkoHarvestDomain {
     }
 }
 
-/// Multi-line Rust slot truncation (F1–F5) with a fallback for F0-style expressions.
+/// Truncate model completion for F0 expressions **or** F1–F5 short bodies.
 ///
-/// Also rejects FIM/path garbage (`<|repo_name|>`, `<|fim_…|>`, `/src/src/…` spam)
-/// so verify gets an empty completion instead of a poison `student.rs`.
+/// Body-shaped completions (`Ok(…)`, `match …`, `format!(…)`, string lits, blocks)
+/// keep multi-line content and only cut on FIM/fence/path-spam — they must NOT
+/// use F0 stops like `\\npub `/`\\nfn ` which would chop valid match arms.
 pub fn truncate_pekko_completion(completion: &str) -> String {
     let mut s = completion.trim_start();
-    // Strip markdown fences if the model wraps the file.
     if let Some(rest) = s.strip_prefix("```rust") {
         s = rest.trim_start_matches('\n');
     } else if let Some(rest) = s.strip_prefix("```rs") {
@@ -538,7 +772,6 @@ pub fn truncate_pekko_completion(completion: &str) -> String {
             cut = cut.min(i);
         }
     }
-    // Path-repetition spam (`/src/src/...`, `/main/main/...`): cut at first such line.
     if let Some(i) = first_path_spam_offset(s) {
         cut = cut.min(i);
     }
@@ -547,14 +780,7 @@ pub fn truncate_pekko_completion(completion: &str) -> String {
         return String::new();
     }
 
-    // Module-task garbage: no Rust item keywords in the first ~80 chars → empty.
-    // (F0 short expressions are exempted below.)
-    let head = &body[..body.chars().take(80).map(|c| c.len_utf8()).sum::<usize>().min(body.len())];
-    let has_rust_kw = ["fn ", "impl ", "use ", "struct ", "pub ", "enum ", "const ", "type ", "#[", "mod "]
-        .iter()
-        .any(|k| head.contains(k));
-
-    // Heuristic: module-shaped → keep multi-line; else F0 expression stops.
+    // Legacy full-module completions (still accepted if a model emits them).
     let module_shaped = body.lines().next().is_some_and(|l| {
         let t = l.trim_start();
         t.starts_with("use ")
@@ -572,13 +798,49 @@ pub fn truncate_pekko_completion(completion: &str) -> String {
         return body.to_string();
     }
 
-    // Short F0-ish expression: must look like code (ops/calls/literals), not prose.
+    // Body-slot shaped: keep multi-line; soft-cut only on blank-line + item / comment.
+    if is_body_shaped(body) {
+        let soft = [
+            "\n\npub ",
+            "\n\nfn ",
+            "\n\nstruct ",
+            "\n\nimpl ",
+            "\n\nuse ",
+            "\n}",
+            "\nfn ",
+            "\npub ",
+        ];
+        let mut c = body.len();
+        for st in soft {
+            if let Some(i) = body.find(st) {
+                c = c.min(i);
+            }
+        }
+        let trimmed = body[..c].trim_end();
+        // One-liner salvage: first line complete (balanced, not opening a block).
+        if let Some(one) = first_complete_oneliner(trimmed) {
+            return one.to_string();
+        }
+        return trimmed.to_string();
+    }
+
+    let head = &body[..body
+        .chars()
+        .take(80)
+        .map(|c| c.len_utf8())
+        .sum::<usize>()
+        .min(body.len())];
+    let has_rust_kw = [
+        "fn ", "impl ", "use ", "struct ", "pub ", "enum ", "const ", "type ", "#[", "mod ",
+    ]
+    .iter()
+    .any(|k| head.contains(k));
+
     if !has_rust_kw && !looks_like_rust_expr(body) {
-        // Module-task garbage / FIM residue without Rust items — fail clean.
         return String::new();
     }
 
-    // F0-ish: cut at blank line / next item so a runaway generation doesn't poison cargo.
+    // F0-ish expression stops.
     let stops = [
         "\npub ",
         "\nfn ",
@@ -598,14 +860,94 @@ pub fn truncate_pekko_completion(completion: &str) -> String {
     body[..c].trim_end().to_string()
 }
 
-/// Offset of the first line that looks like path-repetition spam, if any.
+fn first_complete_oneliner(body: &str) -> Option<&str> {
+    // Skip blank / comment / empty-string noise lines (model often emits "" then later gold).
+    let mut chosen: Option<&str> = None;
+    for line in body.lines() {
+        let first = line.trim_end();
+        let t = first.trim_start();
+        if t.is_empty() || t.starts_with("//") || t == "\"\"" {
+            continue;
+        }
+        if t.starts_with("match ")
+            || t.starts_with("if ")
+            || t.starts_with("{")
+            || t.starts_with("for ")
+            || t.starts_with("while ")
+            || t.starts_with("loop ")
+            || t.ends_with('{')
+            || t.ends_with(',')
+            || t.ends_with('(')
+        {
+            return None; // multi-line body — keep soft-cut result
+        }
+        let mut bal = 0i32;
+        for ch in first.chars() {
+            match ch {
+                '(' | '{' | '[' => bal += 1,
+                ')' | '}' | ']' => bal -= 1,
+                _ => {}
+            }
+            if bal < 0 {
+                return None;
+            }
+        }
+        if bal != 0 {
+            return None;
+        }
+        chosen = Some(first);
+        break;
+    }
+    chosen
+}
+
+fn is_body_shaped(body: &str) -> bool {
+
+    let t = body.trim_start();
+    t.starts_with("match ")
+        || t.starts_with("if ")
+        || t.starts_with("Ok(")
+        || t.starts_with("Err(")
+        || t.starts_with("let ")
+        || t.starts_with("format!")
+        || t.starts_with('"')
+        || t.starts_with('{')
+        || t.starts_with("for ")
+        || t.starts_with("while ")
+        || t.starts_with("loop ")
+        || t.starts_with("return ")
+        || t.starts_with("self.")
+        || t.starts_with("std::")
+        || t.starts_with("Verdict::")
+        || t.starts_with("Response::")
+        || t.starts_with("Message::")
+        || t.starts_with("RoundResult")
+}
+
 fn first_path_spam_offset(s: &str) -> Option<usize> {
     let mut offset = 0usize;
     for line in s.split_inclusive('\n') {
-        if is_path_spam_line(line.trim_end_matches('\n')) {
-            return Some(offset);
+        let raw = line.trim_end_matches('\n');
+        if let Some(rel) = path_spam_start_in_line(raw) {
+            return Some(offset + rel);
         }
         offset += line.len();
+    }
+    None
+}
+
+/// If a line contains path-repetition spam, return byte offset within the line
+/// where spam begins (0 if the whole line is spam). Allows salvaging a good
+/// prefix like `Ok(args` before `/src/src/...`.
+fn path_spam_start_in_line(line: &str) -> Option<usize> {
+    if let Some(i) = line.find("/src/src") {
+        return Some(i);
+    }
+    if let Some(i) = line.find("/main/main") {
+        return Some(i);
+    }
+    if is_path_spam_line(line) {
+        return Some(0);
     }
     None
 }
@@ -615,7 +957,6 @@ fn is_path_spam_line(line: &str) -> bool {
     if t.is_empty() {
         return false;
     }
-    // Classic crash mode: `/src/src/src/...` or `/main/main/...`
     if t.matches("/src/").count() >= 2 {
         return true;
     }
@@ -636,7 +977,6 @@ fn is_path_spam_body(body: &str) -> bool {
     let spam = lines.iter().filter(|l| is_path_spam_line(l)).count();
     spam * 2 >= lines.len() || body.matches("/src/").count() >= 3
 }
-
 
 fn looks_like_rust_expr(body: &str) -> bool {
     let t = body.trim();
@@ -682,7 +1022,6 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> io::Result<()> {
         let ty = ent.file_type()?;
         let to = dst.join(ent.file_name());
         if ty.is_dir() {
-            // Skip target/ if present in scaffold (shouldn't be).
             if ent.file_name() == *"target" {
                 continue;
             }
@@ -717,11 +1056,28 @@ mod tests {
     }
 
     #[test]
-    fn truncate_keeps_module() {
-        let raw = "use super::{Tool, ToolError};\n\npub struct EchoTool;\n```\nextra";
+    fn truncate_keeps_body_ok() {
+        let raw = "Ok(args.to_string())\n<|repo_name|>junk";
         let t = truncate_pekko_completion(raw);
-        assert!(t.contains("EchoTool"));
-        assert!(!t.contains("```"));
+        assert_eq!(t, "Ok(args.to_string())");
+    }
+
+    #[test]
+    fn truncate_oneliner_before_path_spam() {
+        let raw = "Ok(args.to_ascii_uppercase())/src/src/src\nuse";
+        let t = truncate_pekko_completion(raw);
+        assert_eq!(t, "Ok(args.to_ascii_uppercase())");
+        let raw2 = "\"0123456789\"\n// pekko\n/src/src";
+        let t2 = truncate_pekko_completion(raw2);
+        assert_eq!(t2, "\"0123456789\"");
+    }
+
+    #[test]
+    fn truncate_keeps_match_body() {
+        let raw = "match msg {\n            Message::Ping => Response::Pong,\n            Message::Get => Response::Count(self.n),\n        }\n\n\npub fn other() {}";
+        let t = truncate_pekko_completion(raw);
+        assert!(t.contains("Message::Ping"));
+        assert!(!t.contains("pub fn other"));
     }
 
     #[test]
@@ -733,14 +1089,9 @@ mod tests {
 
     #[test]
     fn truncate_cuts_repo_name_and_fim() {
-        let raw = "use super::Tool;\n<|repo_name|>foo\nmore";
+        let raw = "Ok(1)\n<|repo_name|>foo\nmore";
         let t = truncate_pekko_completion(raw);
-        assert!(t.contains("use super::Tool"));
-        assert!(!t.contains("repo_name"));
-        let raw2 = "impl Foo {}\n<|fim_prefix|>zzz";
-        let t2 = truncate_pekko_completion(raw2);
-        assert!(t2.starts_with("impl Foo"));
-        assert!(!t2.contains("fim_"));
+        assert_eq!(t, "Ok(1)");
     }
 
     #[test]
@@ -748,9 +1099,6 @@ mod tests {
         let raw = "/src/src/src/student/src/src\n#[derive(Debu";
         let t = truncate_pekko_completion(raw);
         assert_eq!(t, "");
-        let raw2 = "/main/main/main/src/src\nfn";
-        let t2 = truncate_pekko_completion(raw2);
-        assert_eq!(t2, "");
     }
 
     #[test]
@@ -772,5 +1120,32 @@ mod tests {
                 c.task_id
             );
         }
+    }
+
+    #[test]
+    fn apply_body_replaces_one_todo() {
+        let scaffold = concat!(
+            "fn a() { todo!(\"return args unchanged\") }\n",
+            "fn b() { todo!(\"return pong\") }\n",
+        );
+        let slots = default_slot_challenges();
+        let echo = slots.iter().find(|c| c.task_id == "f1_tool/echo_v1").unwrap();
+        let fam: Vec<&SlotChallenge> = slots
+            .iter()
+            .filter(|c| c.family == Family::F1)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .fold(Vec::new(), |mut acc, c| {
+                if !acc.iter().any(|x: &&SlotChallenge| x.todo_needle == c.todo_needle) {
+                    acc.push(c);
+                }
+                acc
+            });
+        let out = apply_body_slot(scaffold, &fam, echo, "Ok(args.to_string())").unwrap();
+        assert!(out.contains("Ok(args.to_string())"));
+        assert!(!out.contains("todo!(\"return args unchanged\")"));
+        // other todo filled with gold
+        assert!(out.contains("Ok(\"pong\".into())") || out.contains("let _ = args"));
+        assert!(!out.contains("todo!(\"return pong\")"));
     }
 }

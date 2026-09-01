@@ -1,9 +1,9 @@
-use super::{Generator, RoundResult, Verifier};
+use super::{Generator, RoundResult, Verdict, Verifier};
 
 pub fn one_round(
-    _gen: &mut dyn Generator,
-    _ver: &dyn Verifier,
-    _prompts: &[&str],
+    gen: &mut dyn Generator,
+    ver: &dyn Verifier,
+    prompts: &[&str],
 ) -> RoundResult {
     todo!("generate then verify each prompt; keep Correct only; record order")
 }

@@ -7,7 +7,6 @@ pub struct CounterActor {
 
 impl Handler for CounterActor {
     fn handle(&mut self, msg: Message) -> Response {
-        let _ = (msg, &mut self.n);
         todo!("Ping->Pong, Inc bumps, Get returns count")
     }
 }
