@@ -3,7 +3,7 @@ pub fn count_keys(_pairs: &[(&str, i32)]) -> usize {
 }
 
 pub fn greet(_name: &str) -> String {
-    todo!("hi {name}")
+    todo!("return hi <name>")
 }
 
 #[derive(Debug, Clone, Copy)]
