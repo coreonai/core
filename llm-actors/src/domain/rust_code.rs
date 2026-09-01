@@ -237,6 +237,18 @@ impl Domain for RustCodeDomain {
         " \n\t!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
     }
 
+    fn n_prompts(&self) -> Option<usize> {
+        Some(self.challenges.len())
+    }
+
+    fn nth_prompt(&self, i: usize) -> Option<String> {
+        self.challenges.get(i).map(|c| c.prompt.to_string())
+    }
+
+    fn task_id(&self, i: usize) -> Option<String> {
+        self.challenges.get(i).map(|c| c.name.to_string())
+    }
+
     fn truncate_completion(&self, completion: &str) -> String {
         let stops = ["\npub ", "\nfn ", "\nuse ", "\nstruct ", "\nimpl ", "\n\n", "<|fim_prefix|>"];
         let mut cut = completion.len();
