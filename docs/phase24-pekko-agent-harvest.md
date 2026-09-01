@@ -134,3 +134,21 @@ cd scratch-pekko-harvest && cargo test --workspace
 - F0 retention drop <0.1 vs pre-loop
 - Transfer probe: at least one **rephrased** Tool/Domain task succeeds without that exact harvest phrasing
 
+## Format-SFT & baseline (started)
+
+**Skeleton cargo baseline** (no GPU):
+
+```bash
+bash scripts/phase24/skeleton_baseline.sh
+# -> scratch-7b-sft/p24_skeleton_baseline/
+```
+
+**Seed format-SFT pairs** (prompt → reference completion, multiple phrasings):
+`scripts/phase24/fmt_seed_pairs.jsonl`
+
+**Suggested init weights for Phase 24 loop:** Qwen2.5-Coder-7B base (or a
+code SFT), *not* `p23_py_sft` — that checkpoint is specialized to
+`(python …)` tool calls and will fight Rust/Pekko completions. A dedicated
+`phase24_fmt_sft` example (same completion-only loss pattern as
+`phase23_toolcall_sft`) should train on `p24_fmt_seed_pairs.jsonl` next.
+
