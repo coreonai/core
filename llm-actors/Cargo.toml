@@ -179,3 +179,8 @@ required-features = []
 name = "phase22_mbpp_mr_sft"
 path = "examples/phase22_mbpp_mr_sft.rs"
 required-features = []
+
+[[example]]
+name = "phase24_fmt_sft"
+path = "examples/phase24_fmt_sft.rs"
+required-features = []
