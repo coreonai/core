@@ -402,6 +402,56 @@ The rule: when a model's output format changes, re-check every piece of the
 harness that assumes the old format. A stop sequence, a truncation rule, and
 a parser are all part of the measurement, not neutral plumbing.
 
+## Using it
+
+`phase23_ask` is the interactive entry point — a question in, the call the
+model writes, the value the interpreter returns, and the answer it gives.
+Seventeen assorted questions were tried against the ten-family checkpoint;
+fourteen came out right, and the spread is wider than the harvest suggests.
+
+```text
+how many trailing zeros does 1000! have?             249
+how many numbers from 1 to 200 are coprime to 200?    80   n far outside the trained 12..60
+what is the sum of all primes below 1000?          76127
+how many perfect squares are below 500?               22   family never harvested
+how many vowels are in the word encyclopedia?          5   string, not number theory
+how many bits are set in 12345?                        6
+train travels 60 km in 45 min, km in one hour?      80.0   word problem
+what is the 15th prime number?                        47   after correcting its own first attempt
+```
+
+The three failures are all one thing — a module it was never trained to
+import:
+
+```text
+how many days between 2024-01-01 and 2024-12-25?   datetime  NameError
+how many anagrams does the word banana have?       itertools NameError
+what is the product of the digits of 234?          reduce    NameError
+```
+
+`math` and `numpy` come out fluently; nothing else does. This is the
+phrase-template boundary from the section above, seen from the other side.
+
+Two things worth recording:
+
+- **The scope claim in this repo was too pessimistic.** An earlier version of
+  `phase23_ask`'s header called the model good for "counting and
+  number-theory shapes it was harvested on and close neighbours". A string
+  count and a unit-conversion word problem both work. The measurements above
+  replaced that claim.
+- **It self-corrects, unprompted.** Asked for the 15th prime it first computed
+  the *count* of primes below 1000, saw 168, re-read the question, indexed
+  `[14]` and answered 47. No training trajectory looked like that; the
+  agentic loop only ever handed back a tool result. That observation is what
+  `--harvest-repair-context` was built to exploit.
+
+One reporting bug this shook out, since it is the kind that flatters or
+maligns a model silently: the answer display took the *first* `A:` line, so
+the discarded 168 was shown instead of the final 47 — a successful
+self-correction read as a wrong answer. It now takes the last. Answers can
+also arrive as floats (`80.0`), which matters if something downstream
+compares strings.
+
 ## What to reuse
 
 - **A free verifier does not make a harvest safe.** It checks the answer, not
