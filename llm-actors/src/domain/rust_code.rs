@@ -152,7 +152,17 @@ impl RustCodeDomain {
     }
 
     fn challenge_for_prompt(&self, prompt: &str) -> Option<&RustChallenge> {
-        self.challenges.iter().find(|c| c.prompt == prompt)
+        // Exact match first; else longest challenge.prompt that is a suffix of
+        // `prompt` (format-SFT / repair may wrap an NL instruction above the
+        // code prefix). Prefer the longest suffix so "assert_eq!(2 * (" wins
+        // over "assert_eq!(".
+        if let Some(c) = self.challenges.iter().find(|c| c.prompt == prompt) {
+            return Some(c);
+        }
+        self.challenges
+            .iter()
+            .filter(|c| prompt.ends_with(c.prompt))
+            .max_by_key(|c| c.prompt.len())
     }
 
     fn write_program(&self, prompt: &str, completion: &str, suffix: &str) -> std::io::Result<()> {
