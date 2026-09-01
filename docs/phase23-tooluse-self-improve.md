@@ -334,6 +334,25 @@ principle but does not, because module knowledge does not generalise across
 modules. Widening the harvest is not the lever here — going from one module
 to two changed nothing about the third.
 
+### Correction — the unit is the phrase template, not the module
+
+The claim above ("a new module is learnable; the namespace rule is not") is
+still directionally right and still incomplete. Asking the Run-4 checkpoint
+outside the transfer set sharpened the boundary:
+
+| prompt | behaviour |
+|---|---|
+| "product of the nonzero digits of N cubed" (trained phrasing) | `import numpy as np` then `np.prod(...)` ✓ — `numpy` was never in the harvest |
+| "product of the digits of 234" (same idea, different phrasing) | no `reduce` import ✗ |
+| "distinct permutations of the digits" | no `math.factorial` import ✗ — even though `math` was harvested in family 5 |
+
+So what generalises is not "modules" and not "the empty-namespace rule". It
+is the **learned phrase-level snippet template**. Inside a matched template
+the module slot can be swapped (`functools` → `numpy`); outside that
+template, nothing transfers — including modules the harvest did contain.
+The Collatz/`itertools` miss is the same fact from the other side: no
+trained phrase carried an `itertools` slot, so none appeared.
+
 ### One regression worth watching
 
 ```
@@ -369,6 +388,11 @@ Worth measuring directly: run `--sabotage` on the transfer set.
   eight families needed an import and it was always `math`, so the model
   learned that instance and failed the same way on `itertools`. If you want a
   rule learned, the harvest has to contain more than one instance of it.
+- **The transferable unit is the phrase-level snippet template, not the
+  module.** A never-harvested module (`numpy`) appears when the prompt matches
+  a trained phrasing; a harvested module (`math`) disappears when the
+  phrasing changes. Vary modules *and* phrasings if you want anything broader
+  than a template.
 - **Check what class each failure belongs to before blaming the loop.** Half
   the transfer failures here were wrong mathematics on code that ran cleanly
   — nothing a tool-contract loop was ever going to fix, and averaging them

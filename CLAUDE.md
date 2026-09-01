@@ -382,9 +382,19 @@ in-domain compression, HF wins on coverage).
     two distinct modules trained, the model still wrote
     `itertools.takewhile` unimported on all four Collatz problems — 0
     imports in 12 transfer problems, transfer correctness unchanged at
-    4/12. **A new module is learnable; the namespace rule is not.** The
-    unit the model acquires is "for gcd, import math", not "this tool
-    starts empty", and one→two modules changed nothing about the third.
+    4/12. **A new module is learnable inside the situations it was
+    trained on; the empty-namespace rule is not.** That wording still
+    undersells the boundary. A later probe on the digit-product family
+    found the unit is the **learned phrase-level snippet template**, not
+    the module and not a rule: the trained phrasing "product of the
+    nonzero digits of N cubed" imported `numpy` (never harvested) in
+    place of `functools` inside the same snippet shape; rephrase to
+    "product of the digits of 234" and no reduce import appears; ask for
+    "distinct permutations of the digits" and even `math.factorial` (a
+    harvested module) is not imported. Within a template the module slot
+    is swappable; outside it, nothing leaves. one→two modules changed
+    nothing about a third *phrase*, which is the sharper reading of the
+    Collatz/`itertools` miss.
 
 17. **Match the eval metric to where the training signal lives.** SFT
     self-improve **sharpens the sampling distribution**: it lifts
