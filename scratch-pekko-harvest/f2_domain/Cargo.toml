@@ -1,0 +1,11 @@
+[package]
+name = "f2_domain"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[features]
+default = []
+student = []
+
+[dependencies]

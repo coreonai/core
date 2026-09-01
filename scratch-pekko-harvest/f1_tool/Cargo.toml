@@ -1,0 +1,11 @@
+[package]
+name = "f1_tool"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[features]
+default = []
+student = []
+
+[dependencies]

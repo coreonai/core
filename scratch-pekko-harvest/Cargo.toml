@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = [
+    "f0_expr",
+    "f1_tool",
+    "f2_domain",
+    "f3_message",
+    "f4_repair",
+    "f5_supervisor",
+]
