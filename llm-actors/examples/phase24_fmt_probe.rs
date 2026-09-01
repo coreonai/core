@@ -42,6 +42,25 @@ struct Args {
     dtype: String,
     #[arg(long, default_value_t = 8)]
     show: usize,
+    /// Stop strings matched against newly generated text only (post-truncate).
+    #[arg(long, num_args = 1.., default_values_t = vec![
+        "\npub ".to_string(),
+        "\nfn ".to_string(),
+        "\nuse ".to_string(),
+        "\nstruct ".to_string(),
+        "\nimpl ".to_string(),
+        "\n#".to_string(),
+        "\n\n".to_string(),
+        "<|fim_prefix|>".to_string(),
+        "<|repo_name|>".to_string(),
+    ])]
+    stop: Vec<String>,
+    /// Disable post-truncate (ablation).
+    #[arg(long, default_value_t = false)]
+    no_truncate: bool,
+    /// Mask FIM/repo control tokens at decode time (Phase 23 probe lesson).
+    #[arg(long, default_value_t = true)]
+    suppress_special: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,6 +80,23 @@ fn norm(s: &str) -> String {
         .filter(|c| !c.is_whitespace())
         .collect::<String>()
         .to_lowercase()
+}
+
+/// Cut model drift after a completed snippet (Phase 23 stop-sequence lesson).
+/// Applied at score time so the ruler matches what a harvest loop would keep.
+fn truncate_completion(text: &str, stops: &[String]) -> String {
+    let mut cut = text.len();
+    for s in stops {
+        if s.is_empty() {
+            continue;
+        }
+        if let Some(i) = text.find(s.as_str()) {
+            // Keep the stop char if it is a structural closer already in the
+            // completion (e.g. we stop *before* "\npub ", not eating the body).
+            cut = cut.min(i);
+        }
+    }
+    text[..cut].to_string()
 }
 
 fn load_pairs(path: &std::path::Path) -> Result<Vec<(String, String, String)>> {
@@ -198,13 +234,31 @@ async fn main() -> Result<()> {
     let config: candle_transformers::models::qwen2::Config = serde_json::from_str(&cfg_text)?;
     let tokenizer = tokenizers::Tokenizer::from_file(snapshot.join("tokenizer.json"))
         .map_err(|e| anyhow!("tokenizer: {e}"))?;
-    let model = QwenModelActor::new(
+    let mut model = QwenModelActor::new(
         args.checkpoint.clone(),
         Arc::new(tokenizer),
         config,
         device.clone(),
         dtype,
     )?;
+    if args.suppress_special {
+        let tj: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(snapshot.join("tokenizer.json"))?)?;
+        let ids: Vec<u32> = tj["added_tokens"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter(|t| {
+                        let c = t["content"].as_str().unwrap_or("");
+                        c != "<|endoftext|>"
+                    })
+                    .filter_map(|t| t["id"].as_u64().map(|x| x as u32))
+                    .collect()
+            })
+            .unwrap_or_default();
+        println!("[Phase24Probe] suppressing {} control tokens (EOS kept)", ids.len());
+        model = model.with_suppressed_tokens(ids);
+    }
     let system = ActorSystem::new("phase24-fmt-probe");
     let model_ref = system.spawn(model, "qwen-model").await?;
 
@@ -239,13 +293,19 @@ async fn main() -> Result<()> {
             } else {
                 &[][..]
             };
-            let got = tk.decode(comp_ids)?;
+            let raw = tk.decode(comp_ids)?;
+            let got = if args.no_truncate {
+                raw.clone()
+            } else {
+                truncate_completion(&raw, &args.stop)
+            };
             score.add(&got, want);
             if shown < args.show {
                 println!(
-                    "  [{side}/{fam}] want {:?} got {:?}",
+                    "  [{side}/{fam}] want {:?} got {:?} (raw {:?})",
                     want.chars().take(80).collect::<String>(),
-                    got.chars().take(80).collect::<String>()
+                    got.chars().take(80).collect::<String>(),
+                    raw.chars().take(100).collect::<String>()
                 );
                 shown += 1;
             }
