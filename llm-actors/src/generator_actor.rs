@@ -83,6 +83,25 @@ where
     /// the ORIGINAL prompt paired with the repaired completion — training on
     /// the two-turn transcript would teach the model to fail first.
     pub repair_failures: bool,
+    /// Phase 23 — also harvest the repair turn *as its own training pair*.
+    ///
+    /// `repair_failures` alone collapses a correction to
+    /// `(original prompt → corrected call)`, which teaches the right answer
+    /// and nothing about correcting. Training on the full transcript instead
+    /// would teach the model to produce the failed call first — the mistake
+    /// that contaminated an earlier harvest.
+    ///
+    /// This emits the second turn only:
+    ///
+    /// ```text
+    /// prompt      Q: …?\n(python <failed call>→<result>)\n
+    /// completion  (python <corrected call>)\n
+    /// ```
+    ///
+    /// The failure is already *in the prompt*, so it is never a generation
+    /// target; what is learned is "this result does not answer the question,
+    /// write a better call". Off by default.
+    pub repair_context_pairs: bool,
 }
 
 impl<M> GeneratorActor<M>
@@ -96,15 +115,25 @@ where
         self
     }
 
+    /// Harvest the repair turn as its own pair. See
+    /// [`Self::repair_context_pairs`].
+    pub fn with_repair_context_pairs(mut self, on: bool) -> Self {
+        self.repair_context_pairs = on;
+        self
+    }
+
     /// One repair turn. Returns the repaired trajectory only if it verifies —
     /// an unverified repair is just another failure and must not be
     /// harvested.
+    /// Returns `(collapsed, context_pair)`: the corrected call paired with
+    /// the original prompt, and — when [`Self::repair_context_pairs`] is on —
+    /// the same correction paired with the repair-turn prompt.
     async fn repair_one(
         &self,
         prompt: &str,
         first: &Trajectory,
         sampling: GenerateConfig,
-    ) -> Option<Trajectory> {
+    ) -> Option<(Trajectory, Option<Trajectory>)> {
         let verdict = self.domain.verify(prompt, &first.completion);
         if verdict.is_correct() {
             return None;
@@ -112,7 +141,10 @@ where
         let next_prompt = self
             .domain
             .repair_prompt(prompt, &first.completion, &verdict)?;
-        let repaired = self.generate_one(next_prompt, sampling).await.ok()?;
+        let repaired = self
+            .generate_one(next_prompt.clone(), sampling)
+            .await
+            .ok()?;
         // Re-pair with the ORIGINAL prompt: what we want to train is a
         // first-turn call that works, not the recovery transcript.
         let candidate = Trajectory {
@@ -120,10 +152,19 @@ where
             completion: repaired.completion,
             source: first.source.clone(),
         };
-        self.domain
+        if !self
+            .domain
             .verify(prompt, &candidate.completion)
             .is_correct()
-            .then_some(candidate)
+        {
+            return None;
+        }
+        let context = self.repair_context_pairs.then(|| Trajectory {
+            prompt: next_prompt,
+            completion: candidate.completion.clone(),
+            source: first.source.clone(),
+        });
+        Some((candidate, context))
     }
 
     pub fn new(
@@ -141,6 +182,7 @@ where
             source,
             per_request_timeout: Duration::from_secs(60),
             repair_failures: false,
+            repair_context_pairs: false,
         }
     }
 
@@ -292,6 +334,7 @@ where
                     let mut out = Vec::with_capacity(n_prompts * k);
                     let mut errs = 0usize;
                     let mut repaired = 0usize;
+                    let mut context_pairs = 0usize;
                     for i in 0..n_prompts {
                         let Some(prompt) = self.domain.nth_prompt(i) else {
                             warn!(index = i, "nth_prompt returned None; skipping");
@@ -318,10 +361,15 @@ where
                                         // just failed.
                                         let mut rs = s.clone();
                                         rs.seed = s.seed.map(|x| x.wrapping_add(0x5eed));
-                                        if let Some(fixed) = self.repair_one(&prompt, &t, rs).await
+                                        if let Some((fixed, ctx)) =
+                                            self.repair_one(&prompt, &t, rs).await
                                         {
                                             repaired += 1;
                                             out.push(fixed);
+                                            if let Some(c) = ctx {
+                                                context_pairs += 1;
+                                                out.push(c);
+                                            }
                                             continue;
                                         }
                                     }
@@ -341,6 +389,7 @@ where
                         n_prompts,
                         samples_per_prompt = k,
                         repaired,
+                        context_pairs,
                         "GeneratorActor systematic done"
                     );
                     let _ = reply.send(Ok(out));

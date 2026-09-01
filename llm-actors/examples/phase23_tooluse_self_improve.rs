@@ -138,6 +138,12 @@ struct Args {
     /// empty and the loop cannot start.
     #[arg(long)]
     harvest_repair: bool,
+    /// Also harvest the repair TURN as its own pair — prompt carrying the
+    /// failed call, completion the corrected one. Trains "this result does
+    /// not answer the question, write a better call" without ever making the
+    /// failed call a generation target.
+    #[arg(long)]
+    harvest_repair_context: bool,
     /// After a failed call, splice the tool's error back in and give the
     /// model another turn — then report how often that second turn fixes it.
     ///
@@ -504,7 +510,8 @@ async fn main() -> Result<()> {
                 None,
                 "qwen".to_string(),
             )
-            .with_repair_failures(args.harvest_repair),
+            .with_repair_failures(args.harvest_repair)
+            .with_repair_context_pairs(args.harvest_repair_context),
             "generator",
         )
         .await?;

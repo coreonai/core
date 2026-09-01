@@ -267,6 +267,23 @@ impl ToolUsePythonDomain {
         self.tasks.get(i)
     }
 
+    /// Resolve a prompt to its task, tolerating a repair-turn prompt.
+    ///
+    /// A repair prompt is the original question with a failed call spliced
+    /// after it, so the question is a *prefix*. Exact-matching only would
+    /// reject it as "not from this domain" and every correction pair would be
+    /// silently discarded by the curator — a whole harvest class lost with no
+    /// error anywhere.
+    fn lookup(&self, prompt: &str) -> Option<usize> {
+        if let Some(&i) = self.by_prompt.get(prompt) {
+            return Some(i);
+        }
+        // Prompts end in "\n"; the question line is everything up to the
+        // first newline, which is what `render_prompt` produced.
+        let head = prompt.split_inclusive('\n').next()?;
+        self.by_prompt.get(head).copied()
+    }
+
     /// A snippet that is only `print(<literal>)` — the one unambiguous cheat.
     /// Rejected outright, because harvesting it teaches the model to emit
     /// constants.
@@ -307,7 +324,7 @@ impl Domain for ToolUsePythonDomain {
     }
 
     fn verify(&self, prompt: &str, completion: &str) -> Verdict {
-        let Some(&idx) = self.by_prompt.get(prompt) else {
+        let Some(idx) = self.lookup(prompt) else {
             return Verdict::Incorrect {
                 reason: "prompt not from this domain".into(),
             };
@@ -588,6 +605,23 @@ mod tests {
         let d = dom();
         let prompt = render_prompt(&task(0, 10).question);
         assert!(!d.verify(&prompt, "A: 3025\n").is_correct());
+    }
+
+    /// A correction pair's prompt carries the failed call after the question.
+    /// Verification has to see through that or the whole class is dropped.
+    #[test]
+    fn repair_turn_prompt_still_resolves_to_its_task() {
+        if !have_python() {
+            return;
+        }
+        let d = dom();
+        let base = render_prompt(&task(0, 10).question);
+        let repair = format!("{base}(python print(math.factorial(10))\u{2192}ERR:NameError)\n");
+        // The corrected call must verify against the ORIGINAL question.
+        let v = d.verify(&repair, "(python print(sum(i**3 for i in range(1,11))))\n");
+        assert!(v.is_correct(), "{v:?}");
+        // ...and a wrong correction must still be wrong.
+        assert!(!d.verify(&repair, "(python print(0))\n").is_correct());
     }
 
     #[test]
