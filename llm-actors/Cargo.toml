@@ -184,3 +184,8 @@ required-features = []
 name = "phase24_fmt_sft"
 path = "examples/phase24_fmt_sft.rs"
 required-features = []
+
+[[example]]
+name = "phase24_fmt_probe"
+path = "examples/phase24_fmt_probe.rs"
+required-features = []
