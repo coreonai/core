@@ -1,14 +1,15 @@
-//! Phase 24 — Pekko/MSA harvest loop on `RustCodeDomain` (cargo verifier).
+//! Phase 24 — Pekko/MSA harvest loop on multi-family `PekkoHarvestDomain`.
 //!
-//! Gen → Verify(`cargo run`) → optional repair turn → Curate → LoRA SFT → Reload → Eval.
-//! Starts from a format-SFT init dir (`model.safetensors` + tokenizer/config).
+//! Gen → Verify(`cargo test --features student` / F0 `cargo run`) → optional
+//! repair turn → Curate → LoRA SFT → Reload → Eval.
 //!
 //! ```text
 //! cargo run -p llm-actors --example phase24_pekko_harvest --features cuda --release -- \
-//!     --init-dir scratch-7b-sft/p24_fmt_sft_v2_dir \
-//!     --scratch-dir scratch-pekko-harvest/_cargo_scratch \
-//!     --rounds 2 --gen-n 48 --eval-n 21 --harvest-repair \
-//!     --out-dir scratch-7b-sft/p24_harvest
+//!     --init-dir scratch-7b-sft/p24_fmt_sft_v3_dir \
+//!     --families f0,f1,f2,f3,f4,f5 \
+//!     --rounds 1 --gen-n 28 --eval-n 14 --samples-per-prompt 2 \
+//!     --max-new-tokens 256 --harvest-repair \
+//!     --out-dir scratch-7b-sft/p24_harvest_f0f5
 //! ```
 
 use std::path::PathBuf;
@@ -19,7 +20,8 @@ use candle_core::{DType, Device};
 use clap::Parser;
 use llm_actors::{
     curator_actor::SampleMode,
-    domain::rust_code::RustCodeDomain,
+    domain::pekko_harvest::{Family, PekkoHarvestDomain},
+    domain::Domain,
     qwen2_lora::LoraConfig,
     run_multi_round,
     supervisor::MultiRoundConfig,
@@ -37,10 +39,17 @@ use pekko_actor::ActorSystem;
 struct Args {
     #[arg(long)]
     init_dir: PathBuf,
+    /// Isolated F1–F5 verify crates (each gets empty `[workspace]`).
+    #[arg(long, default_value = "scratch-pekko-harvest/_verify")]
+    verify_root: PathBuf,
+    /// F0 expression-slot cargo scratch.
     #[arg(long, default_value = "scratch-pekko-harvest/_cargo_scratch")]
     scratch_dir: PathBuf,
-    #[arg(long, default_value = "scratch-7b-sft/p24_harvest")]
+    #[arg(long, default_value = "scratch-7b-sft/p24_harvest_f0f5")]
     out_dir: PathBuf,
+    /// Comma-separated families: f0,f1,f2,f3,f4,f5 (default all).
+    #[arg(long, default_value = "f0,f1,f2,f3,f4,f5")]
+    families: String,
     #[arg(long, default_value_t = 2)]
     rounds: usize,
     #[arg(long, default_value_t = 48)]
@@ -61,7 +70,7 @@ struct Args {
     lora_alpha: f32,
     #[arg(long, default_value_t = 4)]
     batch_size: usize,
-    #[arg(long, default_value_t = 64)]
+    #[arg(long, default_value_t = 256)]
     max_new_tokens: usize,
     #[arg(long, default_value_t = 0.8)]
     temperature: f64,
@@ -73,6 +82,8 @@ struct Args {
     harvest_repair: bool,
     #[arg(long, default_value_t = 0)]
     trainer_gpu: usize,
+    #[arg(long, default_value_t = 0)]
+    infer_gpu: usize,
 }
 
 fn pick_device(idx: usize) -> Device {
@@ -101,14 +112,21 @@ async fn main() -> Result<()> {
             );
         }
     }
+    let families = Family::parse_list(&args.families).map_err(anyhow::Error::msg)?;
     std::fs::create_dir_all(&args.out_dir)?;
+    std::fs::create_dir_all(&args.verify_root)?;
     std::fs::create_dir_all(&args.scratch_dir)?;
 
-    let concrete = RustCodeDomain::new(&args.scratch_dir);
-    concrete.ensure_scratch_project()?;
+    let concrete = PekkoHarvestDomain::new(&args.verify_root, &args.scratch_dir, &families);
+    concrete.ensure_ready()?;
+    let n_prompts = concrete.n_prompts().unwrap_or(0);
     let domain = Arc::new(concrete);
 
-    let device = pick_device(0);
+    // Multi-line student.rs slots must not stop at the first newline.
+    // F0 expressions rely on truncate_completion instead.
+    let stop_char: Option<char> = None;
+
+    let device = pick_device(args.infer_gpu);
     let trainer_device = pick_device(args.trainer_gpu);
     if !device.is_cuda() && std::env::var("PHASE22_ALLOW_CPU").is_err() {
         anyhow::bail!("need CUDA");
@@ -120,10 +138,15 @@ async fn main() -> Result<()> {
     )?);
 
     println!(
-        "[Phase24Harvest] init={} scratch={} repair={}",
+        "[Phase24Harvest] init={} families={:?} n_prompts={} verify={} f0_scratch={} repair={} stop_char={:?} max_new={}",
         args.init_dir.display(),
+        families.iter().map(|f| f.as_str()).collect::<Vec<_>>(),
+        n_prompts,
+        args.verify_root.display(),
         args.scratch_dir.display(),
-        args.harvest_repair
+        args.harvest_repair,
+        stop_char,
+        args.max_new_tokens
     );
 
     let qwen_model =
@@ -150,7 +173,7 @@ async fn main() -> Result<()> {
                 model_ref.clone(),
                 tk.clone(),
                 domain.clone(),
-                Some('\n'),
+                stop_char,
                 "qwen".to_string(),
             )
             .with_repair_failures(args.harvest_repair),
@@ -167,7 +190,7 @@ async fn main() -> Result<()> {
                 model_ref.clone(),
                 tk.clone(),
                 domain.clone(),
-                Some('\n'),
+                stop_char,
             ),
             "evaluator",
         )

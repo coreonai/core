@@ -21,6 +21,7 @@ pub mod livecodebench;
 pub mod mbpp;
 pub mod python_code;
 pub mod rust_code;
+pub mod pekko_harvest;
 pub mod tool_use;
 pub mod tool_use_python;
 
