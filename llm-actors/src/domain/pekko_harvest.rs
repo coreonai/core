@@ -301,32 +301,84 @@ pub fn default_slot_challenges() -> Vec<SlotChallenge> {
             "NonEmptyDomain verify todo!만 채워. 빈 문자열 거부.\n",
             "// pekko-harvest-task: f2_domain/nonempty_ko\n"
         ),
-        // ---- F3 handle (single method) ----
+        // ---- F3 Ping / Inc / Get arms (one todo per harvest) ----
         body_chal!(
             Family::F3,
-            "f3_message/handle_v1",
-            "todo!(\"Ping->Pong, Inc bumps, Get returns count\")",
-            "match msg {\n            Message::Ping => Response::Pong,\n            Message::Inc => {\n                self.n += 1;\n                Response::Count(self.n)\n            }\n            Message::Get => Response::Count(self.n),\n        }",
-            "Fill CounterActor::handle todo!.\n",
-            "Ping→Pong; Inc bumps n and returns Count(n); Get returns Count(n).\n",
-            "Replace todo!(\"Ping->Pong, Inc bumps, Get returns count\") with a match body only.\n",
-            "// pekko-harvest-task: f3_message/handle_v1\n"
+            "f3_message/ping_v1",
+            "todo!(\"Ping arm\")",
+            "Response::Pong",
+            "Fill ONLY the Ping match arm todo!. Return Response::Pong.\n",
+            "Stub: Message::Ping => todo!(\"Ping arm\"),\n",
+            "Output ONLY the arm expression (e.g. Response::Pong), no match/fn wrappers.\n",
+            "// pekko-harvest-task: f3_message/ping_v1\n"
         ),
         body_chal!(
             Family::F3,
-            "f3_message/handle_v2",
-            "todo!(\"Ping->Pong, Inc bumps, Get returns count\")",
-            "match msg {\n            Message::Ping => Response::Pong,\n            Message::Inc => {\n                self.n += 1;\n                Response::Count(self.n)\n            }\n            Message::Get => Response::Count(self.n),\n        }",
-            "CounterActor handle: match Ping/Inc/Get. Output the match expression only.\n",
-            "// pekko-harvest-task: f3_message/handle_v2\n"
+            "f3_message/ping_v2",
+            "todo!(\"Ping arm\")",
+            "Response::Pong",
+            "Ping arm body: Response::Pong. Replace todo!(\"Ping arm\") only.\n",
+            "// pekko-harvest-task: f3_message/ping_v2\n"
         ),
         body_chal!(
             Family::F3,
-            "f3_message/handle_ko",
-            "todo!(\"Ping->Pong, Inc bumps, Get returns count\")",
-            "match msg {\n            Message::Ping => Response::Pong,\n            Message::Inc => {\n                self.n += 1;\n                Response::Count(self.n)\n            }\n            Message::Get => Response::Count(self.n),\n        }",
-            "CounterActor::handle todo!를 match로 채워. Ping→Pong, Inc/Get 처리. 본문만.\n",
-            "// pekko-harvest-task: f3_message/handle_ko\n"
+            "f3_message/ping_ko",
+            "todo!(\"Ping arm\")",
+            "Response::Pong",
+            "Ping 팔 todo!만 Response::Pong으로 채워. 표현식만.\n",
+            "// pekko-harvest-task: f3_message/ping_ko\n"
+        ),
+        body_chal!(
+            Family::F3,
+            "f3_message/inc_v1",
+            "todo!(\"Inc arm\")",
+            "{ self.n += 1; Response::Count(self.n) }",
+            "Fill ONLY the Inc match arm todo!. Bump self.n then return Count(n).\n",
+            "Stub: Message::Inc => todo!(\"Inc arm\"),\n",
+            "Output ONLY the arm body, e.g. { self.n += 1; Response::Count(self.n) }\n",
+            "// pekko-harvest-task: f3_message/inc_v1\n"
+        ),
+        body_chal!(
+            Family::F3,
+            "f3_message/inc_v2",
+            "todo!(\"Inc arm\")",
+            "{ self.n += 1; Response::Count(self.n) }",
+            "Inc arm: increment n and return Response::Count(self.n). Body only.\n",
+            "// pekko-harvest-task: f3_message/inc_v2\n"
+        ),
+        body_chal!(
+            Family::F3,
+            "f3_message/inc_ko",
+            "todo!(\"Inc arm\")",
+            "{ self.n += 1; Response::Count(self.n) }",
+            "Inc 팔 todo!만 n+=1 후 Count. 본문만.\n",
+            "// pekko-harvest-task: f3_message/inc_ko\n"
+        ),
+        body_chal!(
+            Family::F3,
+            "f3_message/get_v1",
+            "todo!(\"Get arm\")",
+            "Response::Count(self.n)",
+            "Fill ONLY the Get match arm todo!. Return Response::Count(self.n).\n",
+            "Stub: Message::Get => todo!(\"Get arm\"),\n",
+            "Output ONLY the arm expression. No match/fn wrappers.\n",
+            "// pekko-harvest-task: f3_message/get_v1\n"
+        ),
+        body_chal!(
+            Family::F3,
+            "f3_message/get_v2",
+            "todo!(\"Get arm\")",
+            "Response::Count(self.n)",
+            "Get arm body: Response::Count(self.n). Replace todo!(\"Get arm\") only.\n",
+            "// pekko-harvest-task: f3_message/get_v2\n"
+        ),
+        body_chal!(
+            Family::F3,
+            "f3_message/get_ko",
+            "todo!(\"Get arm\")",
+            "Response::Count(self.n)",
+            "Get 팔 todo!만 Count(self.n). 표현식만.\n",
+            "// pekko-harvest-task: f3_message/get_ko\n"
         ),
         // ---- F4 count_keys ----
         body_chal!(
@@ -391,33 +443,81 @@ pub fn default_slot_challenges() -> Vec<SlotChallenge> {
             "Color::Green 팔의 todo!를 \"green\"으로 고쳐. 표현식만.\n",
             "// pekko-harvest-task: f4_repair/green_ko\n"
         ),
-        // ---- F5 one_round ----
+        // ---- F5 generate vs verify-keep (short bodies) ----
         body_chal!(
             Family::F5,
-            "f5_supervisor/one_round_v1",
-            "todo!(\"generate then verify each prompt; keep Correct only; record order\")",
-            "{\n    let mut out = RoundResult::default();\n    for p in prompts {\n        out.order.push(\"generate\");\n        let c = gen.generate(p);\n        out.order.push(\"verify\");\n        if ver.verify(p, &c) == Verdict::Correct {\n            out.kept.push(c);\n        }\n    }\n    out\n}",
-            "Fill one_round todo!. For each prompt: push \"generate\", generate, push \"verify\",\n",
-            "keep completion if Verdict::Correct. Return RoundResult.\n",
-            "Replace the todo!(...) with the function body only (a block is fine).\n",
-            "// pekko-harvest-task: f5_supervisor/one_round_v1\n"
+            "f5_supervisor/gen_v1",
+            "todo!(\"push generate then gen.generate\")",
+            "{\n    out.order.push(\"generate\");\n    gen.generate(p)\n}",
+            "Fill record_generate todo!. Push \"generate\" then return gen.generate(p).\n",
+            "Replace todo!(\"push generate then gen.generate\") — 2–4 line body only.\n",
+            "// pekko-harvest-task: f5_supervisor/gen_v1\n"
         ),
         body_chal!(
             Family::F5,
-            "f5_supervisor/one_round_v2",
-            "todo!(\"generate then verify each prompt; keep Correct only; record order\")",
-            "{\n    let mut out = RoundResult::default();\n    for p in prompts {\n        out.order.push(\"generate\");\n        let c = gen.generate(p);\n        out.order.push(\"verify\");\n        if ver.verify(p, &c) == Verdict::Correct {\n            out.kept.push(c);\n        }\n    }\n    out\n}",
-            "Wire generate then verify for one self-improve round; keep Correct only; record order.\n",
-            "Body only for the one_round todo!.\n",
-            "// pekko-harvest-task: f5_supervisor/one_round_v2\n"
+            "f5_supervisor/gen_v2",
+            "todo!(\"push generate then gen.generate\")",
+            "{\n    out.order.push(\"generate\");\n    gen.generate(p)\n}",
+            "record_generate body: order.push generate, then gen.generate(p). Body only.\n",
+            "// pekko-harvest-task: f5_supervisor/gen_v2\n"
         ),
         body_chal!(
             Family::F5,
-            "f5_supervisor/one_round_ko",
-            "todo!(\"generate then verify each prompt; keep Correct only; record order\")",
-            "{\n    let mut out = RoundResult::default();\n    for p in prompts {\n        out.order.push(\"generate\");\n        let c = gen.generate(p);\n        out.order.push(\"verify\");\n        if ver.verify(p, &c) == Verdict::Correct {\n            out.kept.push(c);\n        }\n    }\n    out\n}",
-            "one_round todo!만 채워. generate→verify 순서, Correct만 kept.\n",
-            "// pekko-harvest-task: f5_supervisor/one_round_ko\n"
+            "f5_supervisor/gen_ko",
+            "todo!(\"push generate then gen.generate\")",
+            "{\n    out.order.push(\"generate\");\n    gen.generate(p)\n}",
+            "record_generate todo!만: order에 generate 푸시 후 gen.generate. 본문만.\n",
+            "// pekko-harvest-task: f5_supervisor/gen_ko\n"
+        ),
+        body_chal!(
+            Family::F5,
+            "f5_supervisor/keep_v1",
+            "todo!(\"push verify; keep Correct\")",
+            "{\n    out.order.push(\"verify\");\n    if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); }\n}",
+            "Fill record_verify_keep todo!. Push \"verify\"; keep completion iff Correct.\n",
+            "Replace todo!(\"push verify; keep Correct\") — short body only.\n",
+            "// pekko-harvest-task: f5_supervisor/keep_v1\n"
+        ),
+        body_chal!(
+            Family::F5,
+            "f5_supervisor/keep_v2",
+            "todo!(\"push verify; keep Correct\")",
+            "{\n    out.order.push(\"verify\");\n    if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); }\n}",
+            "record_verify_keep: push verify, then kept.push if Verdict::Correct. Body only.\n",
+            "// pekko-harvest-task: f5_supervisor/keep_v2\n"
+        ),
+        body_chal!(
+            Family::F5,
+            "f5_supervisor/keep_ko",
+            "todo!(\"push verify; keep Correct\")",
+            "{\n    out.order.push(\"verify\");\n    if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); }\n}",
+            "record_verify_keep todo!만: verify 기록, Correct만 kept. 본문만.\n",
+            "// pekko-harvest-task: f5_supervisor/keep_ko\n"
+        ),
+        body_chal!(
+            Family::F5,
+            "f5_supervisor/round_v1",
+            "todo!(\"for each prompt: generate then verify-keep\")",
+            "{\n    let mut out = RoundResult::default();\n    for p in prompts { let c = record_generate(&mut out, gen, p); record_verify_keep(&mut out, ver, p, c); }\n    out\n}",
+            "Fill one_round todo!. For each prompt call record_generate then record_verify_keep.\n",
+            "Replace todo!(\"for each prompt: generate then verify-keep\") — short body only.\n",
+            "// pekko-harvest-task: f5_supervisor/round_v1\n"
+        ),
+        body_chal!(
+            Family::F5,
+            "f5_supervisor/round_v2",
+            "todo!(\"for each prompt: generate then verify-keep\")",
+            "{\n    let mut out = RoundResult::default();\n    for p in prompts { let c = record_generate(&mut out, gen, p); record_verify_keep(&mut out, ver, p, c); }\n    out\n}",
+            "one_round body: loop prompts; generate then verify-keep helpers. Return RoundResult.\n",
+            "// pekko-harvest-task: f5_supervisor/round_v2\n"
+        ),
+        body_chal!(
+            Family::F5,
+            "f5_supervisor/round_ko",
+            "todo!(\"for each prompt: generate then verify-keep\")",
+            "{\n    let mut out = RoundResult::default();\n    for p in prompts { let c = record_generate(&mut out, gen, p); record_verify_keep(&mut out, ver, p, c); }\n    out\n}",
+            "one_round todo!만: 프롬프트마다 generate 다음 verify-keep. 본문만.\n",
+            "// pekko-harvest-task: f5_supervisor/round_ko\n"
         ),
     ]
 }
@@ -435,7 +535,8 @@ pub fn apply_body_slot(
     }
     let mut text = scaffold.to_string();
     for c in family_slots {
-        if c.task_id == target.task_id {
+        // Paraphrases share a needle; only gold-fill *other* unique todos.
+        if c.todo_needle == target.todo_needle {
             continue;
         }
         if text.contains(c.todo_needle) {
@@ -798,18 +899,13 @@ pub fn truncate_pekko_completion(completion: &str) -> String {
         return body.to_string();
     }
 
-    // Body-slot shaped: keep multi-line; soft-cut only on blank-line + item / comment.
+    // Body-slot shaped: keep a balanced fragment. Do NOT use F0 stops
+    // (`\npub `/`\nfn `/`\nuse `) or `\n}` — those chop short match/Inc bodies.
     if is_body_shaped(body) {
-        let soft = [
-            "\n\npub ",
-            "\n\nfn ",
-            "\n\nstruct ",
-            "\n\nimpl ",
-            "\n\nuse ",
-            "\n}",
-            "\nfn ",
-            "\npub ",
-        ];
+        if let Some(end) = balanced_fragment_end(body) {
+            return body[..end].trim_end().to_string();
+        }
+        let soft = ["\n\npub ", "\n\nfn ", "\n\nstruct ", "\n\nimpl ", "\n\nuse "];
         let mut c = body.len();
         for st in soft {
             if let Some(i) = body.find(st) {
@@ -817,7 +913,6 @@ pub fn truncate_pekko_completion(completion: &str) -> String {
             }
         }
         let trimmed = body[..c].trim_end();
-        // One-liner salvage: first line complete (balanced, not opening a block).
         if let Some(one) = first_complete_oneliner(trimmed) {
             return one.to_string();
         }
@@ -858,6 +953,69 @@ pub fn truncate_pekko_completion(completion: &str) -> String {
         }
     }
     body[..c].trim_end().to_string()
+}
+
+fn balanced_fragment_end(body: &str) -> Option<usize> {
+    let skip = body.len() - body.trim_start().len();
+    let t = &body[skip..];
+    let use_paren = t.starts_with("Ok(")
+        || t.starts_with("Err(")
+        || t.starts_with("format!")
+        || t.starts_with('(');
+    let use_brace = t.starts_with('{')
+        || t.starts_with("match ")
+        || t.starts_with("if ")
+        || t.starts_with("for ")
+        || t.starts_with("while ")
+        || t.starts_with("loop ");
+    if !use_paren && !use_brace {
+        return None;
+    }
+    let mut depth = 0i32;
+    let mut seen = false;
+    let mut in_str = false;
+    let mut esc = false;
+    for (i, ch) in t.char_indices() {
+        if in_str {
+            if esc {
+                esc = false;
+                continue;
+            }
+            if ch == '\\' {
+                esc = true;
+                continue;
+            }
+            if ch == '"' {
+                in_str = false;
+            }
+            continue;
+        }
+        let opener = (use_brace && ch == '{') || (use_paren && (ch == '(' || ch == '['));
+        let closer = (use_brace && ch == '}') || (use_paren && (ch == ')' || ch == ']'));
+        match ch {
+            '"' => in_str = true,
+            _ if opener => {
+                depth += 1;
+                seen = true;
+            }
+            _ if closer => {
+                depth -= 1;
+                if depth < 0 {
+                    return None;
+                }
+                if seen && depth == 0 {
+                    let end = skip + i + ch.len_utf8();
+                    let rest = body[end..].trim_start();
+                    if rest.starts_with("else") {
+                        continue;
+                    }
+                    return Some(end);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn first_complete_oneliner(body: &str) -> Option<&str> {
@@ -1147,5 +1305,122 @@ mod tests {
         // other todo filled with gold
         assert!(out.contains("Ok(\"pong\".into())") || out.contains("let _ = args"));
         assert!(!out.contains("todo!(\"return pong\")"));
+    }
+
+    #[test]
+    fn apply_body_does_not_gold_fill_same_needle_paraphrase() {
+        let scaffold = "fn a() { todo!(\"return args unchanged\") }\n";
+        let slots = default_slot_challenges();
+        let echo_v2 = slots.iter().find(|c| c.task_id == "f1_tool/echo_v2").unwrap();
+        let fam: Vec<&SlotChallenge> = slots
+            .iter()
+            .filter(|c| c.family == Family::F1)
+            .fold(Vec::new(), |mut acc, c| {
+                if !acc.iter().any(|x: &&SlotChallenge| x.todo_needle == c.todo_needle) {
+                    acc.push(c);
+                }
+                acc
+            });
+        let out = apply_body_slot(scaffold, &fam, echo_v2, "Ok(args.to_string())").unwrap();
+        assert!(out.contains("Ok(args.to_string())"));
+        assert!(!out.contains("todo!(\"return args unchanged\")"));
+    }
+
+    #[test]
+    fn truncate_does_not_chop_inc_block_on_brace() {
+        let raw = "{\n    self.n += 1;\n    Response::Count(self.n)\n}\nfn other() {}";
+        let t = truncate_pekko_completion(raw);
+        assert!(t.contains("self.n += 1"), "{t:?}");
+        assert!(t.contains("Response::Count(self.n)"), "{t:?}");
+        assert!(t.trim().ends_with('}'), "{t:?}");
+        assert!(!t.contains("fn other"), "{t:?}");
+    }
+
+    #[test]
+    fn truncate_keeps_if_else_verdict() {
+        let raw = "if completion == \"ok\" { Verdict::Correct } else { Verdict::Incorrect { reason: \"expected ok\".into() } }\npub fn leak() {}";
+        let t = truncate_pekko_completion(raw);
+        assert!(t.contains("else"), "{t:?}");
+        assert!(t.contains("Verdict::Incorrect"), "{t:?}");
+        assert!(!t.contains("fn leak"), "{t:?}");
+        let raw2 = "if completion.is_empty() { Verdict::Incorrect { reason: \"empty\".into() } } else { Verdict::Correct }";
+        let t2 = truncate_pekko_completion(raw2);
+        assert!(t2.contains("else"), "{t2:?}");
+        assert!(t2.contains("is_empty"), "{t2:?}");
+        assert!(t2.contains("Verdict::Correct"), "{t2:?}");
+    }
+
+    #[test]
+    fn truncate_keeps_short_ping_arm() {
+        let raw = "Response::Pong\npub fn leak() {}";
+        let t = truncate_pekko_completion(raw);
+        assert_eq!(t, "Response::Pong");
+    }
+
+    #[test]
+    fn f3_f5_needles_are_split() {
+        let cs = default_slot_challenges();
+        let f3: Vec<_> = cs.iter().filter(|c| c.family == Family::F3).collect();
+        let needles: std::collections::HashSet<_> = f3.iter().map(|c| c.todo_needle).collect();
+        assert!(needles.contains("todo!(\"Ping arm\")"));
+        assert!(needles.contains("todo!(\"Inc arm\")"));
+        assert!(needles.contains("todo!(\"Get arm\")"));
+        assert_eq!(needles.len(), 3);
+        let f5: Vec<_> = cs.iter().filter(|c| c.family == Family::F5).collect();
+        let n5: std::collections::HashSet<_> = f5.iter().map(|c| c.todo_needle).collect();
+        assert_eq!(n5.len(), 3);
+        assert!(f3.iter().all(|c| c.gold_body.lines().count() <= 6));
+        assert!(f5.iter().all(|c| c.gold_body.lines().count() <= 6));
+    }
+
+    #[test]
+    fn all_slot_golds_pass_cargo_student() {
+        let harvest = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../scratch-pekko-harvest");
+        if !harvest.join("f1_tool/Cargo.toml").exists() {
+            return;
+        }
+        let verify = harvest.join("_verify_gold_v8");
+        let scratch = harvest.join("_cargo_scratch_gold_v8");
+        let families = Family::parse_list("f0,f1,f2,f3,f4,f5").unwrap();
+        let d = PekkoHarvestDomain::new(&verify, &scratch, &families);
+        d.ensure_ready().expect("ensure_ready");
+        let mut seen = std::collections::HashSet::new();
+        for c in &d.slots {
+            if !seen.insert(c.task_id) {
+                continue;
+            }
+            let v = d.verify(c.prompt, c.gold_body);
+            assert!(
+                matches!(v, Verdict::Correct),
+                "gold failed {}: {v:?}",
+                c.task_id
+            );
+        }
+        // F0 expression golds
+        if let Some(f0) = &d.f0 {
+            let golds = [
+                ("equals_5", "2 + 3"),
+                ("equals_14_via_doubling", "7"),
+                ("len_5_string", "\"hello\""),
+                ("equals_10", "10"),
+                ("equals_zero", "0"),
+                ("bool_true", "true"),
+                ("bool_false", "false"),
+                ("len_3_string", "\"abc\""),
+                ("vec_sum_6", "[1, 2, 3]"),
+                ("option_some_5", "Some(5)"),
+            ];
+            for (i, ch) in f0.challenges.iter().enumerate() {
+                let g = golds.iter().find(|(n, _)| *n == ch.name).map(|(_, g)| *g);
+                let Some(g) = g else { continue };
+                let prompt = f0.nth_prompt(i).expect("f0 prompt");
+                let v = d.verify(&prompt, g);
+                assert!(
+                    matches!(v, Verdict::Correct),
+                    "F0 gold failed {}: {v:?}",
+                    ch.name
+                );
+            }
+        }
     }
 }
