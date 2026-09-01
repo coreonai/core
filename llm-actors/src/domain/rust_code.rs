@@ -138,11 +138,17 @@ impl RustCodeDomain {
         fs::create_dir_all(self.scratch_dir.join("src"))?;
         let cargo = self.scratch_dir.join("Cargo.toml");
         if !cargo.exists() {
-            let mut f = fs::File::create(&cargo)?;
-            writeln!(
-                f,
-                "[package]\nname = \"scratch\"\nversion = \"0.0.0\"\nedition = \"2021\"\n[dependencies]\n"
+            fs::write(
+                &cargo,
+                "[package]\nname = \"scratch\"\nversion = \"0.0.0\"\nedition = \"2021\"\n[dependencies]\n\n[workspace]\n",
             )?;
+        } else {
+            let cur = fs::read_to_string(&cargo)?;
+            if !cur.contains("[workspace]") {
+                let mut f = fs::OpenOptions::new().append(true).open(&cargo)?;
+                writeln!(f)?;
+                writeln!(f, "[workspace]")?;
+            }
         }
         let main = self.scratch_dir.join("src/main.rs");
         if !main.exists() {
