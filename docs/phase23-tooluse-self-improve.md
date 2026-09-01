@@ -177,18 +177,38 @@ Two measurements, same ruler, loop-before vs loop-after:
 
 | | before | after (narrow) |
 |---|---|---|
-| **transfer** — emits a dispatchable call | 12/12 | **4/12** |
-| **transfer** — computes the right answer | 4/12 | **1/12** |
+| **transfer** — emits a dispatchable call | 12/12 | 12/12 |
+| **transfer** — computes the right answer | 4/12 | **2/12** |
+| **transfer** — tool dispatch errors | 5 | **8** |
 | **retention** — five unharvested families | ~0.988 | **0.806** |
 
-Not a null, a regression. Family 1 halved (1.000 → 0.500). The mechanism is
-visible in the failures: the model reaches for the multi-line import idiom
-everywhere, and on an unfamiliar prompt it stops at `(python import math\n`
-without ever closing the call. 8 of 12 novel problems produced no parseable
-call at all — which is why dispatch errors were 0.
+Not a null, a regression — but a smaller one than first reported, and the
+first report's mechanism was wrong.
 
-`imports: 87/160` on families that never needed one. It over-generalised
-"always import" and broke working one-liners.
+> **Correction.** This table originally read 4/12 emitted and 1/12 correct,
+> explained as "the model stops at `(python import math\n` without ever
+> closing the call". The model does not stop there. The measurement used
+> `--stop "\n"`, and the narrow checkpoint writes **multi-line** snippets:
+>
+> ```text
+> (python import math
+> print(sum(1 for i in range(1,46) if math.gcd(i,45)==1)))
+> ```
+>
+> A newline stop cuts that after `import math`, so the call never closes and
+> is counted as "emitted no call". The eval path has no stop sequence, which
+> is why the same checkpoint measured family 5 at 1.000 there while appearing
+> to emit nothing here. Re-measured with the stop at the call boundary
+> (`")\n"`), emission is 12/12 and the real cost is in correctness (4/12 →
+> 2/12) and dispatch errors (5 → 8). The wide-harvest checkpoints are
+> unaffected — they write single-line snippets on unfamiliar prompts, so the
+> newline stop never bit them, and their numbers are identical under both
+> rulers. `phase23_python_tool_7b` and `phase23_ask` now default to `")\n"`.
+
+The over-generalisation itself is real and is what the correction exposes:
+`imports: 87/160` on families that never needed one, and the multi-line
+import idiom appearing on prompts that call for a one-liner. It broke working
+one-liners; it did not stop the model from emitting calls.
 
 Saturating in a single round was the warning. Once there is nothing left to
 learn, further rounds only narrow.
@@ -218,22 +238,22 @@ to cover the corpus ~2×.
 | target family 3 | 0.000 | 1.000 | **1.000** |
 | target family 5 | 0.000 | 1.000 | **1.000** |
 | retention, five families | ~0.988 | 0.806 | **1.000** |
-| transfer — emits a call | 12/12 | 4/12 | **11/12** |
-| transfer — correct | 4/12 | 1/12 | **4/12** |
+| transfer — emits a call | 12/12 | 12/12 | **11/12** |
+| transfer — correct | 4/12 | 2/12 | **4/12** |
 | imports where not needed | — | 87/160 | **0/160** |
 | answer before the call | ~0 | 80/98 | **0/98** |
 
-Replay recovers everything the narrow run cost, and the targets are still
-fully learned. Retention comes out at 1.000 — marginally *above* the
+Replay recovers what the narrow run cost, and the targets are still fully
+learned. Retention comes out at 1.000 — marginally *above* the
 pre-loop 0.988, because family 7 (0.938) was pulled up too.
 
 The over-generalisation is gone and the selectivity is exact: **0/160 imports
 on families that do not need one, 49/98 on the targets — precisely the 49
 family-5 prompts.** The model learned *when* to import, not "always import".
 
-Transfer returns to the pre-loop level: 11/12 emitted, 4/12 correct. Note
-what this is and is not — the regression is repaired, but there is **no
-transfer gain**. Whatever the loop taught did not make the model better at
+Transfer returns to the pre-loop level: 11/12 emitted, 4/12 correct against
+the narrow run's 2/12. Note what this is and is not — the regression is
+repaired, but there is **no transfer gain**. Whatever the loop taught did not make the model better at
 unfamiliar families, only no worse. The next section takes that apart.
 
 ## Why there is no transfer gain
@@ -302,6 +322,7 @@ probe's Collatz problems reach for it; training on it would have measured
 | retention (0,1,2,4,6,7) | — | 0.917 |
 | transfer — emits a call | 11/12 | 10/12 |
 | transfer — correct | 4/12 | **4/12** |
+| transfer — dispatch errors | 3 | 2 |
 | imports where not needed | 0/160 | **0/192** |
 
 **The hypothesis is refuted.** With two distinct modules in training, the
@@ -364,6 +385,23 @@ pre-SFT invent-an-answer behaviour resurfacing on an out-of-domain prompt,
 i.e. the grounding that `--sabotage` established may hold only in-domain.
 Worth measuring directly: run `--sabotage` on the transfer set.
 
+## A stop sequence is part of the ruler
+
+The correction above is worth generalising. `--stop "\n"` was chosen when the
+model only ever wrote one-line calls; the self-improve loop then taught it a
+multi-line idiom, and the stop silently began truncating valid output. The
+measurement kept running and kept producing a plausible number.
+
+Two properties made it hard to notice. It only bit the *narrow* checkpoint —
+the one whose behaviour had changed — so it looked like a finding about that
+checkpoint rather than about the harness. And it degraded the metric in the
+direction the hypothesis predicted, which is the worst case: a broken ruler
+that agrees with you.
+
+The rule: when a model's output format changes, re-check every piece of the
+harness that assumes the old format. A stop sequence, a truncation rule, and
+a parser are all part of the measurement, not neutral plumbing.
+
 ## What to reuse
 
 - **A free verifier does not make a harvest safe.** It checks the answer, not
@@ -381,6 +419,10 @@ Worth measuring directly: run `--sabotage` on the transfer set.
 - **Saturating in one round is a warning, not a success.** Narrowing follows.
 - **When widening a harvest, scale training steps to the corpus.** A rare
   signal at 0.3% is invisible at a step count tuned for a small pool.
+- **A stop sequence is part of the ruler.** `--stop "\n"` was correct until
+  the loop taught the model multi-line calls, then it truncated them and
+  reported "emitted no call". It bit only the checkpoint whose behaviour had
+  changed, and it moved the number the way the hypothesis predicted.
 - **Replay is free wherever verification is free.** Harvesting saturated
   tasks costs only generation, and it bought back 0.19 of retention and
   7/12 of transfer emission here.

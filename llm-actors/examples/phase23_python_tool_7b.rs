@@ -186,6 +186,22 @@ struct Args {
     /// module docs — this is the falsifier for "the format generalises".
     #[arg(long)]
     novel: bool,
+    /// Stop sequences, matched against newly generated text only.
+    ///
+    /// Default is the CALL BOUNDARY, not a bare newline. A newline stop cuts
+    /// a multi-line snippet in half — the self-improved model writes
+    ///
+    /// ```text
+    /// (python import math
+    /// print(sum(1 for i in range(1,46) if math.gcd(i,45)==1)))
+    /// ```
+    ///
+    /// and `"\n"` truncates it to `(python import math\n`, which never closes
+    /// and so never dispatches. That is a property of the stop sequence, not
+    /// of the model, and it silently converts a working call into "emitted no
+    /// call". `")\n"` ends the chunk exactly where a call completes.
+    #[arg(long, num_args = 1.., default_values_t = vec![")\n".to_string()])]
+    stop: Vec<String>,
     /// Perturb every tool result by this much before it reaches the model.
     /// `0` disables. See the module docs — this is the falsifier for "the
     /// answer came from the tool".
@@ -487,8 +503,7 @@ async fn main() -> Result<()> {
                 exec_ref.clone(),
                 tk.clone(),
             )
-            // Line-oriented format: one line is the call, the next the answer.
-            .with_stop_sequences(["\n"]),
+            .with_stop_sequences(args.stop.iter().filter(|s| !s.is_empty()).cloned()),
             "agentic",
         )
         .await?;

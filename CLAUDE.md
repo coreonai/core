@@ -356,7 +356,8 @@ in-domain compression, HF wins on coverage).
     verification is free.** Harvesting only the two unsolved families
     took them 0.000 → 1.000 and cost retention on five untouched
     families (0.988 → **0.806**, one halving) and transfer to unseen
-    families (12/12 → **4/12** dispatchable calls). It over-generalised
+    families (correctness 4/12 → **2/12**, dispatch errors 5 → 8). It
+    over-generalised
     the idiom it had just learned — 87/160 imports where none was
     needed. Widening the harvest to all eight families restored
     retention to 1.000 and transfer to 11/12 while keeping the targets
@@ -395,6 +396,19 @@ in-domain compression, HF wins on coverage).
     is swappable; outside it, nothing leaves. one→two modules changed
     nothing about a third *phrase*, which is the sharper reading of the
     Collatz/`itertools` miss.
+    **And a stop sequence is part of the ruler.** The narrow run's
+    transfer regression was first reported as 12/12 → 4/12 dispatchable
+    calls, explained as the model stalling at `(python import math\n`.
+    It was not the model: the harness ran `--stop "\n"` while the loop
+    had just taught a MULTI-LINE call idiom, so valid calls were cut
+    after the import line and scored as "emitted no call". The eval
+    path has no stop sequence, which is why the same checkpoint read
+    1.000 in-domain and near-zero on transfer. At a call-boundary stop
+    (`")\n"`) emission is 12/12. It bit only the checkpoint whose
+    output format had changed, and it moved the number the way the
+    hypothesis predicted — a broken ruler that agrees with you. When a
+    model's format changes, re-check the stop sequence, the truncation
+    rule and the parser; they are measurement, not plumbing.
 
 17. **Match the eval metric to where the training signal lives.** SFT
     self-improve **sharpens the sampling distribution**: it lifts
