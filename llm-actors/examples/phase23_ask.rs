@@ -18,17 +18,40 @@
 //! use what comes back, then self-improved on ten families of small
 //! integer-valued questions. Scope is narrow and worth stating plainly:
 //!
-//!   - It expects one short question with a numeric answer, phrased like the
-//!     training distribution (`how many …?`, `what is the … of N?`).
-//!   - It is strong on counting/number-theory shapes it was harvested on and
-//!     on close neighbours (divisor counts transfer at 4/4).
-//!   - It is **not** a chat model. No instruction following, no multi-turn
-//!     conversation, no prose.
-//!   - Two documented weaknesses show up immediately if you go looking:
-//!     it invents closed forms for things like Fibonacci (the code runs and
-//!     the mathematics is wrong), and it references modules it was never
-//!     trained to import — `itertools.takewhile` without `import itertools`.
-//!     See `docs/phase23-tooluse-self-improve.md`.
+//! It wants one short question with a numeric answer. Within that, it reaches
+//! well past the ten families it was harvested on — 14 of 17 assorted
+//! questions tried here came out right, including several with no relation to
+//! the training distribution:
+//!
+//! ```text
+//! how many numbers from 1 to 200 are coprime to 200?   80              (n far outside the trained 12..60)
+//! how many perfect squares are below 500?              22              (family never harvested)
+//! how many vowels are in the word encyclopedia?         5              (string, not number theory)
+//! if a train travels 60 km in 45 minutes, ... one hour? 80.0           (word problem)
+//! how many bits are set in 12345?                       6
+//! what is the 15th prime number?                       47              (after correcting its own first attempt)
+//! ```
+//!
+//! An earlier version of this comment called the scope "counting and
+//! number-theory shapes it was harvested on and close neighbours". That was
+//! too pessimistic; the measurements above are what replaced it.
+//!
+//! What actually breaks, all of it documented in
+//! `docs/phase23-tooluse-self-improve.md`:
+//!
+//!   - **Modules it was never trained to import.** `itertools.permutations`,
+//!     `datetime.date`, `reduce` — all written without an import and all
+//!     `NameError`. It imports `math` and `numpy` fluently and nothing else.
+//!   - **Rephrasing a trained family.** "product of the nonzero digits of N
+//!     cubed" works; "product of the digits of 234" writes `reduce`
+//!     unimported and fails. The transferable unit is the phrase-level
+//!     template.
+//!   - **Invented closed forms.** Fibonacci gets a formula that runs cleanly
+//!     and computes the wrong number.
+//!   - It is **not** a chat model: no instruction following, no conversation,
+//!     no prose answers.
+//!   - Answers can come back as floats (`80.0`), which matters if something
+//!     downstream compares strings.
 //!
 //! ## Reading the output
 //!
@@ -233,13 +256,18 @@ async fn main() -> Result<()> {
                     None => {}
                 }
             }
-            // The answer line the format trains, if the model produced one.
+            // The LAST answer line, not the first. The loop can revise: asked
+            // for the 15th prime it first computed the COUNT of primes below
+            // 1000 (`A: 168`), then re-read the question, indexed `[14]` and
+            // answered `A: 47`. Taking the first match reported the discarded
+            // attempt and made a correct self-correction look like a wrong
+            // answer.
             let answer = report
                 .final_text
                 .strip_prefix(prompt.as_str())
                 .unwrap_or(&report.final_text)
                 .lines()
-                .find(|l| l.trim_start().starts_with("A:"))
+                .rfind(|l| l.trim_start().starts_with("A:"))
                 .unwrap_or("(no answer line)");
             println!("  answer {}", answer.trim());
             if report.stop_reason == StopReason::StepBudget {
