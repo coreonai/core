@@ -5,12 +5,16 @@
 //!
 //! ```text
 //! cargo run -p llm-actors --example phase24_pekko_harvest --features cuda --release -- \
-//!     --init-dir scratch-7b-sft/p24_fmt_sft_v3_dir \
-//!     --families f0,f1,f2,f3,f4,f5 \
+//!     --init-dir scratch-7b-sft/p24_fmt_sft_v8_dir \
+//!     --families f0,f1,f2,f3,f4 \
 //!     --rounds 1 --gen-n 28 --eval-n 14 --samples-per-prompt 2 \
 //!     --max-new-tokens 256 --harvest-repair \
-//!     --out-dir scratch-7b-sft/p24_harvest_f0f5
+//!     --out-dir scratch-7b-sft/p24_harvest_f0f4
 //! ```
+//!
+//! Default `--families` is F0–F4. F5 is excluded from harvest until the
+//! format locks; keep it in `PekkoHarvestDomain` and pass `--families f5`
+//! for the domain-transfer probe.
 
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -46,10 +50,12 @@ struct Args {
     /// F0 expression-slot cargo scratch.
     #[arg(long, default_value = "scratch-pekko-harvest/_cargo_scratch")]
     scratch_dir: PathBuf,
-    #[arg(long, default_value = "scratch-7b-sft/p24_harvest_f0f5")]
+    #[arg(long, default_value = "scratch-7b-sft/p24_harvest_f0f4")]
     out_dir: PathBuf,
-    /// Comma-separated families: f0,f1,f2,f3,f4,f5 (default all).
-    #[arg(long, default_value = "f0,f1,f2,f3,f4,f5")]
+    /// Comma-separated families. Default F0–F4 (harvest). F5 remains in
+    /// PekkoHarvestDomain; pass `--families f5` for the transfer probe.
+    /// F5 excluded from harvest until format locks.
+    #[arg(long, default_value = "f0,f1,f2,f3,f4")]
     families: String,
     #[arg(long, default_value_t = 2)]
     rounds: usize,

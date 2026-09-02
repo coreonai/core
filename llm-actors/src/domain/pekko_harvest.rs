@@ -25,6 +25,10 @@ use crate::domain::Domain;
 use crate::types::Verdict;
 
 /// Harvest family selector (CLI `--families f0,f1,…`).
+///
+/// F5 stays in this domain as a **domain-transfer probe**. Harvest CLI
+/// defaults to F0–F4 (`phase24_pekko_harvest`); F5 is excluded from harvest
+/// until the format locks. Pass `--families f5` for the transfer eval.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Family {
     F0,
@@ -71,7 +75,9 @@ impl Family {
         }
     }
 
-    /// Parse comma/space-separated list. Empty → all families.
+    /// Parse comma/space-separated list. Empty → all families (F0–F5).
+    /// F5 remains selectable (`--families f5`) for the transfer probe even
+    /// though harvest defaults to F0–F4.
     pub fn parse_list(s: &str) -> Result<Vec<Self>, String> {
         let raw: Vec<_> = s
             .split(|c: char| c == ',' || c.is_whitespace())

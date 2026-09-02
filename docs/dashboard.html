@@ -322,15 +322,15 @@
       <div class="card info">
         <div class="card-top"><span class="card-cat">Harvest &middot; PekkoHarvestDomain</span><span class="pill info">live track</span></div>
         <h3>Pekko/MSA cargo-graded harvest (not LCB)</h3>
-        <div class="metric">F0&ndash;F5 <small>per-family log</small></div>
-        <p>Domain <code class="mono">PekkoHarvestDomain</code>. F0&ndash;F5 body slots; F3 per-arm; F5 1-line helpers. Logs generated/harvested/eval pass per family.</p>
-        <div class="note">Fmt init <code class="mono">p24_fmt_sft_v8_dir</code> (v9 F5 probe 0/121). Latest merge <code class="mono">p24_harvest_f0f5_v9/r0_merged.r1.safetensors</code>.</div>
+        <div class="metric">F0&ndash;F4 harvest <small>F5 transfer probe</small></div>
+        <p>Domain <code class="mono">PekkoHarvestDomain</code> still has F0&ndash;F5. Harvest default is F0&ndash;F4 until F5 format locks; pass <code class="mono">--families f5</code> for the transfer probe.</p>
+        <div class="note">Fmt init <code class="mono">p24_fmt_sft_v8_dir</code>. Latest merge <code class="mono">p24_harvest_f0f4_v9b/r0_merged.r1.safetensors</code>.</div>
       </div>
       <div class="card warn">
-        <div class="card-top"><span class="card-cat">Eval &middot; n=24 passk=1</span><span class="pill warn">F5 0</span></div>
-        <h3>F5 still 0; eval 8&rarr;6 then 6&rarr;7 /24</h3>
-        <div class="metric">7/24 <small>v9 r1 after</small></div>
-        <p>Harvest r0 37/106 (f1 10/18 f2 6/18 f3 11/18 f4 10/14; f0 0/20 f5 0/18). r1 33/106 (f3 7/18). F5 eval 0/6 both rounds.</p>
+        <div class="card-top"><span class="card-cat">Eval &middot; n=24 passk=1</span><span class="pill warn">F5 xfer 0</span></div>
+        <h3>v9b F0&ndash;F4: 11&rarr;10 then 10&rarr;7 /24</h3>
+        <div class="metric">10/24 <small>v9b r0 after; r1 7/24</small></div>
+        <p>Harvest r0 36/88 (f1 10/18 f2 6/18 f3 10/18 f4 10/14; f0 0/20). r1 34/88 (f1 9/18 f3 9/18). F5 left out of harvest; transfer eval still 0/18.</p>
         <div class="note"><a href="/phase24-progress.html">Long board: /phase24-progress.html</a></div>
       </div>
     </div>
@@ -349,11 +349,13 @@
         <tr><td></td><td>v8c r1</td><td>36/106</td><td>2&rarr;2 /12</td><td class="sans">eval flat; harvest held</td></tr>
         <tr><td>family log + 1-line F5</td><td>v8_dir &rarr; v9 r0</td><td>37/106</td><td>8&rarr;6 /24</td><td class="sans">f1 10/18 f2 6/18 f3 11/18 f4 10/14; f0 0/20 f5 0/18</td></tr>
         <tr><td></td><td>v9 r1</td><td>33/106</td><td>6&rarr;7 /24</td><td class="sans">f3 harvest 7/18; F5 eval 0/6; F5 fmt train exact 0/121 so init stayed v8_dir</td></tr>
+        <tr><td>drop F5 from harvest</td><td>v8_dir &rarr; v9b r0</td><td>36/88</td><td>11&rarr;10 /24</td><td class="sans">F0&ndash;F4 only. f1 10/18 f2 6/18 f3 10/18 f4 10/14; f0 0/20. vs v9: F3 10 vs 11</td></tr>
+        <tr><td></td><td>v9b r1</td><td>34/88</td><td>10&rarr;7 /24</td><td class="sans">f1 9/18 f3 9/18 f4 10/14. F5 transfer on r1 merge: eval 0/18 harvest 0/9</td></tr>
       </tbody>
     </table>
     <div class="infra">
       <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">Fmt init used for harvest</div><div class="sub"><code class="mono">scratch-7b-sft/p24_fmt_sft_v8_dir</code> (v9 F5 probe train exact 0/121)</div></div><span class="hash">v8_dir</span></div>
-      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">Latest harvest merge</div><div class="sub"><code class="mono">scratch-7b-sft/p24_harvest_f0f5_v9/r0_merged.r1.safetensors</code></div></div><span class="hash">v9 r1</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">Latest harvest merge</div><div class="sub"><code class="mono">scratch-7b-sft/p24_harvest_f0f4_v9b/r0_merged.r1.safetensors</code></div></div><span class="hash">v9b r1</span></div>
     </div>
   </section>
   <!-- /PHASE 24 -->
@@ -369,7 +371,7 @@
       <div class="ph"><span class="pn">P21</span><span class="pd"><b>Pekko-native bridge.</b> Candle-native Qwen2 inference + LoRA training + REINFORCE, 10 stages &mdash; no Python sidecar.</span></div>
       <div class="ph"><span class="pn">P22</span><span class="pd"><b>Real benchmarks + 7B.</b> HumanEval/MBPP as Rust domains; 0.5B&rarr;7B migration; <b>C3&ndash;C5 corrections</b> re-frame the SFT/RL findings above.</span></div>
       <div class="ph"><span class="pn">P23</span><span class="pd"><b>Tool-use SI.</b> Narrow integer/tool loop; LCB POST ~6.3% &mdash; not a coding generalist.</span></div>
-      <div class="ph"><span class="pn">P24</span><span class="pd"><b>Pekko harvest specialization.</b> Cargo-graded F0&ndash;F5 body slots on <code class="mono">PekkoHarvestDomain</code> (not LCB). Best harvest 37/106; latest eval 7/24 (F5 still 0). <a href="/phase24-progress.html">long board &rarr;</a></span></div>
+      <div class="ph"><span class="pn">P24</span><span class="pd"><b>Pekko harvest specialization.</b> Cargo-graded F0&ndash;F4 harvest on <code class="mono">PekkoHarvestDomain</code> (F5 transfer probe). Best harvest 37/106 (v9) / 36/88 (v9b); latest eval 10/24 then 7/24 (F5 xfer 0/18). <a href="/phase24-progress.html">long board &rarr;</a></span></div>
     </div>
   </section>
 
@@ -390,8 +392,8 @@
         <p>The docs carry layered retraction notes. A single clean writeup, everything scored with truncation on at pass@1, would make the corrected story canonical.</p>
       </div>
       <div class="step">
-        <div class="st-top"><span class="prio p1">now</span><h3>P24 F5 still 0 (now per-family)</h3></div>
-        <p>v9 harvest from v8_dir: r0 37/106 eval 8&rarr;6/24; r1 33/106 eval 6&rarr;7/24. Family log: F5 harvest 0/18, eval 0/6. Fmt v9 F5 train exact 0/121. <a href="/phase24-progress.html" style="color:var(--accent)">Phase 24 board &rarr;</a></p>
+        <div class="st-top"><span class="prio p1">now</span><h3>P24 F5 format still unlocked</h3></div>
+        <p>Dropped F5 from harvest. v9b F0&ndash;F4: r0 36/88 eval 11&rarr;10/24; r1 34/88 eval 10&rarr;7/24. vs v9 F5 was 0/18 harvest. F5 transfer after v9b r1 still 0/18 eval, 0/9 harvest. <a href="/phase24-progress.html" style="color:var(--accent)">Phase 24 board &rarr;</a></p>
       </div>
       <div class="step">
         <div class="st-top"><span class="prio p2">watch</span><h3>candle #3773 merge</h3></div>
