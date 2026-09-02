@@ -32,12 +32,12 @@
 <header>
   <h1>Phase 24 — Pekko/MSA harvest</h1>
   <p>Long board at <a href="https://llm.coreon.build/phase24-progress.html" style="color:var(--accent)">https://llm.coreon.build/phase24-progress.html</a> · dashboard summary on <a href="/" style="color:var(--accent)">llm.coreon.build</a></p>
-  <p>Updated 2026-09-02 07:32 KST · dgxa100 · workLLM · v8c continue from r1 merge <b>finished</b></p>
+  <p>Updated 2026-09-02 17:30 KST · dgxa100 · workLLM · v9 harvest from v8_dir <b>finished</b> (F5 still 0)</p>
 </header>
 <main>
   <div class="cards">
     <div class="card"><div class="k">Best harvest</div><div class="v ok">37/106</div></div>
-    <div class="card"><div class="k">Best eval (after)</div><div class="v">2/12</div></div>
+    <div class="card"><div class="k">Best eval (after)</div><div class="v">8/24</div></div>
     <div class="card"><div class="k">Loop</div><div class="v">Gen → cargo → repair → SFT</div></div>
     <div class="card"><div class="k">Families</div><div class="v">F0–F5</div></div>
   </div>
@@ -57,7 +57,8 @@
     <tr><td>body-slot</td><td class="mono">v6b</td><td>10/82</td><td class="bad">2 → 0</td><td><span class="mono">todo!</span> fills; train wiped eval</td></tr>
     <tr><td>F3/F5 SFT boost</td><td class="mono">v7</td><td>r0 12/82; r1–r2 0</td><td class="bad">2 → 0 then 0</td><td>more paraphrases did not lock F3/F5</td></tr>
     <tr><td>short slots + gentle train</td><td class="mono">v8</td><td class="ok">r0 37/106; r1 34/106</td><td>3→1 then 1→2</td><td>F3 per-arm; F5 helpers; lr 5e-5 / 30 steps</td></tr>
-    <tr><td>continue r1 merge</td><td class="mono">v8 r1 → v8c</td><td class="ok">r0 35/106; r1 36/106</td><td>2→2 then 2→2</td><td>eval flat (no collapse); harvest held</td></tr>
+    <tr><td>continue r1 merge</td><td class="mono">v8 r1 → v8c</td><td class="ok">r0 35/106; r1 36/106</td><td>2→2 then 2→2 /12</td><td>eval flat (no collapse); harvest held</td></tr>
+    <tr><td>1-line F5 + family log</td><td class="mono">v8_dir → v9</td><td class="ok">r0 37/106; r1 33/106</td><td>8→6 then 6→7 /24</td><td>init v8_dir because v9 fmt F5 train exact 0/121. r0 harvest f0 0/20 f1 10/18 f2 6/18 f3 11/18 f4 10/14 f5 0/18. r1 f3 7/18 f5 0/18. eval F5 0/6 both rounds. Unique _verify_v9, eval-n=24 passk=1, 30 steps / 5e-5</td></tr>
   </table>
 
   <h2>Format-SFT checkpoints</h2>
@@ -68,6 +69,7 @@
     <tr><td class="mono">v6 / v6b</td><td>v3</td><td>body-slot seeds</td><td>holdout ~50% exact on tiny set</td></tr>
     <tr><td class="mono">v7 / v7b</td><td>v6b</td><td>F3/F5-heavy mix</td><td>F3/F5 exact still 0/9</td></tr>
     <tr><td class="mono">v8</td><td>v6b</td><td>short F3/F5 + F0/F2 retention, 200 steps</td><td>F3 Ping/Get/Inc train 3/5; F5 still weak</td></tr>
+    <tr><td class="mono">v9</td><td>v8_dir</td><td>1-line F5 golds + F0/F2 retention, 200 steps, 532 pairs</td><td>holdout 32/80 exact; train 186/452. train/f5_supervisor 0/121 exact; train/f3 54/61; train/f4 72/80; train/f0 0/86. Harvest therefore stayed on v8_dir</td></tr>
   </table>
 
   <h2>Infra lessons</h2>
@@ -92,6 +94,7 @@
     <tr><td class="mono">185b03f</td><td>F1–F5 as todo! body slots</td></tr>
     <tr><td class="mono">885e4b6 / 80f078b</td><td>v7 / v7b F3/F5 seed mixes</td></tr>
     <tr><td class="mono">14109a7</td><td>F3 per-arm + F5 split helpers (v8)</td></tr>
+    <tr><td class="mono">113b935</td><td>per-family harvest/eval counts; F5 golds shortened to 1 line; v9 seeds</td></tr>
   </table>
 
   <h2>Paths</h2>
@@ -101,10 +104,12 @@
     <li>Domain: <span class="mono">llm-actors/src/domain/pekko_harvest.rs</span></li>
     <li>Best fmt init: <span class="mono">scratch-7b-sft/p24_fmt_sft_v8_dir</span></li>
     <li>v8 harvest merges: <span class="mono">scratch-7b-sft/p24_harvest_f0f5_v8/r0_merged.r{0,1}.safetensors</span></li>
-    <li>Latest harvest merge: <span class="mono">scratch-7b-sft/p24_harvest_f0f5_v8c/r0_merged.r1.safetensors</span></li>
+    <li>v9 fmt (not used for harvest): <span class="mono">scratch-7b-sft/p24_fmt_sft_v9_dir</span></li>
+    <li>Latest harvest merge: <span class="mono">scratch-7b-sft/p24_harvest_f0f5_v9/r0_merged.r1.safetensors</span></li>
+    <li>Harvest log: <span class="mono">scratch-7b-sft/p24_harvest_f0f5_v9.log</span></li>
   </ul>
 
-  <p class="foot">This page is the long board, served at https://llm.coreon.build/phase24-progress.html (symlink from llm_site). The dashboard at / has the Phase 24 summary. v8c landed: harvest held ~35–36/106, eval stayed 2/12 both rounds.</p>
+  <p class="foot">This page is the long board, served at https://llm.coreon.build/phase24-progress.html (symlink from llm_site). The dashboard at / has the Phase 24 summary. v9 harvest (init v8_dir): r0 37/106 eval 8→6/24; r1 33/106 eval 6→7/24. F5 remains 0/18 harvest and 0/6 eval. Fmt v9 F5 train exact 0/121.</p>
 </main>
 </body>
 </html>

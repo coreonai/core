@@ -111,6 +111,99 @@ pub struct SlotChallenge {
     pub gold_body: &'static str,
 }
 
+/// Family id for a harvest prompt: slot marker (`f1_tool/...`) or F0 expression prefix.
+pub fn family_of_prompt(prompt: &str) -> Option<&'static str> {
+    if let Some(i) = prompt.find(TASK_MARKER_PREFIX) {
+        let rest = &prompt[i + TASK_MARKER_PREFIX.len()..];
+        let id = rest.split(|c: char| c.is_whitespace()).next().unwrap_or("");
+        return if id.starts_with("f1") {
+            Some("f1")
+        } else if id.starts_with("f2") {
+            Some("f2")
+        } else if id.starts_with("f3") {
+            Some("f3")
+        } else if id.starts_with("f4") {
+            Some("f4")
+        } else if id.starts_with("f5") {
+            Some("f5")
+        } else if id.starts_with("f0") {
+            Some("f0")
+        } else {
+            None
+        };
+    }
+    if crate::domain::rust_code::DEFAULT_CHALLENGES
+        .iter()
+        .any(|c| prompt == c.prompt || prompt.ends_with(c.prompt))
+    {
+        return Some("f0");
+    }
+    None
+}
+
+/// `(family, correct, total)` in f0..f5 order. Empty if no harvest-family prompt.
+pub fn tally_family_counts<'a, I>(items: I) -> Vec<(String, usize, usize)>
+where
+    I: IntoIterator<Item = (&'a str, bool)>,
+{
+    use std::collections::BTreeMap;
+    let mut m: BTreeMap<&'static str, (usize, usize)> = BTreeMap::new();
+    let mut other = (0usize, 0usize);
+    let mut saw = false;
+    for (prompt, ok) in items {
+        match family_of_prompt(prompt) {
+            Some(f) => {
+                saw = true;
+                let e = m.entry(f).or_insert((0, 0));
+                e.1 += 1;
+                if ok {
+                    e.0 += 1;
+                }
+            }
+            None => {
+                other.1 += 1;
+                if ok {
+                    other.0 += 1;
+                }
+            }
+        }
+    }
+    if !saw {
+        return Vec::new();
+    }
+    let order = ["f0", "f1", "f2", "f3", "f4", "f5"];
+    let mut out = Vec::new();
+    for k in order {
+        if let Some(&(c, t)) = m.get(k) {
+            out.push((k.to_string(), c, t));
+        }
+    }
+    if other.1 > 0 {
+        out.push(("other".into(), other.0, other.1));
+    }
+    out
+}
+
+pub fn format_family_counts(tag: &str, pairs: &[(String, usize, usize)]) -> String {
+    if pairs.is_empty() {
+        return String::new();
+    }
+    let parts: Vec<String> = pairs
+        .iter()
+        .map(|(f, c, t)| format!("{f} {c}/{t}"))
+        .collect();
+    format!("[family] {tag}: {}", parts.join("  "))
+}
+
+pub fn print_family_counts(tag: &str, pairs: &[(String, usize, usize)]) {
+    let s = format_family_counts(tag, pairs);
+    if s.is_empty() {
+        return;
+    }
+    println!("{s}");
+    let _ = std::io::Write::flush(&mut std::io::stdout());
+}
+
 /// Marker embedded in every slot prompt so repair wraps still match.
 pub const TASK_MARKER_PREFIX: &str = "// pekko-harvest-task: ";
 
@@ -448,16 +541,16 @@ pub fn default_slot_challenges() -> Vec<SlotChallenge> {
             Family::F5,
             "f5_supervisor/gen_v1",
             "todo!(\"push generate then gen.generate\")",
-            "{\n    out.order.push(\"generate\");\n    gen.generate(p)\n}",
+            "{ out.order.push(\"generate\"); gen.generate(p) }",
             "Fill record_generate todo!. Push \"generate\" then return gen.generate(p).\n",
-            "Replace todo!(\"push generate then gen.generate\") — 2–4 line body only.\n",
+            "Replace todo!(\"push generate then gen.generate\") — 1-line body only.\n",
             "// pekko-harvest-task: f5_supervisor/gen_v1\n"
         ),
         body_chal!(
             Family::F5,
             "f5_supervisor/gen_v2",
             "todo!(\"push generate then gen.generate\")",
-            "{\n    out.order.push(\"generate\");\n    gen.generate(p)\n}",
+            "{ out.order.push(\"generate\"); gen.generate(p) }",
             "record_generate body: order.push generate, then gen.generate(p). Body only.\n",
             "// pekko-harvest-task: f5_supervisor/gen_v2\n"
         ),
@@ -465,7 +558,7 @@ pub fn default_slot_challenges() -> Vec<SlotChallenge> {
             Family::F5,
             "f5_supervisor/gen_ko",
             "todo!(\"push generate then gen.generate\")",
-            "{\n    out.order.push(\"generate\");\n    gen.generate(p)\n}",
+            "{ out.order.push(\"generate\"); gen.generate(p) }",
             "record_generate todo!만: order에 generate 푸시 후 gen.generate. 본문만.\n",
             "// pekko-harvest-task: f5_supervisor/gen_ko\n"
         ),
@@ -473,7 +566,7 @@ pub fn default_slot_challenges() -> Vec<SlotChallenge> {
             Family::F5,
             "f5_supervisor/keep_v1",
             "todo!(\"push verify; keep Correct\")",
-            "{\n    out.order.push(\"verify\");\n    if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); }\n}",
+            "{ out.order.push(\"verify\"); if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); } }",
             "Fill record_verify_keep todo!. Push \"verify\"; keep completion iff Correct.\n",
             "Replace todo!(\"push verify; keep Correct\") — short body only.\n",
             "// pekko-harvest-task: f5_supervisor/keep_v1\n"
@@ -482,7 +575,7 @@ pub fn default_slot_challenges() -> Vec<SlotChallenge> {
             Family::F5,
             "f5_supervisor/keep_v2",
             "todo!(\"push verify; keep Correct\")",
-            "{\n    out.order.push(\"verify\");\n    if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); }\n}",
+            "{ out.order.push(\"verify\"); if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); } }",
             "record_verify_keep: push verify, then kept.push if Verdict::Correct. Body only.\n",
             "// pekko-harvest-task: f5_supervisor/keep_v2\n"
         ),
@@ -490,7 +583,7 @@ pub fn default_slot_challenges() -> Vec<SlotChallenge> {
             Family::F5,
             "f5_supervisor/keep_ko",
             "todo!(\"push verify; keep Correct\")",
-            "{\n    out.order.push(\"verify\");\n    if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); }\n}",
+            "{ out.order.push(\"verify\"); if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); } }",
             "record_verify_keep todo!만: verify 기록, Correct만 kept. 본문만.\n",
             "// pekko-harvest-task: f5_supervisor/keep_ko\n"
         ),
@@ -498,7 +591,7 @@ pub fn default_slot_challenges() -> Vec<SlotChallenge> {
             Family::F5,
             "f5_supervisor/round_v1",
             "todo!(\"for each prompt: generate then verify-keep\")",
-            "{\n    let mut out = RoundResult::default();\n    for p in prompts { let c = record_generate(&mut out, gen, p); record_verify_keep(&mut out, ver, p, c); }\n    out\n}",
+            "{ let mut out = RoundResult::default(); for p in prompts { let c = record_generate(&mut out, gen, p); record_verify_keep(&mut out, ver, p, c); } out }",
             "Fill one_round todo!. For each prompt call record_generate then record_verify_keep.\n",
             "Replace todo!(\"for each prompt: generate then verify-keep\") — short body only.\n",
             "// pekko-harvest-task: f5_supervisor/round_v1\n"
@@ -507,7 +600,7 @@ pub fn default_slot_challenges() -> Vec<SlotChallenge> {
             Family::F5,
             "f5_supervisor/round_v2",
             "todo!(\"for each prompt: generate then verify-keep\")",
-            "{\n    let mut out = RoundResult::default();\n    for p in prompts { let c = record_generate(&mut out, gen, p); record_verify_keep(&mut out, ver, p, c); }\n    out\n}",
+            "{ let mut out = RoundResult::default(); for p in prompts { let c = record_generate(&mut out, gen, p); record_verify_keep(&mut out, ver, p, c); } out }",
             "one_round body: loop prompts; generate then verify-keep helpers. Return RoundResult.\n",
             "// pekko-harvest-task: f5_supervisor/round_v2\n"
         ),
@@ -515,7 +608,7 @@ pub fn default_slot_challenges() -> Vec<SlotChallenge> {
             Family::F5,
             "f5_supervisor/round_ko",
             "todo!(\"for each prompt: generate then verify-keep\")",
-            "{\n    let mut out = RoundResult::default();\n    for p in prompts { let c = record_generate(&mut out, gen, p); record_verify_keep(&mut out, ver, p, c); }\n    out\n}",
+            "{ let mut out = RoundResult::default(); for p in prompts { let c = record_generate(&mut out, gen, p); record_verify_keep(&mut out, ver, p, c); } out }",
             "one_round todo!만: 프롬프트마다 generate 다음 verify-keep. 본문만.\n",
             "// pekko-harvest-task: f5_supervisor/round_ko\n"
         ),
@@ -905,7 +998,13 @@ pub fn truncate_pekko_completion(completion: &str) -> String {
         if let Some(end) = balanced_fragment_end(body) {
             return body[..end].trim_end().to_string();
         }
-        let soft = ["\n\npub ", "\n\nfn ", "\n\nstruct ", "\n\nimpl ", "\n\nuse "];
+        let soft = [
+            "\n\npub ",
+            "\n\nfn ",
+            "\n\nstruct ",
+            "\n\nimpl ",
+            "\n\nuse ",
+        ];
         let mut c = body.len();
         for st in soft {
             if let Some(i) = body.find(st) {
@@ -1060,7 +1159,6 @@ fn first_complete_oneliner(body: &str) -> Option<&str> {
 }
 
 fn is_body_shaped(body: &str) -> bool {
-
     let t = body.trim_start();
     t.starts_with("match ")
         || t.starts_with("if ")
@@ -1287,14 +1385,20 @@ mod tests {
             "fn b() { todo!(\"return pong\") }\n",
         );
         let slots = default_slot_challenges();
-        let echo = slots.iter().find(|c| c.task_id == "f1_tool/echo_v1").unwrap();
+        let echo = slots
+            .iter()
+            .find(|c| c.task_id == "f1_tool/echo_v1")
+            .unwrap();
         let fam: Vec<&SlotChallenge> = slots
             .iter()
             .filter(|c| c.family == Family::F1)
             .collect::<Vec<_>>()
             .into_iter()
             .fold(Vec::new(), |mut acc, c| {
-                if !acc.iter().any(|x: &&SlotChallenge| x.todo_needle == c.todo_needle) {
+                if !acc
+                    .iter()
+                    .any(|x: &&SlotChallenge| x.todo_needle == c.todo_needle)
+                {
                     acc.push(c);
                 }
                 acc
@@ -1311,16 +1415,23 @@ mod tests {
     fn apply_body_does_not_gold_fill_same_needle_paraphrase() {
         let scaffold = "fn a() { todo!(\"return args unchanged\") }\n";
         let slots = default_slot_challenges();
-        let echo_v2 = slots.iter().find(|c| c.task_id == "f1_tool/echo_v2").unwrap();
-        let fam: Vec<&SlotChallenge> = slots
+        let echo_v2 = slots
             .iter()
-            .filter(|c| c.family == Family::F1)
-            .fold(Vec::new(), |mut acc, c| {
-                if !acc.iter().any(|x: &&SlotChallenge| x.todo_needle == c.todo_needle) {
-                    acc.push(c);
-                }
-                acc
-            });
+            .find(|c| c.task_id == "f1_tool/echo_v2")
+            .unwrap();
+        let fam: Vec<&SlotChallenge> =
+            slots
+                .iter()
+                .filter(|c| c.family == Family::F1)
+                .fold(Vec::new(), |mut acc, c| {
+                    if !acc
+                        .iter()
+                        .any(|x: &&SlotChallenge| x.todo_needle == c.todo_needle)
+                    {
+                        acc.push(c);
+                    }
+                    acc
+                });
         let out = apply_body_slot(scaffold, &fam, echo_v2, "Ok(args.to_string())").unwrap();
         assert!(out.contains("Ok(args.to_string())"));
         assert!(!out.contains("todo!(\"return args unchanged\")"));
@@ -1358,6 +1469,16 @@ mod tests {
     }
 
     #[test]
+    fn family_of_prompt_slot_and_f0() {
+        assert_eq!(
+            family_of_prompt("// pekko-harvest-task: f5_supervisor/gen_v1\n"),
+            Some("f5")
+        );
+        assert_eq!(family_of_prompt("fn main() { assert_eq!("), Some("f0"));
+        assert_eq!(family_of_prompt("hello"), None);
+    }
+
+    #[test]
     fn f3_f5_needles_are_split() {
         let cs = default_slot_challenges();
         let f3: Vec<_> = cs.iter().filter(|c| c.family == Family::F3).collect();
@@ -1370,7 +1491,7 @@ mod tests {
         let n5: std::collections::HashSet<_> = f5.iter().map(|c| c.todo_needle).collect();
         assert_eq!(n5.len(), 3);
         assert!(f3.iter().all(|c| c.gold_body.lines().count() <= 6));
-        assert!(f5.iter().all(|c| c.gold_body.lines().count() <= 6));
+        assert!(f5.iter().all(|c| c.gold_body.lines().count() <= 2));
     }
 
     #[test]
@@ -1379,8 +1500,8 @@ mod tests {
         if !harvest.join("f1_tool/Cargo.toml").exists() {
             return;
         }
-        let verify = harvest.join("_verify_gold_v8");
-        let scratch = harvest.join("_cargo_scratch_gold_v8");
+        let verify = harvest.join("_verify_gold_v9");
+        let scratch = harvest.join("_cargo_scratch_gold_v9");
         let families = Family::parse_list("f0,f1,f2,f3,f4,f5").unwrap();
         let d = PekkoHarvestDomain::new(&verify, &scratch, &families);
         d.ensure_ready().expect("ensure_ready");

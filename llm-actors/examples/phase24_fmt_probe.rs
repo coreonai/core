@@ -268,6 +268,10 @@ async fn main() -> Result<()> {
 
     let mut score_hold = Score::new();
     let mut score_train = Score::new();
+    let mut hold_by_fam: std::collections::BTreeMap<String, Score> =
+        std::collections::BTreeMap::new();
+    let mut train_by_fam: std::collections::BTreeMap<String, Score> =
+        std::collections::BTreeMap::new();
     let mut shown = 0usize;
 
     for (side, rows, score) in [
@@ -306,6 +310,15 @@ async fn main() -> Result<()> {
                 truncate_pekko_completion(&stepped)
             };
             score.add(&got, want);
+            let bucket = if side == "holdout" {
+                &mut hold_by_fam
+            } else {
+                &mut train_by_fam
+            };
+            bucket
+                .entry(fam.clone())
+                .or_insert_with(Score::new)
+                .add(&got, want);
             if shown < args.show {
                 println!(
                     "  [{side}/{fam}] want {:?} got {:?} (raw {:?})",
@@ -320,5 +333,11 @@ async fn main() -> Result<()> {
 
     score_hold.report("holdout");
     score_train.report("train (memorisation)");
+    for (fam, sc) in &hold_by_fam {
+        sc.report(&format!("holdout/{fam}"));
+    }
+    for (fam, sc) in &train_by_fam {
+        sc.report(&format!("train/{fam}"));
+    }
     Ok(())
 }

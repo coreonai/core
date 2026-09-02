@@ -62,6 +62,13 @@ pub struct RoundReport {
     pub training_steps: usize,
     pub last_train_loss: Option<f32>,
     pub elapsed_ms: u128,
+    /// Per-family harvest (correct, generated). Empty when family is unknown.
+    #[serde(default)]
+    pub harvest_family: Vec<(String, usize, usize)>,
+    #[serde(default)]
+    pub eval_family_before: Vec<(String, usize, usize)>,
+    #[serde(default)]
+    pub eval_family_after: Vec<(String, usize, usize)>,
 }
 
 impl RoundReport {

@@ -21,7 +21,7 @@ use candle_core::{DType, Device};
 use clap::Parser;
 use llm_actors::{
     curator_actor::SampleMode,
-    domain::pekko_harvest::{Family, PekkoHarvestDomain},
+    domain::pekko_harvest::{format_family_counts, Family, PekkoHarvestDomain},
     domain::Domain,
     qwen2_lora::LoraConfig,
     run_multi_round,
@@ -96,8 +96,7 @@ fn flush_stdout() {
 
 /// Collect non-EOS added_tokens ids from tokenizer.json (same as phase24_fmt_probe).
 fn control_token_ids(tokenizer_json: &PathBuf) -> anyhow::Result<Vec<u32>> {
-    let tj: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(tokenizer_json)?)?;
+    let tj: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(tokenizer_json)?)?;
     let ids = tj["added_tokens"]
         .as_array()
         .map(|a| {
@@ -307,6 +306,18 @@ async fn main() -> Result<()> {
                 fmt(rep.eval_correct_before),
                 fmt(rep.eval_correct_after),
             );
+            let hf = format_family_counts("harvest", &rep.harvest_family);
+            if !hf.is_empty() {
+                println!("{hf}");
+            }
+            let eb = format_family_counts("eval-before", &rep.eval_family_before);
+            if !eb.is_empty() {
+                println!("{eb}");
+            }
+            let ea = format_family_counts("eval-after", &rep.eval_family_after);
+            if !ea.is_empty() {
+                println!("{ea}");
+            }
             flush_stdout();
         },
     )

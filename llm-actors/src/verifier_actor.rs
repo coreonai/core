@@ -24,6 +24,7 @@ use pekko_actor::{Actor, ActorContext};
 use tokio::sync::{oneshot, Semaphore};
 use tracing::info;
 
+use crate::domain::pekko_harvest::{print_family_counts, tally_family_counts};
 use crate::domain::Domain;
 use crate::types::{Trajectory, VerifiedTrajectory};
 
@@ -113,6 +114,11 @@ impl Actor for VerifierActor {
                             }
                         }
                     }
+                    let family_counts = tally_family_counts(
+                        out.iter()
+                            .map(|vt| (vt.trajectory.prompt.as_str(), vt.is_correct())),
+                    );
+                    print_family_counts("harvest", &family_counts);
                     info!(
                         verified = out.len(),
                         correct,

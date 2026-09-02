@@ -14,6 +14,7 @@ use tokio::sync::oneshot;
 use tokio::time::timeout;
 use tracing::info;
 
+use crate::domain::pekko_harvest::{print_family_counts, tally_family_counts};
 use crate::domain::Domain;
 use crate::model_actor::{ModelActor, ModelMessage};
 use crate::types::Trajectory;
@@ -80,6 +81,8 @@ pub struct EvalReport {
     /// gives the per-attempt pass rate = Phase 17 S6's "pass@1 (raw)
     /// at temp=0.8".
     pub total_passes: Option<usize>,
+    /// Pekko harvest: (family, correct, total). Empty for other domains.
+    pub family_counts: Vec<(String, usize, usize)>,
 }
 
 impl EvalReport {
@@ -186,6 +189,7 @@ where
         let mut correct = 0usize;
         let mut total = 0usize;
         let mut samples = Vec::with_capacity(self.keep_samples);
+        let mut family_items: Vec<(String, bool)> = Vec::with_capacity(n);
 
         for prompt_idx in 0..n {
             let prompt = self.domain.sample_prompt(&mut rng);
@@ -240,6 +244,7 @@ where
             if any_pass {
                 correct += 1;
             }
+            family_items.push((prompt.clone(), any_pass));
             if samples.len() < self.keep_samples {
                 samples.push(Trajectory {
                     prompt,
@@ -248,6 +253,9 @@ where
                 });
             }
         }
+        let family_counts =
+            tally_family_counts(family_items.iter().map(|(p, ok)| (p.as_str(), *ok)));
+        print_family_counts("eval", &family_counts);
         info!(
             total,
             correct,
@@ -262,6 +270,7 @@ where
             passk,
             total_attempts: None,
             total_passes: None,
+            family_counts,
         })
     }
 
@@ -291,6 +300,7 @@ where
         let mut total_passes = 0usize;
         let mut total_attempts = 0usize;
         let mut samples = Vec::with_capacity(self.keep_samples);
+        let mut family_items_seq: Vec<(String, bool)> = Vec::new();
         for prompt_idx in offset..(offset + n_effective) {
             let prompt = match self.domain.nth_prompt(prompt_idx) {
                 Some(p) => p,
@@ -411,6 +421,7 @@ where
             if any_pass {
                 correct += 1;
             }
+            family_items_seq.push((prompt.clone(), any_pass));
             if samples.len() < self.keep_samples {
                 samples.push(Trajectory {
                     prompt,
@@ -434,6 +445,9 @@ where
             pass_rate = correct as f32 / total.max(1) as f32,
             "EvaluatorActor EvalSequential done"
         );
+        let family_counts =
+            tally_family_counts(family_items_seq.iter().map(|(p, ok)| (p.as_str(), *ok)));
+        print_family_counts("eval", &family_counts);
         Ok(EvalReport {
             total,
             correct,
@@ -441,6 +455,7 @@ where
             passk,
             total_attempts: agg_attempts,
             total_passes: agg_passes,
+            family_counts,
         })
     }
 }

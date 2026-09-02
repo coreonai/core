@@ -210,21 +210,23 @@ SLOTS = [
         "f5_supervisor",
         "f5_supervisor/gen_v1",
         'todo!("push generate then gen.generate")',
-        "{\n    out.order.push(\"generate\");\n    gen.generate(p)\n}",
+        "{ out.order.push(\"generate\"); gen.generate(p) }",
         [
-            "Fill record_generate todo!. Push \"generate\" then return gen.generate(p).\nReplace todo!(\"push generate then gen.generate\") — 2–4 line body only.\n",
+            "Fill record_generate todo!. Push \"generate\" then return gen.generate(p).\nReplace todo!(\"push generate then gen.generate\") — 1-line body only.\n",
             "record_generate body: order.push generate, then gen.generate(p). Body only.\n",
             "record_generate todo!만: order에 generate 푸시 후 gen.generate. 본문만.\n",
             "SLOT record_generate → push generate; gen.generate(p)\n",
             "Short generate-step body for the supervisor helper.\n",
             "todo!(\"push generate then gen.generate\") fill only.\n",
+            "one-liner record_generate: { out.order.push(\"generate\"); gen.generate(p) }\n",
+            "record_generate body only, one line: push generate then gen.generate(p).\n",
         ],
     ),
     (
         "f5_supervisor",
         "f5_supervisor/keep_v1",
         'todo!("push verify; keep Correct")',
-        "{\n    out.order.push(\"verify\");\n    if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); }\n}",
+        "{ out.order.push(\"verify\"); if ver.verify(p, &c) == Verdict::Correct { out.kept.push(c); } }",
         [
             "Fill record_verify_keep todo!. Push \"verify\"; keep completion iff Correct.\nReplace todo!(\"push verify; keep Correct\") — short body only.\n",
             "record_verify_keep: push verify, then kept.push if Verdict::Correct. Body only.\n",
@@ -232,13 +234,15 @@ SLOTS = [
             "SLOT keep Correct completions after verify.\n",
             "Short verify-keep helper body.\n",
             "todo!(\"push verify; keep Correct\") fill only.\n",
+            "one-liner record_verify_keep: push verify; keep Correct completions.\n",
+            "record_verify_keep one line: order.push verify; kept.push if Correct.\n",
         ],
     ),
     (
         "f5_supervisor",
         "f5_supervisor/round_v1",
         'todo!("for each prompt: generate then verify-keep")',
-        "{\n    let mut out = RoundResult::default();\n    for p in prompts { let c = record_generate(&mut out, gen, p); record_verify_keep(&mut out, ver, p, c); }\n    out\n}",
+        "{ let mut out = RoundResult::default(); for p in prompts { let c = record_generate(&mut out, gen, p); record_verify_keep(&mut out, ver, p, c); } out }",
         [
             "Fill one_round todo!. For each prompt call record_generate then record_verify_keep.\nReplace todo!(\"for each prompt: generate then verify-keep\") — short body only.\n",
             "one_round body: loop prompts; generate then verify-keep helpers. Return RoundResult.\n",
@@ -246,6 +250,8 @@ SLOTS = [
             "SLOT one_round uses the two helpers, no inline generate/verify.\n",
             "Short one_round that wires record_generate + record_verify_keep.\n",
             "todo!(\"for each prompt: generate then verify-keep\") fill only.\n",
+            "one-liner one_round: default RoundResult, loop prompts, generate then verify-keep, return out.\n",
+            "one_round one line using the two helpers only.\n",
         ],
     ),
 ]
@@ -259,7 +265,8 @@ def main() -> None:
             if f"// pekko-harvest-task: {task_id}" not in prompt:
                 prompt = prompt.rstrip() + f"\n// pekko-harvest-task: {task_id}\n"
             # Several reps so SFT sees bodies often
-            for rep in range(4):
+            nrep = 6 if family == "f5_supervisor" else 4
+            for rep in range(nrep):
                 rows.append(
                     {
                         "prompt": prompt,
@@ -292,6 +299,46 @@ def main() -> None:
         for r in merged:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     print(f"wrote {len(merged)} merged pairs -> {MERGED}")
+    write_v9(rows)
+
+
+def write_v9(body_rows):
+    """F0/F2 retention + short F5 golds. Continue-SFT mix from v8_dir."""
+    import collections
+    rng = random.Random(24)
+    f0_rows = []
+    if F0.exists():
+        for line in F0.read_text().splitlines():
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            r["family"] = r.get("family") or "f0"
+            f0_rows.append(r)
+    rng.shuffle(f0_rows)
+    f0_keep = f0_rows[:100]
+
+    by_fam = collections.defaultdict(list)
+    for r in body_rows:
+        by_fam[r["family"]].append(r)
+
+    mix = []
+    mix.extend(f0_keep)
+    mix.extend(by_fam.get("f2_domain", []))
+    mix.extend(by_fam.get("f5_supervisor", []))
+    mix.extend(by_fam.get("f3_message", []))
+    mix.extend(by_fam.get("f1_tool", [])[:48])
+    f4 = by_fam.get("f4_repair", [])
+    f4_short = [r for r in f4 if "count_keys" not in r.get("task", "")]
+    f4_long = [r for r in f4 if "count_keys" in r.get("task", "")]
+    mix.extend(f4_short)
+    mix.extend(f4_long[:8])
+    rng.shuffle(mix)
+    outp = ROOT / "scripts/phase24/fmt_seed_pairs_v9.jsonl"
+    with outp.open("w") as f:
+        for r in mix:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    counts = collections.Counter(r.get("family", "unknown") for r in mix)
+    print(f"wrote {len(mix)} v9 pairs -> {outp} {dict(counts)}")
 
 
 if __name__ == "__main__":

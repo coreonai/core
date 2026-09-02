@@ -15,6 +15,7 @@ use tokio::sync::oneshot;
 use tracing::info;
 
 use crate::curator_actor::{CuratorActor, CuratorMessage, SampleMode};
+use crate::domain::pekko_harvest::{print_family_counts, tally_family_counts};
 use crate::evaluator_actor::{EvalReport, EvaluatorActor, EvaluatorMessage};
 use crate::generator_actor::{GeneratorActor, GeneratorMessage};
 use crate::model_actor::{ModelActor, ModelMessage};
@@ -197,6 +198,8 @@ where
         before
     };
     report.eval_correct_before = Some(before.correct);
+    report.eval_family_before = before.family_counts.clone();
+    print_family_counts("eval-before", &report.eval_family_before);
 
     // 2. Generate — systematic (every prompt × k) when
     // `samples_per_prompt` is set (Phase 17 G6 recipe), else the
@@ -237,6 +240,12 @@ where
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;
     let verified = rx.await?;
     report.correct = verified.iter().filter(|v| v.is_correct()).count();
+    report.harvest_family = tally_family_counts(
+        verified
+            .iter()
+            .map(|v| (v.trajectory.prompt.as_str(), v.is_correct())),
+    );
+    print_family_counts("harvest", &report.harvest_family);
 
     // 4. Curate
     info!(round = cfg.round, "phase: curate");
@@ -387,6 +396,8 @@ where
     )
     .await?;
     report.eval_correct_after = Some(after.correct);
+    report.eval_family_after = after.family_counts.clone();
+    print_family_counts("eval-after", &report.eval_family_after);
     log_samples("after", &after);
 
     report.elapsed_ms = t0.elapsed().as_millis();
@@ -523,6 +534,7 @@ where
             passk: cfg.base.eval_passk,
             total_attempts: None,
             total_passes: None,
+            family_counts: report.eval_family_after.clone(),
         });
         on_round_done(r, &report);
         current_init = Some(save_path);
