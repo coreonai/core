@@ -32,20 +32,20 @@
 <header>
   <h1>Phase 24 — Pekko/MSA harvest</h1>
   <p>Long board at <a href="https://llm.coreon.build/phase24-progress.html" style="color:var(--accent)">https://llm.coreon.build/phase24-progress.html</a> · dashboard summary on <a href="/" style="color:var(--accent)">llm.coreon.build</a></p>
-  <p>Updated 2026-09-02 21:10 KST · dgxa100 · workLLM · v9b F0–F4 harvest <b>finished</b> (F5 transfer 0/18)</p>
+  <p>Updated 2026-09-03 07:30 KST · dgxa100 · F6 family exists; harvest smoke 20/48 (F6 0/16). Not a general Rust coder</p>
 </header>
 <main>
   <div class="cards">
     <div class="card"><div class="k">Best harvest</div><div class="v ok">36/88</div></div>
     <div class="card"><div class="k">Best eval (after)</div><div class="v">11/24</div></div>
     <div class="card"><div class="k">Loop</div><div class="v">Gen → cargo → repair → SFT</div></div>
-    <div class="card"><div class="k">Families</div><div class="v">F0–F4</div></div>
+    <div class="card"><div class="k">Families</div><div class="v">F0–F6</div></div>
   </div>
 
   <h2>What this is</h2>
   <ul>
-    <li>Specialize Qwen2.5-Coder-7B on cargo-graded Pekko/MSA slots (not LiveCodeBench).</li>
-    <li>Verifier writes a slot into a scratch crate and runs <span class="mono">cargo test --features student</span> (F0: <span class="mono">cargo run</span>).</li>
+    <li>Specialize Qwen2.5-Coder-7B on cargo-graded Pekko/MSA slots (not LiveCodeBench). F6 is function-level (API + failing tests → fn body), not a general Rust coder.</li>
+    <li>Verifier writes a slot into a scratch crate and runs <span class="mono">cargo test --features student</span> (F0: <span class="mono">cargo run</span>). F6 gold-fills sibling todos in <span class="mono">student.rs</span>.</li>
     <li>Host: Tailscale <span class="mono">dgxa100</span> (<span class="mono">100.75.101.50</span>) as <span class="mono">paulyu</span>.</li>
   </ul>
 
@@ -60,6 +60,7 @@
     <tr><td>continue r1 merge</td><td class="mono">v8 r1 → v8c</td><td class="ok">r0 35/106; r1 36/106</td><td>2→2 then 2→2 /12</td><td>eval flat (no collapse); harvest held</td></tr>
     <tr><td>1-line F5 + family log</td><td class="mono">v8_dir → v9</td><td class="ok">r0 37/106; r1 33/106</td><td>8→6 then 6→7 /24</td><td>init v8_dir because v9 fmt F5 train exact 0/121. r0 harvest f0 0/20 f1 10/18 f2 6/18 f3 11/18 f4 10/14 f5 0/18. r1 f3 7/18 f5 0/18. eval F5 0/6 both rounds. Unique _verify_v9, eval-n=24 passk=1, 30 steps / 5e-5</td></tr>
     <tr><td>drop F5 from harvest</td><td class="mono">v8_dir → v9b</td><td class="ok">r0 36/88; r1 34/88</td><td>11→10 then 10→7 /24</td><td>CLI default now F0–F4. GPUs 2+3 (not 0). r0 f0 0/20 f1 10/18 f2 6/18 f3 10/18 f4 10/14 vs v9 F3 11/18 F5 0/18. r1 f1 9/18 f3 9/18 f4 10/14. F5 transfer on r1 merge: eval 0/18, harvest 0/9. Unique _verify_v9b, log p24_harvest_f0f4_v9b.log</td></tr>
+    <tr><td>F6 function-level smoke</td><td class="mono">v8_dir → v10</td><td>20/48 (f6 0/16)</td><td>5→4 /12</td><td>4 fns: shout / parse_kv / grade / sum_evens. Golds pass cargo test. v10 fmt continue 200 steps from v8_dir; F6 train exact <span class="bad">0/23</span> so harvest init stayed v8_dir (did not loop SFT). Harvest f1 10/18 f4 10/14 f6 0/16. eval-before f1 1/2 f4 4/5 f6 0/5; after f1 1/2 f4 3/5 f6 0/5. GPUs 3 infer + 2 train (not 0). Unique _verify_v10. Diagnose: model still emits mangled bodies (parse_kv <span class="mono">.split_once</span> garbage); F6 is harder than one-line todo! slots. <b>Not a general Rust coder.</b></td></tr>
   </table>
 
   <h2>Format-SFT checkpoints</h2>
@@ -71,6 +72,7 @@
     <tr><td class="mono">v7 / v7b</td><td>v6b</td><td>F3/F5-heavy mix</td><td>F3/F5 exact still 0/9</td></tr>
     <tr><td class="mono">v8</td><td>v6b</td><td>short F3/F5 + F0/F2 retention, 200 steps</td><td>F3 Ping/Get/Inc train 3/5; F5 still weak</td></tr>
     <tr><td class="mono">v9</td><td>v8_dir</td><td>1-line F5 golds + F0/F2 retention, 200 steps, 532 pairs</td><td>holdout 32/80 exact; train 186/452. train/f5_supervisor 0/121 exact; train/f3 54/61; train/f4 72/80; train/f0 0/86. Harvest therefore stayed on v8_dir</td></tr>
+    <tr><td class="mono">v10</td><td>v8_dir</td><td>F6 fn-body seeds (24) + F1/F3/F4 retention (60), 200 steps, 84 pairs</td><td>holdout 4/13 exact; train 31/71. train/f6_fn <span class="bad">0/23</span>; train/f1 10/18; train/f3 12/17; train/f4 9/13. Harvest init therefore stayed v8_dir</td></tr>
   </table>
 
   <h2>Infra lessons</h2>
@@ -97,6 +99,7 @@
     <tr><td class="mono">14109a7</td><td>F3 per-arm + F5 split helpers (v8)</td></tr>
     <tr><td class="mono">113b935 / 2132c06</td><td>per-family harvest/eval counts; F5 golds shortened to 1 line; v9 seeds</td></tr>
     <tr><td class="mono">(this)</td><td>harvest CLI default F0–F4; F5 kept in PekkoHarvestDomain as transfer probe</td></tr>
+    <tr><td class="mono">(this)</td><td>F6 <span class="mono">f6_fn</span> family (4 function-level challenges) wired into PekkoHarvestDomain; v10 seeds; one harvest smoke</td></tr>
   </table>
 
   <h2>Paths</h2>
@@ -111,9 +114,12 @@
     <li>Latest harvest merge: <span class="mono">scratch-7b-sft/p24_harvest_f0f4_v9b/r0_merged.r1.safetensors</span></li>
     <li>Harvest log: <span class="mono">scratch-7b-sft/p24_harvest_f0f4_v9b.log</span></li>
     <li>F5 transfer log: <span class="mono">scratch-7b-sft/p24_harvest_f5xfer_v9b.log</span></li>
+    <li>F6 crate: <span class="mono">scratch-pekko-harvest/f6_fn</span></li>
+    <li>v10 fmt (not used for harvest): <span class="mono">scratch-7b-sft/p24_fmt_sft_v10_dir</span></li>
+    <li>F6 harvest smoke: <span class="mono">scratch-7b-sft/p24_harvest_f1f4f6_v10</span> / <span class="mono">p24_harvest_f1f4f6_v10.log</span></li>
   </ul>
 
-  <p class="foot">This page is the long board, served at https://llm.coreon.build/phase24-progress.html (symlink from llm_site). The dashboard at / has the Phase 24 summary. v9b F0–F4 harvest (init v8_dir): r0 36/88 eval 11→10/24; r1 34/88 eval 10→7/24. vs v9 (incl F5): r0 37/106 eval 8→6/24. F5 transfer after v9b r1: 0/18 eval, 0/9 harvest.</p>
+  <p class="foot">This page is the long board, served at https://llm.coreon.build/phase24-progress.html (symlink from llm_site). The dashboard at / has the Phase 24 summary. F6 smoke (init v8_dir, families f6+f1+f4): harvest 20/48 eval 5→4/12 (f6 0). v9b F0–F4: r0 36/88 eval 11→10/24. This does not make a general Rust coder.</p>
 </main>
 </body>
 </html>

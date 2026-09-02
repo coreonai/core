@@ -2,7 +2,7 @@
 //!
 //! Multiplexes:
 //! - **F0** retention via [`RustCodeDomain`] expression slots
-//! - **F1–F5** via isolated scratch crates under `verify_root/{f1_tool,…}`:
+//! - **F1–F6** via isolated scratch crates under `verify_root/{f1_tool,…}`:
 //!   keep the structural `student.rs` scaffold and replace **one** targeted
 //!   `todo!(...)` with the model completion (short body / expression), then
 //!   `cargo test --features student` (exit 0 ⇒ Correct). Other todos in the
@@ -37,6 +37,7 @@ pub enum Family {
     F3,
     F4,
     F5,
+    F6,
 }
 
 impl Family {
@@ -48,6 +49,7 @@ impl Family {
             Family::F3 => "f3",
             Family::F4 => "f4",
             Family::F5 => "f5",
+            Family::F6 => "f6",
         }
     }
 
@@ -60,6 +62,7 @@ impl Family {
             Family::F3 => Some("f3_message"),
             Family::F4 => Some("f4_repair"),
             Family::F5 => Some("f5_supervisor"),
+            Family::F6 => Some("f6_fn"),
         }
     }
 
@@ -71,13 +74,14 @@ impl Family {
             "f3" | "f3_message" | "3" => Some(Family::F3),
             "f4" | "f4_repair" | "4" => Some(Family::F4),
             "f5" | "f5_supervisor" | "5" => Some(Family::F5),
+            "f6" | "f6_fn" | "6" => Some(Family::F6),
             _ => None,
         }
     }
 
     /// Parse comma/space-separated list. Empty → all families (F0–F5).
     /// F5 remains selectable (`--families f5`) for the transfer probe even
-    /// though harvest defaults to F0–F4.
+    /// though harvest defaults to F0–F4. F6 (`f6_fn`) is function-level Rust (API + tests → fn body).
     pub fn parse_list(s: &str) -> Result<Vec<Self>, String> {
         let raw: Vec<_> = s
             .split(|c: char| c == ',' || c.is_whitespace())
@@ -92,6 +96,7 @@ impl Family {
                 Family::F3,
                 Family::F4,
                 Family::F5,
+                Family::F6,
             ]);
         }
         let mut out = Vec::new();
@@ -105,7 +110,7 @@ impl Family {
     }
 }
 
-/// One F1–F5 body-slot challenge: NL + stub → replace a single `todo!(...)`.
+/// One F1–F6 body-slot challenge: NL + stub → replace a single `todo!(...)`.
 #[derive(Debug, Clone)]
 pub struct SlotChallenge {
     pub family: Family,
@@ -132,6 +137,8 @@ pub fn family_of_prompt(prompt: &str) -> Option<&'static str> {
             Some("f4")
         } else if id.starts_with("f5") {
             Some("f5")
+        } else if id.starts_with("f6") {
+            Some("f6")
         } else if id.starts_with("f0") {
             Some("f0")
         } else {
@@ -147,7 +154,7 @@ pub fn family_of_prompt(prompt: &str) -> Option<&'static str> {
     None
 }
 
-/// `(family, correct, total)` in f0..f5 order. Empty if no harvest-family prompt.
+/// `(family, correct, total)` in f0..f6 order. Empty if no harvest-family prompt.
 pub fn tally_family_counts<'a, I>(items: I) -> Vec<(String, usize, usize)>
 where
     I: IntoIterator<Item = (&'a str, bool)>,
@@ -177,7 +184,7 @@ where
     if !saw {
         return Vec::new();
     }
-    let order = ["f0", "f1", "f2", "f3", "f4", "f5"];
+    let order = ["f0", "f1", "f2", "f3", "f4", "f5", "f6"];
     let mut out = Vec::new();
     for k in order {
         if let Some(&(c, t)) = m.get(k) {
@@ -229,7 +236,7 @@ macro_rules! body_chal {
     };
 }
 
-/// Default F1–F5 challenges — one `todo!` per challenge (short body completions).
+/// Default F1–F6 challenges — one `todo!` per challenge (F6 = function-level bodies).
 pub fn default_slot_challenges() -> Vec<SlotChallenge> {
     vec![
         // ---- F1 echo ----
@@ -618,6 +625,89 @@ pub fn default_slot_challenges() -> Vec<SlotChallenge> {
             "one_round todo!만: 프롬프트마다 generate 다음 verify-keep. 본문만.\n",
             "// pekko-harvest-task: f5_supervisor/round_ko\n"
         ),
+
+        // ---- F6 function-level bodies (tens of tokens; not one-line, not a crate) ----
+        body_chal!(
+            Family::F6,
+            "f6_fn/shout_v1",
+            "todo!(\"shout: trim, ASCII upper, bang\")",
+            "{\n    let t = s.trim();\n    if t.is_empty() {\n        String::new()\n    } else {\n        format!(\"{}!\", t.to_ascii_uppercase())\n    }\n}",
+            "Crate API: pub fn shout(s: &str) -> String\n",
+            "Failing tests: shout(\" hi \")==\"HI!\"; shout(\"  \")==\"\"; shout(\"Ab\")==\"AB!\".\n",
+            "Student slot:\n",
+            "    pub fn shout(s: &str) -> String {\n",
+            "        todo!(\"shout: trim, ASCII upper, bang\")\n",
+            "    }\n",
+            "Output ONLY the function body replacing todo!(...) (a block, tens of tokens). No fn wrapper.\n",
+            "// pekko-harvest-task: f6_fn/shout_v1\n"
+        ),
+        body_chal!(
+            Family::F6,
+            "f6_fn/shout_v2",
+            "todo!(\"shout: trim, ASCII upper, bang\")",
+            "{\n    let t = s.trim();\n    if t.is_empty() {\n        String::new()\n    } else {\n        format!(\"{}!\", t.to_ascii_uppercase())\n    }\n}",
+            "Implement shout: trim, ASCII-uppercase, append '!'. Empty/whitespace -> empty String.\n",
+            "Replace todo!(\"shout: trim, ASCII upper, bang\") with the fn body only.\n",
+            "// pekko-harvest-task: f6_fn/shout_v2\n"
+        ),
+        body_chal!(
+            Family::F6,
+            "f6_fn/parse_kv_v1",
+            "todo!(\"parse k=v into Option pair\")",
+            "{\n    let (k, v) = s.split_once('=')?;\n    let k = k.trim();\n    let v = v.trim();\n    if k.is_empty() {\n        None\n    } else {\n        Some((k.to_string(), v.to_string()))\n    }\n}",
+            "Crate API: pub fn parse_kv(s: &str) -> Option<(String, String)>\n",
+            "Failing tests: parse_kv(\"name=ada\") == Some((\"name\",\"ada\")); parse_kv(\" a = b=c \") == Some((\"a\",\"b=c\")); parse_kv(\"=x\") is None; parse_kv(\"nope\") is None.\n",
+            "Student: todo!(\"parse k=v into Option pair\") inside parse_kv.\n",
+            "Output ONLY the function body (split_once, trim, reject empty key). No fn wrapper.\n",
+            "// pekko-harvest-task: f6_fn/parse_kv_v1\n"
+        ),
+        body_chal!(
+            Family::F6,
+            "f6_fn/parse_kv_v2",
+            "todo!(\"parse k=v into Option pair\")",
+            "{\n    let (k, v) = s.split_once('=')?;\n    let k = k.trim();\n    let v = v.trim();\n    if k.is_empty() {\n        None\n    } else {\n        Some((k.to_string(), v.to_string()))\n    }\n}",
+            "parse_kv body: first '=' splits key/value; trim both; empty key -> None.\n",
+            "Replace todo!(\"parse k=v into Option pair\") only.\n",
+            "// pekko-harvest-task: f6_fn/parse_kv_v2\n"
+        ),
+        body_chal!(
+            Family::F6,
+            "f6_fn/grade_v1",
+            "todo!(\"letter grade A-F\")",
+            "{\n    match score {\n        s if s >= 90 => \"A\",\n        s if s >= 80 => \"B\",\n        s if s >= 70 => \"C\",\n        s if s >= 60 => \"D\",\n        _ => \"F\",\n    }\n}",
+            "Crate API: pub fn grade(score: i32) -> &'static str\n",
+            "Failing tests: 95/90 -> A; 80 -> B; 70 -> C; 60 -> D; 59 and negatives -> F.\n",
+            "Student slot: todo!(\"letter grade A-F\") inside grade.\n",
+            "Output ONLY a match body (tens of tokens). No fn wrapper.\n",
+            "// pekko-harvest-task: f6_fn/grade_v1\n"
+        ),
+        body_chal!(
+            Family::F6,
+            "f6_fn/grade_v2",
+            "todo!(\"letter grade A-F\")",
+            "{\n    match score {\n        s if s >= 90 => \"A\",\n        s if s >= 80 => \"B\",\n        s if s >= 70 => \"C\",\n        s if s >= 60 => \"D\",\n        _ => \"F\",\n    }\n}",
+            "grade(score): match bands 90/80/70/60 else F. Body only replacing todo!(\"letter grade A-F\").\n",
+            "// pekko-harvest-task: f6_fn/grade_v2\n"
+        ),
+        body_chal!(
+            Family::F6,
+            "f6_fn/sum_evens_v1",
+            "todo!(\"sum even i32s\")",
+            "{\n    let mut acc = 0;\n    for n in xs {\n        if n % 2 == 0 {\n            acc += *n;\n        }\n    }\n    acc\n}",
+            "Crate API: pub fn sum_evens(xs: &[i32]) -> i32\n",
+            "Failing tests: [1,2,3,4]->6; []->0; [-2,-1,0,5]->-2; odds-only->0.\n",
+            "Student: todo!(\"sum even i32s\") inside sum_evens.\n",
+            "Output ONLY the loop/iterator function body. No fn wrapper.\n",
+            "// pekko-harvest-task: f6_fn/sum_evens_v1\n"
+        ),
+        body_chal!(
+            Family::F6,
+            "f6_fn/sum_evens_v2",
+            "todo!(\"sum even i32s\")",
+            "{\n    let mut acc = 0;\n    for n in xs {\n        if n % 2 == 0 {\n            acc += *n;\n        }\n    }\n    acc\n}",
+            "sum_evens: accumulate even i32s (including 0 and negatives). Replace todo!(\"sum even i32s\") only.\n",
+            "// pekko-harvest-task: f6_fn/sum_evens_v2\n"
+        ),
     ]
 }
 
@@ -651,9 +741,9 @@ pub fn apply_body_slot(
     Ok(text.replacen(target.todo_needle, &body, 1))
 }
 
-/// Multiplexed harvest domain: F0 expression slots + F1–F5 body slots.
+/// Multiplexed harvest domain: F0 expression slots + F1–F6 body slots.
 pub struct PekkoHarvestDomain {
-    /// Isolated crate copies live here: `{verify_root}/f1_tool`, …
+    /// Isolated crate copies live here: `{verify_root}/f1_tool`, … `{verify_root}/f6_fn`.
     pub verify_root: PathBuf,
     /// Parent harvest root holding scaffolds (sibling of verify_root).
     harvest_root: PathBuf,
@@ -942,7 +1032,7 @@ impl Domain for PekkoHarvestDomain {
     }
 }
 
-/// Truncate model completion for F0 expressions **or** F1–F5 short bodies.
+/// Truncate model completion for F0 expressions **or** F1–F6 bodies.
 ///
 /// Body-shaped completions (`Ok(…)`, `match …`, `format!(…)`, string lits, blocks)
 /// keep multi-line content and only cut on FIM/fence/path-spam — they must NOT
@@ -1308,7 +1398,7 @@ mod tests {
     #[test]
     fn parse_families_default_all() {
         let v = Family::parse_list("").unwrap();
-        assert_eq!(v.len(), 6);
+        assert_eq!(v.len(), 7);
     }
 
     #[test]
@@ -1506,9 +1596,9 @@ mod tests {
         if !harvest.join("f1_tool/Cargo.toml").exists() {
             return;
         }
-        let verify = harvest.join("_verify_gold_v9");
-        let scratch = harvest.join("_cargo_scratch_gold_v9");
-        let families = Family::parse_list("f0,f1,f2,f3,f4,f5").unwrap();
+        let verify = harvest.join("_verify_gold_v10");
+        let scratch = harvest.join("_cargo_scratch_gold_v10");
+        let families = Family::parse_list("f0,f1,f2,f3,f4,f5,f6").unwrap();
         let d = PekkoHarvestDomain::new(&verify, &scratch, &families);
         d.ensure_ready().expect("ensure_ready");
         let mut seen = std::collections::HashSet::new();
@@ -1550,4 +1640,26 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn f6_golds_are_function_sized() {
+        let cs = default_slot_challenges();
+        let f6: Vec<_> = cs.iter().filter(|c| c.family == Family::F6).collect();
+        assert!(!f6.is_empty());
+        let needles: std::collections::HashSet<_> = f6.iter().map(|c| c.todo_needle).collect();
+        assert_eq!(needles.len(), 4);
+        for c in &f6 {
+            assert!(c.task_id.starts_with("f6_fn/"));
+            let ntok = c.gold_body.split_whitespace().count();
+            assert!(
+                ntok >= 12,
+                "{} gold too short ({} tokens): {}",
+                c.task_id,
+                ntok,
+                c.gold_body
+            );
+            assert!(c.gold_body.contains('{') || c.gold_body.contains("match"));
+        }
+    }
+
 }

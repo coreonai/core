@@ -7,4 +7,5 @@ members = [
     "f3_message",
     "f4_repair",
     "f5_supervisor",
+    "f6_fn",
 ]

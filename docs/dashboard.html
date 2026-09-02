@@ -320,17 +320,17 @@
     <div class="h-row"><h2>Phase 24</h2><span class="count">Pekko/MSA harvest &middot; cargo-graded &middot; not LCB</span></div>
     <div class="grid">
       <div class="card info">
-        <div class="card-top"><span class="card-cat">Harvest &middot; PekkoHarvestDomain</span><span class="pill info">live track</span></div>
-        <h3>Pekko/MSA cargo-graded harvest (not LCB)</h3>
-        <div class="metric">F0&ndash;F4 harvest <small>F5 transfer probe</small></div>
-        <p>Domain <code class="mono">PekkoHarvestDomain</code> still has F0&ndash;F5. Harvest default is F0&ndash;F4 until F5 format locks; pass <code class="mono">--families f5</code> for the transfer probe.</p>
-        <div class="note">Fmt init <code class="mono">p24_fmt_sft_v8_dir</code>. Latest merge <code class="mono">p24_harvest_f0f4_v9b/r0_merged.r1.safetensors</code>.</div>
+        <div class="card-top"><span class="card-cat">Harvest &middot; PekkoHarvestDomain</span><span class="pill info">F6 family exists</span></div>
+        <h3>F6 function-level (not a general Rust coder)</h3>
+        <div class="metric">F6 0/16 harvest <small>f1 10/18 f4 10/14</small></div>
+        <p>New family <code class="mono">f6_fn</code>: prompt = crate API + failing tests; completion = fn body (tens of tokens). Golds pass <code class="mono">cargo test</code>. Harvest smoke 1 round on f6+f1+f4; F5 still transfer-only. Init stayed <code class="mono">v8_dir</code> because F6 fmt train exact was 0/23.</p>
+        <div class="note">Fmt init <code class="mono">p24_fmt_sft_v8_dir</code>. F6 smoke merge <code class="mono">p24_harvest_f1f4f6_v10/r0_merged.r0.safetensors</code> (not deployed). v9b still the last F0–F4 merge.</div>
       </div>
       <div class="card warn">
-        <div class="card-top"><span class="card-cat">Eval &middot; n=24 passk=1</span><span class="pill warn">F5 xfer 0</span></div>
-        <h3>v9b F0&ndash;F4: 11&rarr;10 then 10&rarr;7 /24</h3>
-        <div class="metric">10/24 <small>v9b r0 after; r1 7/24</small></div>
-        <p>Harvest r0 36/88 (f1 10/18 f2 6/18 f3 10/18 f4 10/14; f0 0/20). r1 34/88 (f1 9/18 f3 9/18). F5 left out of harvest; transfer eval still 0/18.</p>
+        <div class="card-top"><span class="card-cat">Eval &middot; n=12 passk=1</span><span class="pill warn">F6 0</span></div>
+        <h3>v10 F6 smoke: 5&rarr;4 /12</h3>
+        <div class="metric">4/12 <small>after; before 5/12</small></div>
+        <p>eval-before f1 1/2 f4 4/5 f6 0/5; eval-after f1 1/2 f4 3/5 f6 0/5. Harvest 20/48. Diagnose: v10 continue-SFT did not memorize F6 golds (train exact 0/23); model emits mangled fn bodies (e.g. parse_kv <code class="mono">.split_once</code> garbage). Not a general Rust coder.</p>
         <div class="note"><a href="/phase24-progress.html">Long board: /phase24-progress.html</a></div>
       </div>
     </div>
@@ -351,14 +351,16 @@
         <tr><td></td><td>v9 r1</td><td>33/106</td><td>6&rarr;7 /24</td><td class="sans">f3 harvest 7/18; F5 eval 0/6; F5 fmt train exact 0/121 so init stayed v8_dir</td></tr>
         <tr><td>drop F5 from harvest</td><td>v8_dir &rarr; v9b r0</td><td>36/88</td><td>11&rarr;10 /24</td><td class="sans">F0&ndash;F4 only. f1 10/18 f2 6/18 f3 10/18 f4 10/14; f0 0/20. vs v9: F3 10 vs 11</td></tr>
         <tr><td></td><td>v9b r1</td><td>34/88</td><td>10&rarr;7 /24</td><td class="sans">f1 9/18 f3 9/18 f4 10/14. F5 transfer on r1 merge: eval 0/18 harvest 0/9</td></tr>
+        <tr><td>F6 function-level smoke</td><td>v8_dir &rarr; v10 r0</td><td>20/48</td><td>5&rarr;4 /12</td><td class="sans">f6 0/16 f1 10/18 f4 10/14. F6 fmt train exact 0/23 so harvest init v8_dir. Unique _verify_v10. Not a general Rust coder</td></tr>
       </tbody>
     </table>
     <div class="infra">
-      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">Fmt init used for harvest</div><div class="sub"><code class="mono">scratch-7b-sft/p24_fmt_sft_v8_dir</code> (v9 F5 probe train exact 0/121)</div></div><span class="hash">v8_dir</span></div>
-      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">Latest harvest merge</div><div class="sub"><code class="mono">scratch-7b-sft/p24_harvest_f0f4_v9b/r0_merged.r1.safetensors</code></div></div><span class="hash">v9b r1</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">Fmt init used for F6 harvest</div><div class="sub"><code class="mono">scratch-7b-sft/p24_fmt_sft_v8_dir</code> (v10 F6 probe train exact 0/23)</div></div><span class="hash">v8_dir</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">F6 smoke merge</div><div class="sub"><code class="mono">scratch-7b-sft/p24_harvest_f1f4f6_v10/r0_merged.r0.safetensors</code></div></div><span class="hash">v10 r0</span></div>
     </div>
   </section>
   <!-- /PHASE 24 -->
+
 
   <!-- PHASE LINEAGE -->
   <section>
@@ -371,7 +373,7 @@
       <div class="ph"><span class="pn">P21</span><span class="pd"><b>Pekko-native bridge.</b> Candle-native Qwen2 inference + LoRA training + REINFORCE, 10 stages &mdash; no Python sidecar.</span></div>
       <div class="ph"><span class="pn">P22</span><span class="pd"><b>Real benchmarks + 7B.</b> HumanEval/MBPP as Rust domains; 0.5B&rarr;7B migration; <b>C3&ndash;C5 corrections</b> re-frame the SFT/RL findings above.</span></div>
       <div class="ph"><span class="pn">P23</span><span class="pd"><b>Tool-use SI.</b> Narrow integer/tool loop; LCB POST ~6.3% &mdash; not a coding generalist.</span></div>
-      <div class="ph"><span class="pn">P24</span><span class="pd"><b>Pekko harvest specialization.</b> Cargo-graded F0&ndash;F4 harvest on <code class="mono">PekkoHarvestDomain</code> (F5 transfer probe). Best harvest 37/106 (v9) / 36/88 (v9b); latest eval 10/24 then 7/24 (F5 xfer 0/18). <a href="/phase24-progress.html">long board &rarr;</a></span></div>
+      <div class="ph"><span class="pn">P24</span><span class="pd"><b>Pekko harvest specialization.</b> F6 function-level family added (API+tests &rarr; fn body). F6 harvest 0/16; f1+f4 retention 20/32 of the smoke. Best F0&ndash;F4 still 37/106 (v9) / 36/88 (v9b). Not a general Rust coder. <a href="/phase24-progress.html">long board &rarr;</a></span></div>
     </div>
   </section>
 
@@ -392,8 +394,8 @@
         <p>The docs carry layered retraction notes. A single clean writeup, everything scored with truncation on at pass@1, would make the corrected story canonical.</p>
       </div>
       <div class="step">
-        <div class="st-top"><span class="prio p1">now</span><h3>P24 F5 format still unlocked</h3></div>
-        <p>Dropped F5 from harvest. v9b F0&ndash;F4: r0 36/88 eval 11&rarr;10/24; r1 34/88 eval 10&rarr;7/24. vs v9 F5 was 0/18 harvest. F5 transfer after v9b r1 still 0/18 eval, 0/9 harvest. <a href="/phase24-progress.html" style="color:var(--accent)">Phase 24 board &rarr;</a></p>
+        <div class="st-top"><span class="prio p1">now</span><h3>P24 F6 format still unlocked</h3></div>
+        <p>F6 crate+domain+golds exist (4 fns). v10 continue-SFT from v8_dir: F6 train exact 0/23. One harvest round f6+f1+f4: 20/48 (f6 0/16) eval 5&rarr;4/12. Did not loop SFT. Not a general Rust coder. <a href="/phase24-progress.html" style="color:var(--accent)">Phase 24 board &rarr;</a></p>
       </div>
       <div class="step">
         <div class="st-top"><span class="prio p2">watch</span><h3>candle #3773 merge</h3></div>

@@ -14,7 +14,8 @@
 //!
 //! Default `--families` is F0–F4. F5 is excluded from harvest until the
 //! format locks; keep it in `PekkoHarvestDomain` and pass `--families f5`
-//! for the domain-transfer probe.
+//! for the domain-transfer probe. F6 is function-level (API + tests → fn body);
+//! pass `--families f6,f1,f4` for the F6 harvest smoke (F5 still excluded).
 
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -44,7 +45,7 @@ use pekko_actor::ActorSystem;
 struct Args {
     #[arg(long)]
     init_dir: PathBuf,
-    /// Isolated F1–F5 verify crates (each gets empty `[workspace]`).
+    /// Isolated F1–F6 verify crates (each gets empty `[workspace]`). F6 = function-level.
     #[arg(long, default_value = "scratch-pekko-harvest/_verify")]
     verify_root: PathBuf,
     /// F0 expression-slot cargo scratch.
