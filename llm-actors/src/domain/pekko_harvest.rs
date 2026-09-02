@@ -81,7 +81,7 @@ impl Family {
 
     /// Parse comma/space-separated list. Empty → all families (F0–F5).
     /// F5 remains selectable (`--families f5`) for the transfer probe even
-    /// though harvest defaults to F0–F4. F6 (`f6_fn`) is function-level Rust (API + tests → fn body).
+    /// though harvest defaults to F0–F4. F6 (`f6_fn`) is function-level Rust (API + tests → short fn body).
     pub fn parse_list(s: &str) -> Result<Vec<Self>, String> {
         let raw: Vec<_> = s
             .split(|c: char| c == ',' || c.is_whitespace())
@@ -626,87 +626,118 @@ pub fn default_slot_challenges() -> Vec<SlotChallenge> {
             "// pekko-harvest-task: f5_supervisor/round_ko\n"
         ),
 
-        // ---- F6 function-level bodies (tens of tokens; not one-line, not a crate) ----
+        // ---- F6 function-level bodies (F1-sized: ~1 expression / few tokens) ----
         body_chal!(
             Family::F6,
             "f6_fn/shout_v1",
-            "todo!(\"shout: trim, ASCII upper, bang\")",
-            "{\n    let t = s.trim();\n    if t.is_empty() {\n        String::new()\n    } else {\n        format!(\"{}!\", t.to_ascii_uppercase())\n    }\n}",
+            "todo!(\"shout: uppercase\")",
+            "s.to_uppercase()",
             "Crate API: pub fn shout(s: &str) -> String\n",
-            "Failing tests: shout(\" hi \")==\"HI!\"; shout(\"  \")==\"\"; shout(\"Ab\")==\"AB!\".\n",
+            "Failing tests: shout(\"hi\")==\"HI\"; shout(\"Ab\")==\"AB\"; shout(\"\")==\"\".\n",
             "Student slot:\n",
             "    pub fn shout(s: &str) -> String {\n",
-            "        todo!(\"shout: trim, ASCII upper, bang\")\n",
+            "        todo!(\"shout: uppercase\")\n",
             "    }\n",
-            "Output ONLY the function body replacing todo!(...) (a block, tens of tokens). No fn wrapper.\n",
+            "Output ONLY the function body replacing todo!(...) (one expression). No fn wrapper.\n",
             "// pekko-harvest-task: f6_fn/shout_v1\n"
         ),
         body_chal!(
             Family::F6,
             "f6_fn/shout_v2",
-            "todo!(\"shout: trim, ASCII upper, bang\")",
-            "{\n    let t = s.trim();\n    if t.is_empty() {\n        String::new()\n    } else {\n        format!(\"{}!\", t.to_ascii_uppercase())\n    }\n}",
-            "Implement shout: trim, ASCII-uppercase, append '!'. Empty/whitespace -> empty String.\n",
-            "Replace todo!(\"shout: trim, ASCII upper, bang\") with the fn body only.\n",
+            "todo!(\"shout: uppercase\")",
+            "s.to_uppercase()",
+            "Implement shout: ASCII/Unicode uppercase of s. Empty stays empty.\n",
+            "Replace todo!(\"shout: uppercase\") with the fn body only, e.g. s.to_uppercase().\n",
             "// pekko-harvest-task: f6_fn/shout_v2\n"
         ),
         body_chal!(
             Family::F6,
+            "f6_fn/shout_ko",
+            "todo!(\"shout: uppercase\")",
+            "s.to_uppercase()",
+            "shout 본문만: s.to_uppercase(). todo!(\"shout: uppercase\")만 교체.\n",
+            "// pekko-harvest-task: f6_fn/shout_ko\n"
+        ),
+        body_chal!(
+            Family::F6,
             "f6_fn/parse_kv_v1",
-            "todo!(\"parse k=v into Option pair\")",
-            "{\n    let (k, v) = s.split_once('=')?;\n    let k = k.trim();\n    let v = v.trim();\n    if k.is_empty() {\n        None\n    } else {\n        Some((k.to_string(), v.to_string()))\n    }\n}",
-            "Crate API: pub fn parse_kv(s: &str) -> Option<(String, String)>\n",
-            "Failing tests: parse_kv(\"name=ada\") == Some((\"name\",\"ada\")); parse_kv(\" a = b=c \") == Some((\"a\",\"b=c\")); parse_kv(\"=x\") is None; parse_kv(\"nope\") is None.\n",
-            "Student: todo!(\"parse k=v into Option pair\") inside parse_kv.\n",
-            "Output ONLY the function body (split_once, trim, reject empty key). No fn wrapper.\n",
+            "todo!(\"parse_kv: has equals\")",
+            "s.contains('=')",
+            "Crate API: pub fn parse_kv(s: &str) -> bool\n",
+            "Failing tests: parse_kv(\"name=ada\") is true; parse_kv(\"a=b=c\") is true; parse_kv(\"nope\") is false; parse_kv(\"\") is false.\n",
+            "Student: todo!(\"parse_kv: has equals\") inside parse_kv.\n",
+            "Output ONLY the function body (s.contains('=')). No fn wrapper.\n",
             "// pekko-harvest-task: f6_fn/parse_kv_v1\n"
         ),
         body_chal!(
             Family::F6,
             "f6_fn/parse_kv_v2",
-            "todo!(\"parse k=v into Option pair\")",
-            "{\n    let (k, v) = s.split_once('=')?;\n    let k = k.trim();\n    let v = v.trim();\n    if k.is_empty() {\n        None\n    } else {\n        Some((k.to_string(), v.to_string()))\n    }\n}",
-            "parse_kv body: first '=' splits key/value; trim both; empty key -> None.\n",
-            "Replace todo!(\"parse k=v into Option pair\") only.\n",
+            "todo!(\"parse_kv: has equals\")",
+            "s.contains('=')",
+            "parse_kv body: true iff s contains '='. Replace todo!(\"parse_kv: has equals\") only.\n",
             "// pekko-harvest-task: f6_fn/parse_kv_v2\n"
         ),
         body_chal!(
             Family::F6,
+            "f6_fn/parse_kv_ko",
+            "todo!(\"parse_kv: has equals\")",
+            "s.contains('=')",
+            "parse_kv 본문만: s.contains('='). todo!만 교체.\n",
+            "// pekko-harvest-task: f6_fn/parse_kv_ko\n"
+        ),
+        body_chal!(
+            Family::F6,
             "f6_fn/grade_v1",
-            "todo!(\"letter grade A-F\")",
-            "{\n    match score {\n        s if s >= 90 => \"A\",\n        s if s >= 80 => \"B\",\n        s if s >= 70 => \"C\",\n        s if s >= 60 => \"D\",\n        _ => \"F\",\n    }\n}",
+            "todo!(\"letter grade A or F\")",
+            "if score >= 90 { \"A\" } else { \"F\" }",
             "Crate API: pub fn grade(score: i32) -> &'static str\n",
-            "Failing tests: 95/90 -> A; 80 -> B; 70 -> C; 60 -> D; 59 and negatives -> F.\n",
-            "Student slot: todo!(\"letter grade A-F\") inside grade.\n",
-            "Output ONLY a match body (tens of tokens). No fn wrapper.\n",
+            "Failing tests: 95/90 -> A; 89 and negatives -> F.\n",
+            "Student slot: todo!(\"letter grade A or F\") inside grade.\n",
+            "Output ONLY the body: if score >= 90 { \"A\" } else { \"F\" }. No fn wrapper.\n",
             "// pekko-harvest-task: f6_fn/grade_v1\n"
         ),
         body_chal!(
             Family::F6,
             "f6_fn/grade_v2",
-            "todo!(\"letter grade A-F\")",
-            "{\n    match score {\n        s if s >= 90 => \"A\",\n        s if s >= 80 => \"B\",\n        s if s >= 70 => \"C\",\n        s if s >= 60 => \"D\",\n        _ => \"F\",\n    }\n}",
-            "grade(score): match bands 90/80/70/60 else F. Body only replacing todo!(\"letter grade A-F\").\n",
+            "todo!(\"letter grade A or F\")",
+            "if score >= 90 { \"A\" } else { \"F\" }",
+            "grade(score): A if score>=90 else F. Body only replacing todo!(\"letter grade A or F\").\n",
             "// pekko-harvest-task: f6_fn/grade_v2\n"
         ),
         body_chal!(
             Family::F6,
+            "f6_fn/grade_ko",
+            "todo!(\"letter grade A or F\")",
+            "if score >= 90 { \"A\" } else { \"F\" }",
+            "grade 본문만: 90 이상 A 아니면 F. todo!만 교체.\n",
+            "// pekko-harvest-task: f6_fn/grade_ko\n"
+        ),
+        body_chal!(
+            Family::F6,
             "f6_fn/sum_evens_v1",
-            "todo!(\"sum even i32s\")",
-            "{\n    let mut acc = 0;\n    for n in xs {\n        if n % 2 == 0 {\n            acc += *n;\n        }\n    }\n    acc\n}",
+            "todo!(\"sum slice\")",
+            "xs.iter().sum()",
             "Crate API: pub fn sum_evens(xs: &[i32]) -> i32\n",
-            "Failing tests: [1,2,3,4]->6; []->0; [-2,-1,0,5]->-2; odds-only->0.\n",
-            "Student: todo!(\"sum even i32s\") inside sum_evens.\n",
-            "Output ONLY the loop/iterator function body. No fn wrapper.\n",
+            "Failing tests: [2,4]->6; []->0; [-2,0,8]->6. (even-only slices.)\n",
+            "Student: todo!(\"sum slice\") inside sum_evens.\n",
+            "Output ONLY the function body xs.iter().sum(). No fn wrapper.\n",
             "// pekko-harvest-task: f6_fn/sum_evens_v1\n"
         ),
         body_chal!(
             Family::F6,
             "f6_fn/sum_evens_v2",
-            "todo!(\"sum even i32s\")",
-            "{\n    let mut acc = 0;\n    for n in xs {\n        if n % 2 == 0 {\n            acc += *n;\n        }\n    }\n    acc\n}",
-            "sum_evens: accumulate even i32s (including 0 and negatives). Replace todo!(\"sum even i32s\") only.\n",
+            "todo!(\"sum slice\")",
+            "xs.iter().sum()",
+            "sum_evens: sum the i32 slice. Replace todo!(\"sum slice\") only.\n",
             "// pekko-harvest-task: f6_fn/sum_evens_v2\n"
+        ),
+        body_chal!(
+            Family::F6,
+            "f6_fn/sum_evens_ko",
+            "todo!(\"sum slice\")",
+            "xs.iter().sum()",
+            "sum_evens 본문만: xs.iter().sum(). todo!만 교체.\n",
+            "// pekko-harvest-task: f6_fn/sum_evens_ko\n"
         ),
     ]
 }
@@ -1274,6 +1305,7 @@ fn is_body_shaped(body: &str) -> bool {
         || t.starts_with("Response::")
         || t.starts_with("Message::")
         || t.starts_with("RoundResult")
+        || ident_method_chain(t)
 }
 
 fn first_path_spam_offset(s: &str) -> Option<usize> {
@@ -1328,6 +1360,23 @@ fn is_path_spam_body(body: &str) -> bool {
     }
     let spam = lines.iter().filter(|l| is_path_spam_line(l)).count();
     spam * 2 >= lines.len() || body.matches("/src/").count() >= 3
+}
+
+fn ident_method_chain(t: &str) -> bool {
+    let t = t.trim_start();
+    let Some(dot) = t.find('.') else {
+        return false;
+    };
+    if dot == 0 {
+        return false;
+    }
+    let ident = &t[..dot];
+    let rest = &t[dot + 1..];
+    ident.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        && rest
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
 }
 
 fn looks_like_rust_expr(body: &str) -> bool {
@@ -1596,8 +1645,8 @@ mod tests {
         if !harvest.join("f1_tool/Cargo.toml").exists() {
             return;
         }
-        let verify = harvest.join("_verify_gold_v10");
-        let scratch = harvest.join("_cargo_scratch_gold_v10");
+        let verify = harvest.join("_verify_gold_v11");
+        let scratch = harvest.join("_cargo_scratch_gold_v11");
         let families = Family::parse_list("f0,f1,f2,f3,f4,f5,f6").unwrap();
         let d = PekkoHarvestDomain::new(&verify, &scratch, &families);
         d.ensure_ready().expect("ensure_ready");
@@ -1642,24 +1691,33 @@ mod tests {
     }
 
     #[test]
-    fn f6_golds_are_function_sized() {
+    fn f6_golds_are_short_one_liners() {
         let cs = default_slot_challenges();
         let f6: Vec<_> = cs.iter().filter(|c| c.family == Family::F6).collect();
         assert!(!f6.is_empty());
         let needles: std::collections::HashSet<_> = f6.iter().map(|c| c.todo_needle).collect();
         assert_eq!(needles.len(), 4);
+        let mut golds: std::collections::HashSet<&str> = std::collections::HashSet::new();
         for c in &f6 {
             assert!(c.task_id.starts_with("f6_fn/"));
             let ntok = c.gold_body.split_whitespace().count();
             assert!(
-                ntok >= 12,
-                "{} gold too short ({} tokens): {}",
+                ntok <= 15,
+                "{} gold too long ({} tokens): {}",
                 c.task_id,
                 ntok,
                 c.gold_body
             );
-            assert!(c.gold_body.contains('{') || c.gold_body.contains("match"));
+            assert!(
+                !c.gold_body.contains("split_once") && !c.gold_body.contains("to_ascii_uppercase"),
+                "{} still looks like the long v10 gold",
+                c.task_id
+            );
+            golds.insert(c.gold_body.trim());
         }
+        assert!(golds.contains("s.to_uppercase()"));
+        assert!(golds.contains("s.contains('=')"));
+        assert!(golds.contains(r#"if score >= 90 { "A" } else { "F" }"#));
+        assert!(golds.contains("xs.iter().sum()"));
     }
-
 }

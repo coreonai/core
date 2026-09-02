@@ -14,7 +14,7 @@
 //!
 //! Default `--families` is F0–F4. F5 is excluded from harvest until the
 //! format locks; keep it in `PekkoHarvestDomain` and pass `--families f5`
-//! for the domain-transfer probe. F6 is function-level (API + tests → fn body);
+//! for the domain-transfer probe. F6 is function-level (API + tests → short fn body);
 //! pass `--families f6,f1,f4` for the F6 harvest smoke (F5 still excluded).
 
 use std::io::{self, Write};

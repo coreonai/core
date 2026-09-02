@@ -49,6 +49,7 @@
     <li>Host: Tailscale <span class="mono">dgxa100</span> (<span class="mono">100.75.101.50</span>) as <span class="mono">paulyu</span>.</li>
   </ul>
 
+    <p><b>Done 2026-09-03 KST:</b> F6 short golds. fmt-SFT v11 200 steps GPU2 from <span class="mono">p24_fmt_sft_v8_dir</span> (not v10). Probe train/f6_fn exact 2/32 so harvest init <span class="mono">v11_dir</span>. Harvest r0 38/112 (f6 13/48 f1 18/36 f4 7/28) eval 2&rarr;2 /12 (f6 1/8 both). One round. Not a general Rust coder.</p>
   <h2>Harvest scoreboard</h2>
   <table>
     <tr><th>Run</th><th>Init</th><th>Harvest</th><th>Eval /12</th><th>Note</th></tr>
@@ -61,6 +62,7 @@
     <tr><td>1-line F5 + family log</td><td class="mono">v8_dir → v9</td><td class="ok">r0 37/106; r1 33/106</td><td>8→6 then 6→7 /24</td><td>init v8_dir because v9 fmt F5 train exact 0/121. r0 harvest f0 0/20 f1 10/18 f2 6/18 f3 11/18 f4 10/14 f5 0/18. r1 f3 7/18 f5 0/18. eval F5 0/6 both rounds. Unique _verify_v9, eval-n=24 passk=1, 30 steps / 5e-5</td></tr>
     <tr><td>drop F5 from harvest</td><td class="mono">v8_dir → v9b</td><td class="ok">r0 36/88; r1 34/88</td><td>11→10 then 10→7 /24</td><td>CLI default now F0–F4. GPUs 2+3 (not 0). r0 f0 0/20 f1 10/18 f2 6/18 f3 10/18 f4 10/14 vs v9 F3 11/18 F5 0/18. r1 f1 9/18 f3 9/18 f4 10/14. F5 transfer on r1 merge: eval 0/18, harvest 0/9. Unique _verify_v9b, log p24_harvest_f0f4_v9b.log</td></tr>
     <tr><td>F6 function-level smoke</td><td class="mono">v8_dir → v10</td><td>20/48 (f6 0/16)</td><td>5→4 /12</td><td>4 fns: shout / parse_kv / grade / sum_evens. Golds pass cargo test. v10 fmt continue 200 steps from v8_dir; F6 train exact <span class="bad">0/23</span> so harvest init stayed v8_dir (did not loop SFT). Harvest f1 10/18 f4 10/14 f6 0/16. eval-before f1 1/2 f4 4/5 f6 0/5; after f1 1/2 f4 3/5 f6 0/5. GPUs 3 infer + 2 train (not 0). Unique _verify_v10. Diagnose: model still emits mangled bodies (parse_kv <span class="mono">.split_once</span> garbage); F6 is harder than one-line todo! slots. <b>Not a general Rust coder.</b></td></tr>
+    <tr><td>F6 short golds</td><td class="mono">v11_dir</td><td class="ok">38/112 (f6 13/48)</td><td>2→2 /12</td><td>Golds are F1-sized: <span class="mono">s.to_uppercase()</span> / <span class="mono">s.contains('=')</span> / if-else A/F / <span class="mono">xs.iter().sum()</span>. Gold cargo 4/4; student todo 0/4. fmt v11 200 steps GPU2 from v8_dir, 74 pairs, loss 0.0009→0.0003. Probe train/f6_fn <span class="ok">2/32</span> (holdout 1/11, train 10/63; f1 4/18 f4 4/13). Harvest init v11_dir. r0 harvest f1 18/36 f4 7/28 f6 13/48. eval-before/after f4 1/4 f6 1/8 (no f1 in n=12). GPUs 3 infer + 2 train. Unique _verify_v11. One round (eval flat). <b>Not a general Rust coder.</b></td></tr>
   </table>
 
   <h2>Format-SFT checkpoints</h2>
@@ -73,6 +75,7 @@
     <tr><td class="mono">v8</td><td>v6b</td><td>short F3/F5 + F0/F2 retention, 200 steps</td><td>F3 Ping/Get/Inc train 3/5; F5 still weak</td></tr>
     <tr><td class="mono">v9</td><td>v8_dir</td><td>1-line F5 golds + F0/F2 retention, 200 steps, 532 pairs</td><td>holdout 32/80 exact; train 186/452. train/f5_supervisor 0/121 exact; train/f3 54/61; train/f4 72/80; train/f0 0/86. Harvest therefore stayed on v8_dir</td></tr>
     <tr><td class="mono">v10</td><td>v8_dir</td><td>F6 fn-body seeds (24) + F1/F3/F4 retention (60), 200 steps, 84 pairs</td><td>holdout 4/13 exact; train 31/71. train/f6_fn <span class="bad">0/23</span>; train/f1 10/18; train/f3 12/17; train/f4 9/13. Harvest init therefore stayed v8_dir</td></tr>
+    <tr><td class="mono">v11</td><td>v8_dir</td><td>short F6 golds (32) + F1/F4 retention (42), 200 steps GPU2, 74 pairs</td><td>holdout 1/11 exact; train 10/63. train/f6_fn <span class="ok">2/32</span>; train/f1 4/18; train/f4 4/13. Harvest init v11_dir; harvest r0 38/112 f6 13/48 eval 2→2/12</td></tr>
   </table>
 
   <h2>Infra lessons</h2>
@@ -100,6 +103,7 @@
     <tr><td class="mono">113b935 / 2132c06</td><td>per-family harvest/eval counts; F5 golds shortened to 1 line; v9 seeds</td></tr>
     <tr><td class="mono">(this)</td><td>harvest CLI default F0–F4; F5 kept in PekkoHarvestDomain as transfer probe</td></tr>
     <tr><td class="mono">(this)</td><td>F6 <span class="mono">f6_fn</span> family (4 function-level challenges) wired into PekkoHarvestDomain; v10 seeds; one harvest smoke</td></tr>
+    <tr><td class="mono">(this)</td><td>F6 golds shrunk to F1-sized one-liners; v11 short seeds; fmt continue from v8_dir; harvest smoke f6+f1+f4</td></tr>
   </table>
 
   <h2>Paths</h2>
@@ -117,9 +121,11 @@
     <li>F6 crate: <span class="mono">scratch-pekko-harvest/f6_fn</span></li>
     <li>v10 fmt (not used for harvest): <span class="mono">scratch-7b-sft/p24_fmt_sft_v10_dir</span></li>
     <li>F6 harvest smoke: <span class="mono">scratch-7b-sft/p24_harvest_f1f4f6_v10</span> / <span class="mono">p24_harvest_f1f4f6_v10.log</span></li>
+    <li>v11 fmt (used for harvest): <span class="mono">scratch-7b-sft/p24_fmt_sft_v11_dir</span></li>
+    <li>F6 short harvest: <span class="mono">scratch-7b-sft/p24_harvest_f1f4f6_v11</span> / <span class="mono">p24_harvest_f1f4f6_v11.log</span></li>
   </ul>
 
-  <p class="foot">This page is the long board, served at https://llm.coreon.build/phase24-progress.html (symlink from llm_site). The dashboard at / has the Phase 24 summary. F6 smoke (init v8_dir, families f6+f1+f4): harvest 20/48 eval 5→4/12 (f6 0). v9b F0–F4: r0 36/88 eval 11→10/24. This does not make a general Rust coder.</p>
+  <p class="foot">This page is the long board, served at https://llm.coreon.build/phase24-progress.html (symlink from llm_site). The dashboard at / has the Phase 24 summary. F6 short golds (init v11_dir, families f6+f1+f4): harvest 38/112 eval 2→2/12 (f6 harvest 13/48 eval 1/8). Prior v10 long golds: 20/48 eval 5→4/12 (f6 0). This does not make a general Rust coder.</p>
 </main>
 </body>
 </html>
