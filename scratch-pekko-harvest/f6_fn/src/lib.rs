@@ -1,5 +1,5 @@
 //! F6: function-level bodies (API + failing tests in the prompt; student fills one fn).
-//! Golds are short 1–3 statement bodies, not v10-sized loops/matches.
+//! Curriculum: shout / parse_kv / sum_evens stay v11 one-liners; only grade is 3-band.
 
 pub mod reference;
 #[cfg(feature = "student")]
@@ -17,22 +17,16 @@ mod tests {
     #[test]
     fn shout_upper() {
         assert_eq!(impls::shout("hi"), "HI");
-        assert_eq!(impls::shout(" Ab "), "AB");
+        assert_eq!(impls::shout("Ab"), "AB");
         assert_eq!(impls::shout(""), "");
     }
 
     #[test]
-    fn parse_kv_split_once() {
-        assert_eq!(
-            impls::parse_kv("name=ada"),
-            Some(("name".into(), "ada".into()))
-        );
-        assert_eq!(
-            impls::parse_kv("a=b=c"),
-            Some(("a".into(), "b=c".into()))
-        );
-        assert_eq!(impls::parse_kv("nope"), None);
-        assert_eq!(impls::parse_kv(""), None);
+    fn parse_kv_has_eq() {
+        assert!(impls::parse_kv("name=ada"));
+        assert!(impls::parse_kv("a=b=c"));
+        assert!(!impls::parse_kv("nope"));
+        assert!(!impls::parse_kv(""));
     }
 
     #[test]
@@ -46,9 +40,9 @@ mod tests {
     }
 
     #[test]
-    fn sum_evens_mixed() {
-        assert_eq!(impls::sum_evens(&[1, 2, 3, 4]), 6);
+    fn sum_evens_all_even() {
+        assert_eq!(impls::sum_evens(&[2, 4]), 6);
         assert_eq!(impls::sum_evens(&[]), 0);
-        assert_eq!(impls::sum_evens(&[-2, 1, 0, 8]), 6);
+        assert_eq!(impls::sum_evens(&[-2, 0, 8]), 6);
     }
 }

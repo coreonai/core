@@ -32,7 +32,7 @@
 <header>
   <h1>Phase 24 — Pekko/MSA harvest</h1>
   <p>Long board at <a href="https://llm.coreon.build/phase24-progress.html" style="color:var(--accent)">https://llm.coreon.build/phase24-progress.html</a> · dashboard summary on <a href="/" style="color:var(--accent)">llm.coreon.build</a></p>
-  <p>Updated 2026-09-03 10:31 KST · dgxa100 · F6 medium golds; harvest 25/112 (F6 0/48). Not a general Rust coder</p>
+  <p>Updated 2026-09-03 12:30 KST · dgxa100 · F6 curriculum v13; harvest 70/112 (F6 30/48) eval 7→5/12. Not a general Rust coder</p>
 </header>
 <main>
   <div class="cards">
@@ -49,6 +49,7 @@
     <li>Host: Tailscale <span class="mono">dgxa100</span> (<span class="mono">100.75.101.50</span>) as <span class="mono">paulyu</span>.</li>
   </ul>
 
+    <p><b>Done 2026-09-03 KST:</b> F6 curriculum (only grade 3-band A/P/F; shout <span class="mono">s.to_uppercase()</span>, parse_kv <span class="mono">s.contains('=')</span>, sum_evens <span class="mono">xs.iter().sum()</span> stay v11). fmt-SFT v13 200 steps GPU4 from <span class="mono">p24_fmt_sft_v11_dir</span>, loss 0.0004→0.0000. Probe train/f6_fn exact 10/32 so harvest init <span class="mono">v13_dir</span>. Harvest r0 70/112 (f6 30/48 f1 20/36 f4 20/28) eval 7→5 /12 (before f4 4/4 f6 3/8; after f4 3/4 f6 2/8). One round, 30 steps / 5e-5. Unique <span class="mono">_verify_v13</span>. Not a general Rust coder.</p>
     <p><b>Done 2026-09-03 KST:</b> F6 medium golds (1&ndash;3 statements). fmt-SFT v12 200 steps GPU4 from <span class="mono">p24_fmt_sft_v11_dir</span>. Probe train/f6_fn exact 0/32 so harvest init <span class="mono">v11_dir</span> (did not loop SFT). Harvest r0 25/112 (f6 0/48 f1 18/36 f4 7/28) eval 1&rarr;1 /12 (f6 0/8 both). One round. Not a general Rust coder.</p>
   <h2>Harvest scoreboard</h2>
   <table>
@@ -64,6 +65,7 @@
     <tr><td>F6 function-level smoke</td><td class="mono">v8_dir → v10</td><td>20/48 (f6 0/16)</td><td>5→4 /12</td><td>4 fns: shout / parse_kv / grade / sum_evens. Golds pass cargo test. v10 fmt continue 200 steps from v8_dir; F6 train exact <span class="bad">0/23</span> so harvest init stayed v8_dir (did not loop SFT). Harvest f1 10/18 f4 10/14 f6 0/16. eval-before f1 1/2 f4 4/5 f6 0/5; after f1 1/2 f4 3/5 f6 0/5. GPUs 3 infer + 2 train (not 0). Unique _verify_v10. Diagnose: model still emits mangled bodies (parse_kv <span class="mono">.split_once</span> garbage); F6 is harder than one-line todo! slots. <b>Not a general Rust coder.</b></td></tr>
     <tr><td>F6 short golds</td><td class="mono">v11_dir</td><td class="ok">38/112 (f6 13/48)</td><td>2→2 /12</td><td>Golds are F1-sized: <span class="mono">s.to_uppercase()</span> / <span class="mono">s.contains('=')</span> / if-else A/F / <span class="mono">xs.iter().sum()</span>. Gold cargo 4/4; student todo 0/4. fmt v11 200 steps GPU2 from v8_dir, 74 pairs, loss 0.0009→0.0003. Probe train/f6_fn <span class="ok">2/32</span> (holdout 1/11, train 10/63; f1 4/18 f4 4/13). Harvest init v11_dir. r0 harvest f1 18/36 f4 7/28 f6 13/48. eval-before/after f4 1/4 f6 1/8 (no f1 in n=12). GPUs 3 infer + 2 train. Unique _verify_v11. One round (eval flat). <b>Not a general Rust coder.</b></td></tr>
     <tr><td>F6 medium golds</td><td class="mono">v11_dir</td><td>25/112 (f6 0/48)</td><td>1→1 /12</td><td>Golds are short 1&ndash;3 statements: <span class="mono">s.trim().to_uppercase()</span> / <span class="mono">split_once</span> Option / A-P-F if-else / <span class="mono">filter(|x| x%2==0).sum()</span>. Gold cargo 4/4; student todo 0/4. fmt v12 200 steps GPU4 from v11_dir, 74 pairs, loss 0.0678→0.0003. Probe train/f6_fn <span class="bad">0/32</span> (holdout 2/11, train 8/63; f1 5/18 f4 3/13). Harvest init stayed v11_dir (no SFT loop). r0 harvest f1 18/36 f4 7/28 f6 0/48. eval-before/after f4 1/4 f6 0/8 (no f1 in n=12). GPUs 7 infer + 4 train. Unique _verify_v12. One round (eval flat). <b>Not a general Rust coder.</b></td></tr>
+    <tr><td>F6 curriculum</td><td class="mono">v13_dir</td><td class="ok">70/112 (f6 30/48)</td><td>7→5 /12</td><td>Only grade is 3-band A/P/F; other three stay v11 one-liners. Gold cargo 4/4; student todo 0/4. fmt v13 200 steps GPU4 from v11_dir, 74 pairs, loss 0.0004→0.0000. Probe train/f6_fn <span class="ok">10/32</span> (holdout 4/11, train 28/63; f1 9/18 f4 9/13). Harvest init v13_dir. r0 harvest f1 20/36 f4 20/28 f6 30/48. eval-before f4 4/4 f6 3/8; after f4 3/4 f6 2/8 (no f1 in n=12). GPUs 7 infer + 4 train. Unique _verify_v13. One round. <b>Not a general Rust coder.</b></td></tr>
   </table>
 
   <h2>Format-SFT checkpoints</h2>
@@ -78,6 +80,7 @@
     <tr><td class="mono">v10</td><td>v8_dir</td><td>F6 fn-body seeds (24) + F1/F3/F4 retention (60), 200 steps, 84 pairs</td><td>holdout 4/13 exact; train 31/71. train/f6_fn <span class="bad">0/23</span>; train/f1 10/18; train/f3 12/17; train/f4 9/13. Harvest init therefore stayed v8_dir</td></tr>
     <tr><td class="mono">v11</td><td>v8_dir</td><td>short F6 golds (32) + F1/F4 retention (42), 200 steps GPU2, 74 pairs</td><td>holdout 1/11 exact; train 10/63. train/f6_fn <span class="ok">2/32</span>; train/f1 4/18; train/f4 4/13. Harvest init v11_dir; harvest r0 38/112 f6 13/48 eval 2→2/12</td></tr>
     <tr><td class="mono">v12</td><td>v11_dir</td><td>medium F6 golds (32) + F1/F4 retention (42), 200 steps GPU4, 74 pairs</td><td>holdout 2/11 exact; train 8/63. train/f6_fn <span class="bad">0/32</span>; train/f1 5/18; train/f4 3/13. Harvest init therefore stayed v11_dir; harvest r0 25/112 f6 0/48 eval 1→1/12</td></tr>
+    <tr><td class="mono">v13</td><td>v11_dir</td><td>curriculum F6 (only grade 3-band) + F1/F4 retention (42), 200 steps GPU4, 74 pairs</td><td>holdout 4/11 exact; train 28/63. train/f6_fn <span class="ok">10/32</span>; train/f1 9/18; train/f4 9/13. Harvest init v13_dir; harvest r0 70/112 f6 30/48 eval 7→5/12</td></tr>
   </table>
 
   <h2>Infra lessons</h2>
@@ -107,6 +110,7 @@
     <tr><td class="mono">(this)</td><td>F6 <span class="mono">f6_fn</span> family (4 function-level challenges) wired into PekkoHarvestDomain; v10 seeds; one harvest smoke</td></tr>
     <tr><td class="mono">(this)</td><td>F6 golds shrunk to F1-sized one-liners; v11 short seeds; fmt continue from v8_dir; harvest smoke f6+f1+f4</td></tr>
     <tr><td class="mono">(this)</td><td>F6 golds grown to 1&ndash;3 statement bodies; v12 medium seeds; fmt continue from v11_dir; F6 exact 0 so harvest init v11_dir</td></tr>
+    <tr><td class="mono">(this)</td><td>F6 curriculum: only grade 3-band; v13 seeds; fmt continue from v11_dir; F6 exact 10/32 so harvest init v13_dir</td></tr>
   </table>
 
   <h2>Paths</h2>
@@ -128,9 +132,11 @@
     <li>F6 short harvest: <span class="mono">scratch-7b-sft/p24_harvest_f1f4f6_v11</span> / <span class="mono">p24_harvest_f1f4f6_v11.log</span></li>
     <li>v12 fmt (not used for harvest; F6 train exact 0/32): <span class="mono">scratch-7b-sft/p24_fmt_sft_v12_dir</span></li>
     <li>F6 medium harvest: <span class="mono">scratch-7b-sft/p24_harvest_f1f4f6_v12</span> / <span class="mono">p24_harvest_f1f4f6_v12.log</span></li>
+    <li>v13 fmt (used for harvest; F6 train exact 10/32): <span class="mono">scratch-7b-sft/p24_fmt_sft_v13_dir</span></li>
+    <li>F6 curriculum harvest: <span class="mono">scratch-7b-sft/p24_harvest_f1f4f6_v13</span> / <span class="mono">p24_harvest_f1f4f6_v13.log</span></li>
   </ul>
 
-  <p class="foot">This page is the long board, served at https://llm.coreon.build/phase24-progress.html (symlink from llm_site). The dashboard at / has the Phase 24 summary. F6 medium golds (init v11_dir because v12 F6 exact 0/32, families f6+f1+f4): harvest 25/112 eval 1→1/12 (f6 harvest 0/48 eval 0/8). Prior v11 short golds: 38/112 eval 2→2/12 (f6 13/48). This does not make a general Rust coder.</p>
+  <p class="foot">This page is the long board, served at https://llm.coreon.build/phase24-progress.html (symlink from llm_site). The dashboard at / has the Phase 24 summary. F6 curriculum (only grade 3-band; init v13_dir because v13 F6 exact 10/32, families f6+f1+f4): harvest 70/112 eval 7→5/12 (f6 harvest 30/48 eval 3→2/8). Prior v12 medium: 25/112 eval 1→1/12 (f6 0/48). Prior v11 short: 38/112 eval 2→2/12 (f6 13/48). This does not make a general Rust coder.</p>
 </main>
 </body>
 </html>
