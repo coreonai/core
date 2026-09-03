@@ -319,18 +319,18 @@
   <section>
     <div class="h-row"><h2>Phase 24</h2><span class="count">Pekko/MSA harvest &middot; cargo-graded &middot; not LCB</span></div>
     <div class="grid">
-      <div class="card ok">
-        <div class="card-top"><span class="card-cat">Harvest &middot; PekkoHarvestDomain</span><span class="pill ok">F6 short golds 13/48</span></div>
-        <h3>F6 short golds (not a general Rust coder)</h3>
-        <div class="metric">38/112 <small>harvest f6+f1+f4 r0</small></div>
-        <p>Short F6 golds (shout <code class="mono">s.to_uppercase()</code>, parse_kv <code class="mono">s.contains(&apos;=&apos;)</code>, grade pass/fail, sum_evens <code class="mono">xs.iter().sum()</code>). fmt-SFT v11: 200 steps GPU2 from <code class="mono">p24_fmt_sft_v8_dir</code> (not v10). Probe train/f6_fn exact 2/32 so harvest init <code class="mono">p24_fmt_sft_v11_dir</code>. Harvest r0: f6 13/48 f1 18/36 f4 7/28. Unique <code class="mono">_verify_v11</code>. GPUs 2 train / 3 infer.</p>
-        <div class="note">Do not treat this as a product deploy. F5 still transfer-only. Not a general Rust coder.</div>
+      <div class="card warn">
+        <div class="card-top"><span class="card-cat">Harvest &middot; PekkoHarvestDomain</span><span class="pill warn">F6 medium 0/48</span></div>
+        <h3>F6 medium golds (not a general Rust coder)</h3>
+        <div class="metric">25/112 <small>harvest f6+f1+f4 r0</small></div>
+        <p>Grew F6 golds to 1&ndash;3 statement bodies (shout <code class="mono">s.trim().to_uppercase()</code>, parse_kv <code class="mono">split_once</code> &rarr; Option, grade A/P/F, sum_evens filter). Gold cargo 4/4. fmt-SFT v12: 200 steps GPU4 from <code class="mono">p24_fmt_sft_v11_dir</code>, loss 0.0678&rarr;0.0003. Probe train/f6_fn exact <b>0/32</b> so harvest init stayed <code class="mono">p24_fmt_sft_v11_dir</code> (did not loop SFT). Harvest r0: f6 0/48 f1 18/36 f4 7/28. Unique <code class="mono">_verify_v12</code>. GPUs 4 train / 7 infer.</p>
+        <div class="note">Do not treat this as a product deploy. F5 still transfer-only. Not a general Rust coder. Merge not deployed.</div>
       </div>
       <div class="card warn">
-        <div class="card-top"><span class="card-cat">Eval &middot; n=12 passk=1</span><span class="pill warn">flat 2&rarr;2</span></div>
-        <h3>v11 F6 smoke: 2&rarr;2 /12</h3>
-        <div class="metric">2/12 <small>after; before 2/12</small></div>
-        <p>eval-before/after: f4 1/4 f6 1/8 (no f1 in this 12). v10 long golds were harvest 20/48 f6 0/16 eval 5&rarr;4/12. One round only (eval flat). Not a general Rust coder.</p>
+        <div class="card-top"><span class="card-cat">Eval &middot; n=12 passk=1</span><span class="pill warn">flat 1&rarr;1</span></div>
+        <h3>v12 F6 smoke: 1&rarr;1 /12</h3>
+        <div class="metric">1/12 <small>after; before 1/12</small></div>
+        <p>eval-before/after: f4 1/4 f6 0/8 (no f1 in this 12). v11 short golds were harvest 38/112 f6 13/48 eval 2&rarr;2/12. One round only. Not a general Rust coder.</p>
         <div class="note"><a href="/phase24-progress.html">Long board: /phase24-progress.html</a></div>
       </div>
     </div>
@@ -353,11 +353,12 @@
         <tr><td></td><td>v9b r1</td><td>34/88</td><td>10&rarr;7 /24</td><td class="sans">f1 9/18 f3 9/18 f4 10/14. F5 transfer on r1 merge: eval 0/18 harvest 0/9</td></tr>
         <tr><td>F6 function-level smoke</td><td>v8_dir &rarr; v10 r0</td><td>20/48</td><td>5&rarr;4 /12</td><td class="sans">f6 0/16 f1 10/18 f4 10/14. F6 fmt train exact 0/23 so harvest init v8_dir. Unique _verify_v10. Not a general Rust coder</td></tr>
         <tr><td>F6 short golds</td><td>v11_dir r0</td><td>38/112</td><td>2&rarr;2 /12</td><td class="sans">f6 13/48 f1 18/36 f4 7/28. fmt v11 200 steps GPU2; F6 train exact 2/32 so init v11_dir. eval f4 1/4 f6 1/8 both sides. Unique _verify_v11. Not a general Rust coder</td></tr>
+        <tr><td>F6 medium golds</td><td>v11_dir r0</td><td>25/112</td><td>1&rarr;1 /12</td><td class="sans">f6 0/48 f1 18/36 f4 7/28. fmt v12 200 steps GPU4 from v11_dir; F6 train exact 0/32 so init stayed v11_dir. eval f4 1/4 f6 0/8 both. Unique _verify_v12. Not a general Rust coder</td></tr>
       </tbody>
     </table>
     <div class="infra">
-      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">Fmt init used for F6 short harvest</div><div class="sub"><code class="mono">scratch-7b-sft/p24_fmt_sft_v11_dir</code> (F6 train exact 2/32)</div></div><span class="hash">v11_dir</span></div>
-      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">F6 short harvest merge</div><div class="sub"><code class="mono">scratch-7b-sft/p24_harvest_f1f4f6_v11/r0_merged.r0.safetensors</code></div></div><span class="hash">v11 r0</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">Fmt init used for F6 medium harvest</div><div class="sub"><code class="mono">scratch-7b-sft/p24_fmt_sft_v11_dir</code> (v12 F6 train exact 0/32; did not loop SFT)</div></div><span class="hash">v11_dir</span></div>
+      <div class="irow"><span class="ok-mark">&check;</span><div><div class="k">F6 medium harvest merge (not deployed)</div><div class="sub"><code class="mono">scratch-7b-sft/p24_harvest_f1f4f6_v12/r0_merged.r0.safetensors</code></div></div><span class="hash">v12 r0</span></div>
     </div>
   </section>
   <!-- /PHASE 24 -->
