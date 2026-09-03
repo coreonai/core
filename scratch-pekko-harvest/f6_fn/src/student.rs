@@ -4,8 +4,8 @@ pub fn shout(s: &str) -> String {
     todo!("shout: uppercase")
 }
 
-pub fn parse_kv(s: &str) -> bool {
-    todo!("parse_kv: has equals")
+pub fn parse_kv(s: &str) -> Option<(String, String)> {
+    todo!("parse_kv: split once")
 }
 
 pub fn grade(score: i32) -> &'static str {

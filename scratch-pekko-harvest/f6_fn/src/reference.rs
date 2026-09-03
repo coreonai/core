@@ -2,8 +2,8 @@ pub fn shout(s: &str) -> String {
     s.to_uppercase()
 }
 
-pub fn parse_kv(s: &str) -> bool {
-    s.contains('=')
+pub fn parse_kv(s: &str) -> Option<(String, String)> {
+    s.split_once('=').map(|(k, v)| (k.to_string(), v.to_string()))
 }
 
 pub fn grade(score: i32) -> &'static str {

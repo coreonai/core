@@ -81,7 +81,7 @@ impl Family {
 
     /// Parse comma/space-separated list. Empty → all families (F0–F5).
     /// F5 remains selectable (`--families f5`) for the transfer probe even
-    /// though harvest defaults to F0–F4. F6 (`f6_fn`) is function-level Rust (API + tests → fn body; curriculum: 3 one-liners + grade 3-band).
+    /// though harvest defaults to F0–F4. F6 (`f6_fn`) is function-level Rust (API + tests → fn body; curriculum: shout/sum_evens v11, grade A/P/F, only parse_kv is split_once).
     pub fn parse_list(s: &str) -> Result<Vec<Self>, String> {
         let raw: Vec<_> = s
             .split(|c: char| c == ',' || c.is_whitespace())
@@ -236,7 +236,7 @@ macro_rules! body_chal {
     };
 }
 
-/// Default F1–F6 challenges — one `todo!` per challenge (F6 curriculum: only grade is 3-band).
+/// Default F1–F6 challenges — one `todo!` per challenge (F6 curriculum: only parse_kv is split_once).
 pub fn default_slot_challenges() -> Vec<SlotChallenge> {
     vec![
         // ---- F1 echo ----
@@ -626,7 +626,7 @@ pub fn default_slot_challenges() -> Vec<SlotChallenge> {
             "// pekko-harvest-task: f5_supervisor/round_ko\n"
         ),
 
-        // ---- F6 function-level bodies (curriculum: only grade is 3-band) ----
+        // ---- F6 function-level bodies (curriculum: only parse_kv is split_once) ----
         body_chal!(
             Family::F6,
             "f6_fn/shout_v1",
@@ -661,28 +661,28 @@ pub fn default_slot_challenges() -> Vec<SlotChallenge> {
         body_chal!(
             Family::F6,
             "f6_fn/parse_kv_v1",
-            "todo!(\"parse_kv: has equals\")",
-            "s.contains('=')",
-            "Crate API: pub fn parse_kv(s: &str) -> bool\n",
-            "Failing tests: parse_kv(\"name=ada\") is true; parse_kv(\"a=b=c\") is true; parse_kv(\"nope\") is false; parse_kv(\"\") is false.\n",
-            "Student: todo!(\"parse_kv: has equals\") inside parse_kv.\n",
+            "todo!(\"parse_kv: split once\")",
+            "s.split_once('=').map(|(k, v)| (k.to_string(), v.to_string()))",
+            "Crate API: pub fn parse_kv(s: &str) -> Option<(String, String)>\n",
+            "Failing tests: parse_kv(\"name=ada\") is Some((\"name\",\"ada\")); parse_kv(\"k=\") is Some((\"k\",\"\")); parse_kv(\"nope\") is None; parse_kv(\"\") is None.\n",
+            "Student: todo!(\"parse_kv: split once\") inside parse_kv.\n",
             "Output ONLY the function body. No fn wrapper.\n",
             "// pekko-harvest-task: f6_fn/parse_kv_v1\n"
         ),
         body_chal!(
             Family::F6,
             "f6_fn/parse_kv_v2",
-            "todo!(\"parse_kv: has equals\")",
-            "s.contains('=')",
-            "parse_kv body: true iff s contains '='. Replace todo!(\"parse_kv: has equals\") only.\n",
+            "todo!(\"parse_kv: split once\")",
+            "s.split_once('=').map(|(k, v)| (k.to_string(), v.to_string()))",
+            "parse_kv body: split once on '=' into Option<(String,String)> (empty value ok). Replace todo!(\"parse_kv: split once\") only.\n",
             "// pekko-harvest-task: f6_fn/parse_kv_v2\n"
         ),
         body_chal!(
             Family::F6,
             "f6_fn/parse_kv_ko",
-            "todo!(\"parse_kv: has equals\")",
-            "s.contains('=')",
-            "parse_kv 본문만: s.contains('='). todo!만 교체.\n",
+            "todo!(\"parse_kv: split once\")",
+            "s.split_once('=').map(|(k, v)| (k.to_string(), v.to_string()))",
+            "parse_kv 본문만: '='로 한 번 split → Option<(String,String)> (값 빈 문자열 허용). todo!만 교체.\n",
             "// pekko-harvest-task: f6_fn/parse_kv_ko\n"
         ),
         body_chal!(
@@ -1645,8 +1645,8 @@ mod tests {
         if !harvest.join("f1_tool/Cargo.toml").exists() {
             return;
         }
-        let verify = harvest.join("_verify_gold_v12");
-        let scratch = harvest.join("_cargo_scratch_gold_v12");
+        let verify = harvest.join("_verify_gold_v14");
+        let scratch = harvest.join("_cargo_scratch_gold_v14");
         let families = Family::parse_list("f0,f1,f2,f3,f4,f5,f6").unwrap();
         let d = PekkoHarvestDomain::new(&verify, &scratch, &families);
         d.ensure_ready().expect("ensure_ready");
@@ -1720,11 +1720,29 @@ mod tests {
         }
         assert!(golds.contains("s.to_uppercase()"));
         assert!(golds.contains(
-            "s.contains('=')"
+            "s.split_once('=').map(|(k, v)| (k.to_string(), v.to_string()))"
         ));
         assert!(golds.contains(
             r#"if score >= 90 { "A" } else if score >= 60 { "P" } else { "F" }"#
         ));
         assert!(golds.contains("xs.iter().sum()"));
+        for c in &f6 {
+            if c.task_id.contains("parse_kv") {
+                assert!(
+                    c.gold_body.contains("split_once"),
+                    "{} parse_kv gold must contain split_once: {}",
+                    c.task_id,
+                    c.gold_body
+                );
+            }
+            if c.task_id.contains("shout") {
+                assert!(
+                    !c.gold_body.contains("trim"),
+                    "{} shout gold must not contain trim: {}",
+                    c.task_id,
+                    c.gold_body
+                );
+            }
+        }
     }
 }

@@ -1,5 +1,5 @@
 //! F6: function-level bodies (API + failing tests in the prompt; student fills one fn).
-//! Curriculum: shout / parse_kv / sum_evens stay v11 one-liners; only grade is 3-band.
+//! Curriculum: shout / sum_evens stay v11 one-liners; grade stays v13 A/P/F; ONLY parse_kv grows to split_once.
 
 pub mod reference;
 #[cfg(feature = "student")]
@@ -22,11 +22,14 @@ mod tests {
     }
 
     #[test]
-    fn parse_kv_has_eq() {
-        assert!(impls::parse_kv("name=ada"));
-        assert!(impls::parse_kv("a=b=c"));
-        assert!(!impls::parse_kv("nope"));
-        assert!(!impls::parse_kv(""));
+    fn parse_kv_split_once() {
+        assert_eq!(
+            impls::parse_kv("name=ada"),
+            Some(("name".into(), "ada".into()))
+        );
+        assert_eq!(impls::parse_kv("k="), Some(("k".into(), "".into())));
+        assert_eq!(impls::parse_kv("nope"), None);
+        assert_eq!(impls::parse_kv(""), None);
     }
 
     #[test]
