@@ -132,6 +132,22 @@ struct Args {
     /// *some* sample succeeds.
     #[arg(long, default_value_t = 1)]
     baseline_k: usize,
+    /// Inject a deliberately wrong first call instead of waiting for the
+    /// model to produce one, then measure whether turn 2 corrects it.
+    ///
+    /// Waiting stopped working once the model stopped failing: a
+    /// correction-trained checkpoint left ~30 repair opportunities in 192
+    /// attempts where the untrained one left 189, and 2/32 against 0/30
+    /// decides nothing. Injection fixes the sample size.
+    ///
+    /// Two kinds, because they are different abilities:
+    ///   `nameerror` — the call raises. The error says what is wrong.
+    ///   `literal`   — the call runs clean and returns the wrong number
+    ///                 (`print(n)`). Nothing is broken; the model has to
+    ///                 notice the result does not answer the question. This
+    ///                 is the harder one, and the 15th-prime case.
+    #[arg(long, default_value = "off")]
+    inject: String,
     /// Harvest with self-repair: when a sampled call fails, hand the tool's
     /// error back and keep the retry if it verifies. Required here — the
     /// target families are 0/12 at pass@16, so a turn-1-only harvest is
@@ -214,15 +230,98 @@ async fn run_baseline(
     let mut attempts = 0usize;
     let (mut repair_attempts, mut repair_ok, mut repair_import) = (0usize, 0usize, 0usize);
     let mut answer_before_call = 0usize;
+    let mut answered_without_tool = 0usize;
     let mut shown_repair = 0usize;
     let mut looks_hardcoded = 0usize;
 
     let k = args.baseline_k.max(1);
+    let marker = llm_actors::tools::RESOLVED_MARKER;
+    if args.inject != "off" {
+        println!(
+            "[Phase23SI] injecting a wrong first call ({})\n",
+            args.inject
+        );
+    }
     for i in 0..n {
         let t = domain.task_at(i).expect("index in range").clone();
         let prompt = domain.nth_prompt(i).expect("index in range");
         let ids = tk.encode(&prompt)?;
         let mut any_correct = false;
+        // Injection replaces turn 1 entirely: the failed call and its spliced
+        // result are built here, and the only question is whether turn 2
+        // recovers.
+        let injected: Option<String> = match args.inject.as_str() {
+            "off" => None,
+            "literal" => Some(format!("{prompt}(python print({})){marker}{})\n", t.n, t.n)),
+            "nameerror" => Some(format!(
+                "{prompt}(python print(nope({}))){marker}ERR:tool execution failed: \
+                 NameError: name 'nope' is not defined)\n",
+                t.n
+            )),
+            other => anyhow::bail!("unknown --inject {other:?} (off, literal, nameerror)"),
+        };
+        if let Some(inj) = injected {
+            for si in 0..k {
+                let ids2 = tk.encode(&inj)?;
+                let (tx, rx) = oneshot::channel();
+                model_ref
+                    .tell(ModelMessage::GenerateTokens {
+                        prompt_ids: ids2,
+                        cfg: GenerateConfig {
+                            max_new_tokens: args.max_new_tokens,
+                            temperature: 0.8,
+                            top_k: Some(40),
+                            top_p: Some(0.95),
+                            seed: Some(
+                                args.seed
+                                    .wrapping_add((i as u64) << 8)
+                                    .wrapping_add(si as u64),
+                            ),
+                        },
+                        reply: tx,
+                    })
+                    .map_err(|e| anyhow!("{e:?}"))?;
+                let toks =
+                    tokio::time::timeout(std::time::Duration::from_secs(180), rx).await???;
+                let full2 = tk.decode(&toks)?;
+                let comp = domain.truncate_completion(&full2[inj.len().min(full2.len())..]);
+                repair_attempts += 1;
+                if let Some(code) = ToolUsePythonDomain::snippet_of(&comp) {
+                    if code.contains("import ") {
+                        repair_import += 1;
+                    }
+                    let fixed = format!("(python {code})\n");
+                    if domain.verify(&prompt, &fixed).is_correct() {
+                        repair_ok += 1;
+                        any_correct = true;
+                    }
+                } else {
+                    // No corrected call is NOT automatically a failure. The
+                    // control model answers `A: <value>` directly, bypassing
+                    // the tool, and it is often right — 12! has 2 trailing
+                    // zeros and a 7B knows that. Scoring only the call route
+                    // would overstate the correction-trained model's edge.
+                    // Counted separately, because an answer produced without
+                    // the tool is a different thing from a repaired call: it
+                    // is ungrounded, and it stops working as n grows.
+                    let stated_ok = full2
+                        .lines()
+                        .rfind(|l| l.trim_start().starts_with("A:"))
+                        .map(|l| l.trim_start().trim_start_matches("A:").trim())
+                        .is_some_and(|v| v == t.answer.to_string());
+                    if stated_ok {
+                        answered_without_tool += 1;
+                        any_correct = true;
+                    }
+                }
+            }
+            let e = per_family.entry(t.family).or_insert((0, 0));
+            e.1 += 1;
+            if any_correct {
+                e.0 += 1;
+            }
+            continue;
+        }
         for s in 0..k {
             let (tx, rx) = oneshot::channel();
             model_ref
@@ -374,11 +473,12 @@ async fn run_baseline(
     println!("  attempts: {attempts}, no dispatchable call: {no_call}");
     println!("  snippets containing an import: {with_import}/{attempts}");
     println!("  text before the call (answer stated first): {answer_before_call}/{attempts}");
-    if args.repair {
+    if args.repair || args.inject != "off" {
+        println!("  corrected by a NEW CALL:      {repair_ok}/{repair_attempts}");
         println!(
-            "  self-repair after the error: {repair_ok}/{repair_attempts} fixed, \
-             {repair_import}/{repair_attempts} wrote an import"
+            "  answered right WITHOUT a call: {answered_without_tool}/{repair_attempts}  (ungrounded)"
         );
+        println!("  wrote an import:              {repair_import}/{repair_attempts}");
     }
     println!("  verified but never mentions n (weak hardcode signal): {looks_hardcoded}/{tc}");
     Ok(())
