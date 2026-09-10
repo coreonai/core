@@ -1,5 +1,12 @@
 //! Axum HTTP frontend for [`InferenceServerActor`].
 //!
+//! Generic over the model actor, like the server it wraps: `serve::<QwenModelActor>`
+//! puts the 7B behind HTTP. Set `"tools": true` on a request to route it
+//! through the agentic loop; the response then carries `tool_calls` and a
+//! `tool_trace` of what actually executed. That trace is not decoration —
+//! this repo has measured a model stating an answer its tool never produced,
+//! so a caller cannot infer grounding from the completion text alone.
+//!
 //! Wraps the transport-neutral actor in a tiny HTTP service:
 //!   POST /inference  → run a single Generate request
 //!   GET  /health     → liveness check
@@ -27,6 +34,8 @@ use tokio::time::timeout;
 use tracing::{info, warn};
 
 use crate::inference_server_actor::{InferenceMessage, InferenceRequest, InferenceServerActor};
+use crate::model_actor::ModelMessage;
+use pekko_actor::Actor;
 
 /// JSON body for `POST /inference`. Mirrors `GenerateConfig` with all
 /// fields optional — the handler fills in sensible defaults.
@@ -45,6 +54,14 @@ pub struct HttpInferenceRequest {
     pub top_p: Option<f64>,
     #[serde(default)]
     pub seed: Option<u64>,
+    /// Answer via the agentic loop instead of a single generation. Fails if
+    /// the server was built without an agent — better than silently
+    /// returning an answer the caller believes is tool-backed.
+    #[serde(default)]
+    pub tools: bool,
+    /// Loop budget when `tools` is set. Omit for the server default.
+    #[serde(default)]
+    pub max_steps: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
@@ -53,6 +70,21 @@ pub struct HttpInferenceResponse {
     pub completion: String,
     pub tokens: Vec<u32>,
     pub elapsed_ms: u128,
+    pub tool_calls: usize,
+    pub tool_trace: Vec<HttpToolCall>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop_reason: Option<String>,
+}
+
+/// One dispatched tool call, as it actually ran.
+#[derive(Debug, Serialize)]
+pub struct HttpToolCall {
+    pub tool: String,
+    pub args: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -60,27 +92,46 @@ struct HttpError {
     error: String,
 }
 
-#[derive(Clone)]
-struct AppState {
-    actor: ActorRef<InferenceServerActor>,
+struct AppState<M>
+where
+    M: Actor<Message = ModelMessage>,
+{
+    actor: ActorRef<InferenceServerActor<M>>,
     timeout: Duration,
+}
+
+// `#[derive(Clone)]` would demand `M: Clone`, which no actor is. Only the
+// ActorRef is cloned, so write it by hand.
+impl<M> Clone for AppState<M>
+where
+    M: Actor<Message = ModelMessage>,
+{
+    fn clone(&self) -> Self {
+        Self {
+            actor: self.actor.clone(),
+            timeout: self.timeout,
+        }
+    }
 }
 
 /// Start the HTTP server bound to `addr`. Runs the axum service to
 /// completion (i.e. until the process is killed). Use `tokio::spawn` to
 /// run it alongside other actors.
-pub async fn serve(
+pub async fn serve<M>(
     addr: SocketAddr,
-    actor: ActorRef<InferenceServerActor>,
+    actor: ActorRef<InferenceServerActor<M>>,
     timeout_secs: u64,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<()>
+where
+    M: Actor<Message = ModelMessage> + 'static,
+{
     let state = AppState {
         actor,
         timeout: Duration::from_secs(timeout_secs),
     };
     let app = Router::new()
         .route("/health", get(health))
-        .route("/inference", post(inference))
+        .route("/inference", post(inference::<M>))
         .with_state(state);
 
     info!(?addr, "InferenceServerActor HTTP frontend listening");
@@ -93,10 +144,13 @@ async fn health() -> impl IntoResponse {
     JsonResponse(serde_json::json!({"status": "ok"}))
 }
 
-async fn inference(
-    State(state): State<AppState>,
+async fn inference<M>(
+    State(state): State<AppState<M>>,
     Json(req): Json<HttpInferenceRequest>,
-) -> Result<JsonResponse<HttpInferenceResponse>, (StatusCode, JsonResponse<HttpError>)> {
+) -> Result<JsonResponse<HttpInferenceResponse>, (StatusCode, JsonResponse<HttpError>)>
+where
+    M: Actor<Message = ModelMessage> + 'static,
+{
     let cfg = GenerateConfig {
         max_new_tokens: req.max_new_tokens.unwrap_or(64),
         temperature: req.temperature.unwrap_or(0.8),
@@ -108,6 +162,8 @@ async fn inference(
         prompt: req.prompt,
         sampling: cfg,
         request_id: req.request_id,
+        tools: req.tools,
+        max_steps: req.max_steps.unwrap_or(0),
     };
     let (tx, rx) = oneshot::channel();
     state
@@ -127,6 +183,21 @@ async fn inference(
             completion: resp.completion,
             tokens: resp.tokens,
             elapsed_ms: resp.elapsed_ms,
+            tool_calls: resp.tool_calls,
+            tool_trace: resp
+                .tool_trace
+                .into_iter()
+                .map(|c| HttpToolCall {
+                    tool: c.tool,
+                    args: c.args,
+                    // Split rather than stringified: a client checking
+                    // whether the answer is grounded must be able to tell a
+                    // result from an error without parsing prose.
+                    result: c.result.as_ref().ok().cloned(),
+                    error: c.result.err(),
+                })
+                .collect(),
+            stop_reason: resp.stop_reason,
         })),
         Err(e) => {
             warn!(error = %e, "inference failed");

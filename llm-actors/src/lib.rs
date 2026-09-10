@@ -35,7 +35,7 @@ pub use agentic_generator_actor::{
     AgenticGeneratorActor, AgenticMessage, AgenticReport, StepRecord, StopReason,
 };
 pub use inference_server_actor::{
-    InferenceMessage, InferenceRequest, InferenceResponse, InferenceServerActor,
+    InferenceMessage, InferenceRequest, InferenceResponse, InferenceServerActor, ToolCallRecord,
 };
 pub use tool_executor_actor::{ToolExecutorActor, ToolExecutorMessage};
 pub use tools::{Tool, ToolCall, ToolError, ToolRegistry};
