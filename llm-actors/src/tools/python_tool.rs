@@ -43,25 +43,84 @@
 //! also be one line: newlines in the output are escaped to `\n` rather than
 //! dropped, and the whole thing is capped (see [`PythonTool::max_output`]).
 //!
-//! ## This is not a sandbox
+//! ## Sandboxing
 //!
-//! The snippet runs as the current user with the current filesystem. `-I`
-//! (isolated mode) only stops `PYTHON*` environment variables and the user
-//! site directory from leaking in; it stops nothing else. There is a wall
-//! clock timeout so a runaway loop cannot wedge the agentic loop, and that is
-//! the extent of the containment. It is the same posture as `RustCodeDomain`,
-//! which shells out to `cargo` — appropriate for driving a local research
-//! loop over code you generated yourself, not for untrusted input.
+//! The snippet is code a language model wrote. By default it runs under
+//! [`bubblewrap`](https://github.com/containers/bubblewrap) with no network,
+//! no view of the real filesystem, its own PID and IPC namespaces, and hard
+//! resource limits. Each property below was verified against a snippet that
+//! tries to break it, in the tests at the bottom of this file — a sandbox
+//! nobody attacked is a claim, not a boundary.
+//!
+//! | property | how | verified by |
+//! |---|---|---|
+//! | no network | `--unshare-all` | `sandbox_blocks_network` |
+//! | no `$HOME`, no `/raid` | only `/usr`, `/lib`, `/lib64`, `/bin` are bound | `sandbox_hides_the_filesystem` |
+//! | system dirs read-only | `--ro-bind` | `sandbox_blocks_writes_outside_tmp` |
+//! | scratch space | `--tmpfs /tmp`, discarded per call | `sandbox_gives_a_private_tmp` |
+//! | memory bounded | `ulimit -v` | `sandbox_blocks_a_memory_bomb` |
+//! | processes bounded | `ulimit -u` | `sandbox_blocks_a_fork_bomb` |
+//! | file size bounded | `ulimit -f` | `sandbox_blocks_a_huge_write` |
+//! | wall clock bounded | kill after [`PythonTool::timeout`] | `kills_a_runaway_snippet` |
+//!
+//! **It fails closed.** If `bwrap` is missing the call errors rather than
+//! running unconfined, because the alternative is a security boundary that
+//! disappears silently on a machine that happens not to have it installed.
+//! Dropping the sandbox is possible but has to be said out loud:
+//! [`PythonTool::without_sandbox`].
+//!
+//! The interpreter must live under a bound system prefix. The default
+//! `python3` on a developer machine is often a pyenv shim under `$HOME`,
+//! which the sandbox deliberately cannot see, so the sandboxed default is
+//! `/usr/bin/python3`.
+//!
+//! What this does **not** do: it is one process boundary, not a VM. It does
+//! not defend against a kernel exploit, and it does not stop the snippet
+//! burning a core for [`PythonTool::timeout`].
 
 use std::io::Read;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use super::{Tool, ToolError};
 
+/// Isolation applied to a snippet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Sandbox {
+    /// bubblewrap namespaces plus `ulimit`s. The default.
+    Bubblewrap {
+        /// Memory ceiling in KB (`ulimit -v`). 500 MB by default: enough for
+        /// ordinary arithmetic and string work, far below anything that
+        /// threatens a host also holding a 28 GB model.
+        address_space_kb: u64,
+        /// Process ceiling (`ulimit -u`).
+        max_processes: u64,
+        /// File size ceiling in KB (`ulimit -f`).
+        max_file_kb: u64,
+    },
+    /// No isolation. Never a default, and named so it cannot be selected by
+    /// accident.
+    Disabled,
+}
+
+impl Default for Sandbox {
+    fn default() -> Self {
+        Self::Bubblewrap {
+            address_space_kb: 500_000,
+            max_processes: 32,
+            max_file_kb: 1024,
+        }
+    }
+}
+
 pub struct PythonTool {
-    /// Interpreter to invoke. `python3` on PATH by default.
+    /// Interpreter to invoke. Under the sandbox this must be a path the
+    /// sandbox can see — `$HOME` is deliberately not bound, so a pyenv shim
+    /// will not resolve.
     pub interpreter: String,
+    /// Isolation applied to every snippet. See the module docs.
+    pub sandbox: Sandbox,
     /// Wall clock budget for one snippet. A snippet that overruns is killed
     /// and reported as an error; the agentic loop's own per-request timeout
     /// is much longer, so without this a `while True:` would hang the turn.
@@ -71,10 +130,15 @@ pub struct PythonTool {
     pub max_output: usize,
 }
 
+/// Interpreter used when sandboxed. `python3` on PATH is frequently a pyenv
+/// shim under `$HOME`, which the sandbox cannot see by design.
+const SANDBOX_INTERPRETER: &str = "/usr/bin/python3";
+
 impl Default for PythonTool {
     fn default() -> Self {
         Self {
-            interpreter: "python3".to_string(),
+            interpreter: SANDBOX_INTERPRETER.to_string(),
+            sandbox: Sandbox::default(),
             timeout: Duration::from_secs(5),
             max_output: 512,
         }
@@ -100,6 +164,98 @@ impl PythonTool {
         self.interpreter = interpreter.into();
         self
     }
+
+    /// Run snippets with **no isolation**, as the current user, with the real
+    /// filesystem and network.
+    ///
+    /// Only defensible when the input cannot come from outside — a local
+    /// research loop over prompts you wrote. Anything reachable by a user is
+    /// remote code execution. Named in full so it cannot be reached by
+    /// fiddling with a boolean.
+    pub fn without_sandbox(mut self) -> Self {
+        self.sandbox = Sandbox::Disabled;
+        self.interpreter = "python3".to_string();
+        self
+    }
+
+    pub fn with_sandbox(mut self, sandbox: Sandbox) -> Self {
+        self.sandbox = sandbox;
+        self
+    }
+
+    /// Build the command. Under the sandbox this is
+    /// `bwrap … -- bash -c 'ulimit …; exec <interp> -I -c <code>'`.
+    ///
+    /// `bash`, not `sh`: dash's `ulimit` has no `-u`, so on a `sh` that is
+    /// dash the process limit silently does not apply and a fork bomb runs
+    /// unbounded. That is exactly the kind of quiet gap a sandbox must not
+    /// have, so the shell is pinned.
+    fn build_command(&self, code: &str) -> Result<Command, ToolError> {
+        let (asz, nproc, fsz) = match &self.sandbox {
+            Sandbox::Disabled => {
+                let mut c = Command::new(&self.interpreter);
+                c.arg("-I").arg("-c").arg(code);
+                return Ok(c);
+            }
+            Sandbox::Bubblewrap {
+                address_space_kb,
+                max_processes,
+                max_file_kb,
+            } => (*address_space_kb, *max_processes, *max_file_kb),
+        };
+        if which_bwrap().is_none() {
+            return Err(ToolError::ExecutionFailed(
+                "bwrap (bubblewrap) not found; refusing to run model-written code \
+                 unconfined. Install bubblewrap, or opt out explicitly with \
+                 PythonTool::without_sandbox()."
+                    .into(),
+            ));
+        }
+        let mut c = Command::new("bwrap");
+        c.arg("--unshare-all") // net, pid, ipc, uts, cgroup, user
+            .arg("--die-with-parent")
+            .arg("--new-session"); // no controlling tty to inject into
+                                   // Only what the interpreter needs to start. Notably absent: /home,
+                                   // /raid, /etc, and every mount the host has.
+        for dir in ["/usr", "/lib", "/lib64", "/bin"] {
+            if std::path::Path::new(dir).exists() {
+                c.arg("--ro-bind").arg(dir).arg(dir);
+            }
+        }
+        c.arg("--proc")
+            .arg("/proc")
+            .arg("--dev")
+            .arg("/dev")
+            .arg("--tmpfs")
+            .arg("/tmp")
+            .arg("--chdir")
+            .arg("/tmp")
+            .arg("/bin/bash")
+            .arg("-c")
+            .arg(format!(
+                "ulimit -v {asz}; ulimit -u {nproc}; ulimit -f {fsz}; exec {} -I -c \"$0\"",
+                shell_quote(&self.interpreter)
+            ))
+            // Passed as $0 rather than interpolated, so no amount of quoting
+            // in the snippet can escape into the shell command.
+            .arg(code);
+        Ok(c)
+    }
+}
+
+fn which_bwrap() -> Option<PathBuf> {
+    std::env::var_os("PATH").and_then(|paths| {
+        std::env::split_paths(&paths)
+            .map(|p| p.join("bwrap"))
+            .find(|p| p.is_file())
+    })
+}
+
+/// Single-quote for `sh`. Only ever applied to the interpreter path, which is
+/// operator-supplied; the model's snippet is passed as an argv entry and is
+/// never interpolated into a shell string.
+fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', r"'\''"))
 }
 
 /// Fold captured output into something that can live inside a one-line tool
@@ -130,10 +286,8 @@ impl Tool for PythonTool {
             });
         }
 
-        let mut child = Command::new(&self.interpreter)
-            .arg("-I") // ignore PYTHON* env vars and the user site dir
-            .arg("-c")
-            .arg(code)
+        let mut child = self
+            .build_command(code)?
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -201,6 +355,21 @@ mod tests {
     use super::*;
     use crate::tools::{parse_first_tool_call, splice_result, ToolRegistry};
     use std::sync::Arc;
+
+    /// The sandbox cannot be exercised where bubblewrap is absent. Skipping
+    /// is the right call for portability, but it must be visible: a silent
+    /// skip turns "the sandbox holds" into "nobody checked".
+    fn sandboxed() -> Option<PythonTool> {
+        if which_bwrap().is_none() {
+            eprintln!("SKIP: bwrap not installed — sandbox properties NOT verified here");
+            return None;
+        }
+        if !std::path::Path::new(SANDBOX_INTERPRETER).exists() {
+            eprintln!("SKIP: {SANDBOX_INTERPRETER} missing — sandbox NOT verified here");
+            return None;
+        }
+        Some(PythonTool::new())
+    }
 
     /// Skip the process-spawning tests where there is no interpreter, rather
     /// than failing the suite on a machine that has none.
@@ -279,6 +448,133 @@ mod tests {
             .unwrap_err();
         assert!(err.to_string().contains("timed out"), "{err}");
         assert!(t0.elapsed() < Duration::from_secs(3), "kill was too slow");
+    }
+
+    // --- sandbox: each of these is an attempt to break out ---
+
+    #[test]
+    fn sandbox_blocks_network() {
+        let Some(t) = sandboxed() else { return };
+        let out = t
+            .with_timeout(Duration::from_secs(15))
+            .execute(
+                "import socket\n\
+                 try:\n \
+                    socket.create_connection(('1.1.1.1',53),timeout=3); print('REACHED')\n\
+                 except Exception as e: print('blocked')",
+            )
+            .unwrap();
+        assert_eq!(out, "blocked", "network was reachable from the sandbox");
+    }
+
+    #[test]
+    fn sandbox_hides_the_filesystem() {
+        let Some(t) = sandboxed() else { return };
+        // $HOME and this repo's own tree must not exist inside.
+        let out = t
+            .execute("import os; print(os.path.exists('/home'), os.path.exists('/raid'))")
+            .unwrap();
+        assert_eq!(out, "False False", "host filesystem visible: {out}");
+    }
+
+    #[test]
+    fn sandbox_blocks_writes_outside_tmp() {
+        let Some(t) = sandboxed() else { return };
+        let out = t
+            .execute(
+                "try:\n open('/usr/pwned','w'); print('WROTE')\n\
+                 except Exception: print('blocked')",
+            )
+            .unwrap();
+        assert_eq!(out, "blocked");
+    }
+
+    /// The scratch dir is a fresh tmpfs per call, so one snippet cannot leave
+    /// anything for the next.
+    #[test]
+    fn sandbox_gives_a_private_tmp() {
+        let Some(t) = sandboxed() else { return };
+        assert_eq!(
+            t.execute("open('/tmp/x','w').write('1'); print('ok')")
+                .unwrap(),
+            "ok"
+        );
+        assert_eq!(
+            t.execute("import os; print(os.path.exists('/tmp/x'))")
+                .unwrap(),
+            "False",
+            "tmp leaked between calls"
+        );
+    }
+
+    #[test]
+    fn sandbox_blocks_a_memory_bomb() {
+        let Some(t) = sandboxed() else { return };
+        let out = t
+            .with_timeout(Duration::from_secs(20))
+            .execute(
+                "try:\n x='a'*(10**10); print('ALLOCATED')\nexcept Exception: print('blocked')",
+            )
+            .unwrap();
+        assert_eq!(out, "blocked");
+    }
+
+    #[test]
+    fn sandbox_blocks_a_fork_bomb() {
+        let Some(t) = sandboxed() else { return };
+        let out = t
+            .with_timeout(Duration::from_secs(20))
+            .execute(
+                "import os\n\
+                 n=0\n\
+                 try:\n \
+                    for _ in range(300):\n  \
+                        if os.fork()==0: os._exit(0)\n  \
+                        n+=1\n\
+                 except Exception: print('blocked')\n\
+                 else: print('FORKED', n)",
+            )
+            .unwrap();
+        assert_eq!(out, "blocked", "process limit did not apply");
+    }
+
+    #[test]
+    fn sandbox_blocks_a_huge_write() {
+        let Some(t) = sandboxed() else { return };
+        let out = t
+            .with_timeout(Duration::from_secs(20))
+            .execute(
+                "try:\n open('/tmp/big','w').write('x'*(200*1024*1024)); print('WROTE')\n\
+                 except Exception: print('blocked')",
+            )
+            .unwrap();
+        assert_eq!(out, "blocked");
+    }
+
+    /// Ordinary work must still succeed inside all of the above.
+    #[test]
+    fn sandbox_still_runs_real_code() {
+        let Some(t) = sandboxed() else { return };
+        assert_eq!(
+            t.execute("import math; print(sum(1 for i in range(1,46) if math.gcd(i,45)==1))")
+                .unwrap(),
+            "24"
+        );
+    }
+
+    /// Fail closed: with no sandbox binary available the call must error, not
+    /// quietly run model-written code as the server user.
+    #[test]
+    fn missing_sandbox_binary_fails_closed() {
+        let t = PythonTool::new().with_sandbox(Sandbox::Bubblewrap {
+            address_space_kb: 1,
+            max_processes: 1,
+            max_file_kb: 1,
+        });
+        // Only meaningful where bwrap is absent; where present, the limits
+        // above are so small that execution fails anyway — either way the
+        // call must not succeed.
+        assert!(t.execute("print(1)").is_err());
     }
 
     #[test]
