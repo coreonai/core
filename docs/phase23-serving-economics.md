@@ -91,6 +91,60 @@ mantissa runs out of resolution in sin/cos, blurring relative position.
 Note this also corrects the earlier threshold. The note said "past ~500
 tokens"; measured, it is already broken at 300.
 
+## The cause was one line, and the training path had it too
+
+Upstream candle builds the rotary table in the model dtype:
+
+```rust
+let t = Tensor::arange(0u32, max_seq_len as u32, dev)?
+    .to_dtype(dtype)?               // position indices, in BF16
+```
+
+`max_position_embeddings` is 32768, and **BF16's 8-bit mantissa represents
+integers exactly only to 256.** Past that, distinct positions collapse onto
+the same value — 300 and 301 get identical rotary angles — so the model cannot
+tell adjacent tokens apart. Token doubling is what that looks like from
+outside, and 256 is why the break is at 300 rather than 500.
+
+`llm-actors/src/qwen2_f32rope.rs` vendors the model with positions,
+frequencies and sin/cos computed in F32, casting the tables to the model dtype
+only afterwards: sin/cos are bounded in [-1, 1] and survive it, the index does
+not. Everything else is upstream, so re-diff on a candle upgrade. `Config` is
+re-exported rather than duplicated.
+
+Same sweep, after:
+
+| prompt | BF16 before | **BF16 after** | F32 |
+|---|---|---|---|
+| ~40 | clean | clean | clean |
+| ~150 | clean | clean | clean |
+| ~300 | `24 divisorsisors` | **clean** | clean |
+| ~600 | `1111111111…` | **clean** | clean |
+| ~1000 | `of of 00, 0,` | **clean** | clean |
+
+Character-identical to F32 at every length.
+
+Measured gain:
+
+| | F32 | BF16 |
+|---|---|---|
+| GPU resident | 31153 MiB | **14993 MiB** |
+| tool query | 1773 ms | **1155 ms** (1.54×) |
+| `grounded` | true | true |
+
+1.54× rather than 2× because prefill, tool execution and loop overhead do not
+scale with weight bandwidth. (The earlier per-token figures are not comparable
+after the stop-sequence fix: generation now ends at the call boundary instead
+of running to `max_new_tokens`.)
+
+**The LoRA training path had the identical bug** — `qwen2_lora.rs` inherited
+the same three lines and trains in BF16. Phase 23's sequences are 40–150
+tokens and never reached it, but Phase 22 trained HumanEval/MBPP at prompt
+~150 plus completion up to 192, which crosses 256. Those runs had degraded
+position information over the tail of every sequence. Fixed in the same
+commit; what it did to those results is not known, because nothing was
+re-measured.
+
 ## What this licenses
 
 - **The current product shape can run BF16 today.** Tool-use prompts are
@@ -100,9 +154,9 @@ tokens"; measured, it is already broken at 300.
   no error reports — it returns fluent text. Serving BF16 requires an enforced
   input-length ceiling, with anything longer refused or routed to an F32
   replica.
-- **The real fix is F32 rotary with BF16 weights**, which removes the ceiling.
-  The position-dependence measured above is the evidence that it targets the
-  right operation.
+- **The ceiling is now removed** — F32 rotary landed, BF16 matches F32 to 1000
+  tokens, and serving runs BF16 at half the memory. The input-length gate
+  discussed above is no longer needed.
 
 ## Still open
 

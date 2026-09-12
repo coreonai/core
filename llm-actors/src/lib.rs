@@ -20,6 +20,7 @@ pub mod generator_actor;
 pub mod inference_http;
 pub mod inference_server_actor;
 pub mod model_actor;
+pub mod qwen2_f32rope;
 pub mod qwen2_lora;
 pub mod qwen_model_actor;
 pub mod qwen_trainer_actor;

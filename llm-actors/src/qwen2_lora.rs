@@ -74,14 +74,28 @@ impl RotaryEmbedding {
             .map(|i| 1f32 / cfg.rope_theta.powf(i as f64 / dim as f64) as f32)
             .collect();
         let inv_freq_len = inv_freq.len();
-        let inv_freq = Tensor::from_vec(inv_freq, (1, inv_freq_len), dev)?.to_dtype(dtype)?;
+        // F32 for the position math, then cast the tables. Casting the
+        // POSITION INDEX to BF16 — what upstream candle does and what this
+        // file inherited — is catastrophic: BF16's 8-bit mantissa represents
+        // integers exactly only to 256, so past that distinct positions
+        // collapse onto the same angle and adjacent tokens become
+        // indistinguishable. sin/cos are bounded in [-1, 1] and survive the
+        // cast; the index does not. See `qwen2_f32rope` for the measured
+        // inference symptom (token doubling from ~300 tokens on).
+        //
+        // This is the TRAINING path, and it had the same bug. Phase 23's
+        // sequences are short enough (40-150 tokens) not to reach it, but
+        // Phase 22 trained HumanEval/MBPP at prompt ~150 + completion up to
+        // 192, which crosses 256 — so those runs had degraded position
+        // information over the tail of the sequence.
+        let inv_freq = Tensor::from_vec(inv_freq, (1, inv_freq_len), dev)?.to_dtype(DType::F32)?;
         let t = Tensor::arange(0u32, max_seq_len as u32, dev)?
-            .to_dtype(dtype)?
+            .to_dtype(DType::F32)?
             .reshape((max_seq_len, 1))?;
         let freqs = t.matmul(&inv_freq)?;
         Ok(Self {
-            sin: freqs.sin()?,
-            cos: freqs.cos()?,
+            sin: freqs.sin()?.to_dtype(dtype)?,
+            cos: freqs.cos()?.to_dtype(dtype)?,
         })
     }
 

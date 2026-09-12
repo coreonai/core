@@ -45,7 +45,12 @@ use std::sync::Arc;
 
 use candle_core::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
-use candle_transformers::models::qwen2::{Config as Qwen2Config, ModelForCausalLM};
+// The vendored model, not candle's: upstream casts rotary position indices
+// to the model dtype, which silently destroys positions past 256 in BF16.
+// `Config` is candle's, re-exported, so every call site that deserializes
+// config.json is unaffected. See `crate::qwen2_f32rope`.
+use crate::qwen2_f32rope::ModelForCausalLM;
+use candle_transformers::models::qwen2::Config as Qwen2Config;
 use nanogpt_rs::generate::GenerateConfig;
 use pekko_actor::{Actor, ActorContext};
 use rand::rngs::StdRng;
