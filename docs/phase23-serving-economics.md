@@ -141,9 +141,51 @@ of running to `max_new_tokens`.)
 the same three lines and trains in BF16. Phase 23's sequences are 40–150
 tokens and never reached it, but Phase 22 trained HumanEval/MBPP at prompt
 ~150 plus completion up to 192, which crosses 256. Those runs had degraded
-position information over the tail of every sequence. Fixed in the same
-commit; what it did to those results is not known, because nothing was
-re-measured.
+position information over the tail of every sequence.
+
+### How much it moved Phase 22 — measured, and the reservation
+
+The affected set is narrower than "everything before the fix". Position
+rounding starts at 256 in BF16 but at 2048 in F16 (10-bit mantissa), and no
+Phase 14–20 sequence is that long, so the F16 0.5B work is untouched. What is
+affected is every **BF16** run — which, note, includes `phase22_humaneval_
+baseline` even at 0.5B, since it selects BF16 on CUDA.
+
+A/B'd in one binary via `QWEN_LEGACY_ROTARY=1`, which reproduces upstream's
+cast. Rebuilding an older commit would change more than the rotary and could
+not attribute a difference to this line. Qwen2.5-Coder-0.5B, HumanEval 164,
+greedy, BF16:
+
+| config | legacy (buggy) | fixed | Δ |
+|---|---|---|---|
+| parallel | 0.2683 (44/164) | 0.2866 (47/164) | +0.018 |
+| **canonical (`--sequential`)** | **0.2622** (43/164) | **0.2683** (44/164) | +0.006 |
+| published reference | 0.280 ± 0.10 | 0.280 ± 0.10 | — |
+
+Both are greedy, so these differences are deterministic rather than noise. The
+fix moves the canonical number *toward* the published figure, which is the
+direction a correct fix should move it.
+
+The magnitude is an order below the effects Phase 22 rests on — `+0.2070` for
+`--pg-positive-only` (12 seeds, p<0.0001) and `+0.0148` per harvest doubling
+(6/6 seeds, t=3.68). The bug's bias is ~3% of the former. And Phase 22's claims
+are *differences between arms* measured with the same code on both sides, so a
+common bias largely cancels in a paired comparison; it would only survive if
+the bug acted differently per arm, and position rounding depends on sequence
+length, which does not differ much across arms.
+
+**The reservation, stated plainly.** This is one base measurement. Nothing in
+the K sweep, the pre-registered `posonly` replication, or RL-vs-SFT was
+re-run — that is 6–12 seeds across several arms, weeks of A100 time. What can
+be said is that the bug's size is an order below the main effect sizes and its
+sign is consistent, so those conclusions are unlikely to invert. That is not
+the same as confirmed.
+
+The most exposed numbers are the **K=4−K=2 and K=8−K=4 steps**. Neither was
+significant to begin with (t≈1.5) and a single step is +0.0148, the same order
+as the bug's bias of up to +0.018. CLAUDE.md already says only the trend is
+significant, not the steps, so the conclusion does not change — but anyone
+quoting an individual step should know both facts.
 
 ## What this licenses
 

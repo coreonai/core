@@ -254,11 +254,26 @@ in-domain compression, HF wins on coverage).
     rotary angles grow, an 8-bit mantissa runs out of sin/cos precision.
     That is the evidence for the vendored-qwen2 F32-rotary fix, and it
     also **corrects the old threshold: 300, not 500.**
-    Consequences for serving: tool-use prompts (40–150 tokens) are
-    already safe in BF16, which halves memory (28 GB → 15 GB) and roughly
-    doubles decode — but only behind an *enforced* input-length ceiling,
-    because past it BF16 returns fluent wrong text with no error
-    anywhere. Full numbers: `docs/phase23-serving-economics.md`.
+    **Fixed** by vendoring the model with F32 position math
+    (`llm-actors/src/qwen2_f32rope.rs`): BF16 is now character-identical
+    to F32 out to 1000 tokens, at 14993 MiB instead of 31153 and 1.54×
+    faster on a tool query. The cause was one line — `to_dtype(dtype)`
+    on the position index — and **`qwen2_lora.rs` had it too**, so BF16
+    *training* past 256 tokens was also degraded.
+    **What that did to Phase 22 is bounded, not resolved.** A/B'd in one
+    binary via `QWEN_LEGACY_ROTARY=1` (the switch exists so the bug can
+    be reproduced without rebuilding an older commit, which would change
+    more than the rotary): HumanEval-164 greedy on the 0.5B moves 0.2622
+    → 0.2683 canonical, 0.2683 → 0.2866 parallel — deterministic, and
+    *toward* the published 0.280. That bias is an order below the effects
+    Phase 22 rests on (+0.2070 posonly, +0.0148 per harvest doubling),
+    and Phase 22's claims are arm-vs-arm with the same code on both
+    sides, so a common bias largely cancels. **Not re-measured**: the K
+    sweep, the posonly replication, RL-vs-SFT — weeks of A100 time. Most
+    exposed are the K=4−K=2 and K=8−K=4 steps, already non-significant
+    at t≈1.5 and the same order as the bias. Also note F16 position
+    rounding starts at 2048, so the F16 0.5B work of Phase 14–20 is
+    untouched. Full numbers: `docs/phase23-serving-economics.md`.
 
 11. **Precision failures are not only a long-prompt problem — dense
     code generation breaks too, and at F16, not just BF16.** Gotcha #10

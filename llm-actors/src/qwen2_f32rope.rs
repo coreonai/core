@@ -66,12 +66,20 @@ impl RotaryEmbedding {
             .map(|i| 1f32 / cfg.rope_theta.powf(i as f64 / dim as f64) as f32)
             .collect();
         let inv_freq_len = inv_freq.len();
+        // `QWEN_LEGACY_ROTARY=1` reproduces upstream's dtype cast, bug and
+        // all. It exists so the bug's effect on an existing measurement can be
+        // A/B'd in ONE binary: rebuilding an older commit changes more than
+        // the rotary, and a comparison across two builds cannot attribute a
+        // difference to this line. Never set it in production.
+        let legacy = std::env::var("QWEN_LEGACY_ROTARY").is_ok_and(|v| v == "1");
+        let math_dtype = if legacy { dtype } else { DType::F32 };
+
         // F32 throughout. The cast to the model dtype happens only after
         // sin/cos are computed: those are bounded in [-1, 1] and survive it,
         // whereas a position index above 256 does not.
-        let inv_freq = Tensor::from_vec(inv_freq, (1, inv_freq_len), dev)?.to_dtype(DType::F32)?;
+        let inv_freq = Tensor::from_vec(inv_freq, (1, inv_freq_len), dev)?.to_dtype(math_dtype)?;
         let t = Tensor::arange(0u32, max_seq_len as u32, dev)?
-            .to_dtype(DType::F32)?
+            .to_dtype(math_dtype)?
             .reshape((max_seq_len, 1))?;
         let freqs = t.matmul(&inv_freq)?;
         Ok(Self {
