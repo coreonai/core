@@ -151,7 +151,13 @@ async fn main() -> Result<()> {
                 .collect()
         })
         .unwrap_or_default();
-    let model = model.with_suppressed_tokens(suppress);
+    // The same stops go to the MODEL, not only the loop. The loop cuts text
+    // after generation; the model stops generating. Without this a 20-token
+    // call still pays for the full max_new_tokens — ~1.1 s per step at 26
+    // ms/token.
+    let model = model
+        .with_suppressed_tokens(suppress)
+        .with_stop_sequences(args.stop.iter().filter(|s| !s.is_empty()).cloned());
 
     let system = ActorSystem::new("phase23-serve");
     let model_ref = system.spawn(model, "qwen-model").await?;

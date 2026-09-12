@@ -85,6 +85,17 @@ pub struct QwenModelActor {
     /// struct is built by 47 literal sites with no `..Default::default()`,
     /// so adding a field there is pure churn for an experiment.
     pub suppress_tokens: Vec<u32>,
+    /// Stop decoding as soon as one of these appears in the generated text.
+    ///
+    /// Not cosmetic — it is the single largest waste on the serving path.
+    /// Decoding costs ~26 ms/token for the 7B in F32, and the agentic loop
+    /// cuts each chunk at a stop sequence *after* generation returns. So a
+    /// 20-token tool call under `max_new_tokens = 64` paid for 44 tokens that
+    /// were thrown away: ~1.1 s per loop step, twice or three times per
+    /// answer. Checking here ends the forward passes instead of the string.
+    ///
+    /// Empty by default, so nothing that does not set it changes behaviour.
+    pub stop_sequences: Vec<String>,
     /// Path of the most recently loaded safetensors checkpoint. Used by
     /// `ReloadCheckpoint` to re-initialize the model.
     pub model_path: std::path::PathBuf,
@@ -115,12 +126,27 @@ impl QwenModelActor {
             dtype,
             model_path,
             suppress_tokens: Vec::new(),
+            stop_sequences: Vec::new(),
         })
     }
 
     /// Convenience loader: read `config.json` + `tokenizer.json` +
     /// `model.safetensors` from a single HF snapshot directory.
     /// Mask these token ids out of every sample. Builder-style.
+    /// Stop decoding at any of these. See [`Self::stop_sequences`].
+    pub fn with_stop_sequences<I, S>(mut self, seqs: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.stop_sequences = seqs
+            .into_iter()
+            .map(Into::into)
+            .filter(|s: &String| !s.is_empty())
+            .collect();
+        self
+    }
+
     pub fn with_suppressed_tokens(mut self, ids: Vec<u32>) -> Self {
         self.suppress_tokens = ids;
         self
@@ -366,6 +392,22 @@ impl QwenModelActor {
         Ok(mean)
     }
 
+    /// Does the decoded completion contain a stop sequence?
+    ///
+    /// Decodes the whole completion each step rather than accumulating
+    /// per-token strings: byte-level BPE splits multi-byte characters across
+    /// tokens, so appending `decode(&[tok])` would produce replacement
+    /// characters and could both miss a real stop and invent one. A full
+    /// decode of <200 tokens is microseconds against a 26 ms forward pass.
+    fn hits_stop(&self, completion_ids: &[u32]) -> bool {
+        let Ok(text) = self.tokenizer.decode(completion_ids, true) else {
+            return false;
+        };
+        self.stop_sequences
+            .iter()
+            .any(|s| text.contains(s.as_str()))
+    }
+
     fn generate_autoregressive(
         &mut self,
         prompt_ids: &[u32],
@@ -387,6 +429,7 @@ impl QwenModelActor {
         let mut logits = self.forward_chunk(&tokens, 0)?;
         let mut seqlen_offset = tokens.len();
 
+        let prompt_len = tokens.len();
         for _ in 0..cfg.max_new_tokens {
             let next = sample_logits(&logits, cfg, &self.suppress_tokens, &mut rng)?;
             // Qwen2 uses `eos_token_id` = 151643. Stop on EOS if encountered.
@@ -394,6 +437,12 @@ impl QwenModelActor {
                 break;
             }
             tokens.push(next);
+            // Check before the next forward pass, so hitting a stop costs
+            // nothing extra. The token that completed the stop is kept: the
+            // callers that cut text at a stop sequence expect it present.
+            if !self.stop_sequences.is_empty() && self.hits_stop(&tokens[prompt_len..]) {
+                break;
+            }
             logits = self.forward_chunk(&[next], seqlen_offset)?;
             seqlen_offset += 1;
         }
