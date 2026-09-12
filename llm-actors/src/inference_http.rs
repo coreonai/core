@@ -2,10 +2,15 @@
 //!
 //! Generic over the model actor, like the server it wraps: `serve::<QwenModelActor>`
 //! puts the 7B behind HTTP. Set `"tools": true` on a request to route it
-//! through the agentic loop; the response then carries `tool_calls` and a
-//! `tool_trace` of what actually executed. That trace is not decoration —
-//! this repo has measured a model stating an answer its tool never produced,
-//! so a caller cannot infer grounding from the completion text alone.
+//! through the agentic loop; the response then carries `tool_calls`, a
+//! `tool_trace` of what actually executed, and `grounded` — whether the
+//! stated answer was one of those results.
+//!
+//! That last field is the one to read. This repo measured a model stating
+//! `A: 111` on a Collatz problem whose tool call raised `NameError`: the
+//! right number, produced by the model rather than the tool, and
+//! indistinguishable from a computed answer in the completion text. Set
+//! `"require_grounded": true` to make that an error instead of a response.
 //!
 //! Wraps the transport-neutral actor in a tiny HTTP service:
 //!   POST /inference  → run a single Generate request
@@ -62,6 +67,12 @@ pub struct HttpInferenceRequest {
     /// Loop budget when `tools` is set. Omit for the server default.
     #[serde(default)]
     pub max_steps: Option<usize>,
+    /// Fail the request when the stated answer was not produced by a tool.
+    /// Use this whenever "tool-backed" is a promise being made to someone:
+    /// the model will otherwise state an answer of its own and the response
+    /// text gives no way to tell.
+    #[serde(default)]
+    pub require_grounded: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -74,6 +85,12 @@ pub struct HttpInferenceResponse {
     pub tool_trace: Vec<HttpToolCall>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_reason: Option<String>,
+    /// Whether the stated answer actually came from a tool. `null` when
+    /// tools were not used or no answer line was found. A `false` here is
+    /// the model answering on its own while a tool ran — measured, not
+    /// hypothetical.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grounded: Option<bool>,
 }
 
 /// One dispatched tool call, as it actually ran.
@@ -164,6 +181,7 @@ where
         request_id: req.request_id,
         tools: req.tools,
         max_steps: req.max_steps.unwrap_or(0),
+        require_grounded: req.require_grounded,
     };
     let (tx, rx) = oneshot::channel();
     state
@@ -198,6 +216,7 @@ where
                 })
                 .collect(),
             stop_reason: resp.stop_reason,
+            grounded: resp.grounded,
         })),
         Err(e) => {
             warn!(error = %e, "inference failed");

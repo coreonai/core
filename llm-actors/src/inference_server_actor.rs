@@ -20,6 +20,27 @@
 //! refused rather than silently answered without them — a caller that asked
 //! for a tool-backed answer must not receive an ungrounded one and be unable
 //! to tell.
+//!
+//! ## Grounding is checked, not assumed
+//!
+//! A tool running is not the same as the answer coming from it. Measured in
+//! this repo: on a Collatz problem the python call raised `NameError` and the
+//! model stated `A: 111` anyway — the right number, produced by the model,
+//! not by the tool. Nothing in the completion text distinguishes that from a
+//! computed answer.
+//!
+//! So the server compares the stated answer against what the tools actually
+//! returned and reports [`InferenceResponse::grounded`]. With
+//! `require_grounded` set, an ungrounded answer is an error instead of a
+//! response, which is the setting to use when "tool-backed" is a promise
+//! being made to someone.
+//!
+//! **This check is format-bound.** It knows one convention — the answer is
+//! the last `A: <value>` line, and a grounded value appears verbatim in a
+//! tool result. That fits the tool-use format trained in Phase 23. A model
+//! that derives its answer from a tool result (sums a returned list, say)
+//! would be marked ungrounded despite using the tool correctly, so this is a
+//! guard for a known format, not a general-purpose truth check.
 
 use std::time::{Duration, Instant};
 
@@ -44,6 +65,9 @@ pub struct InferenceRequest {
     pub tools: bool,
     /// Loop budget when `tools` is set. `0` uses the server default.
     pub max_steps: usize,
+    /// Fail the request when the stated answer did not come from a tool.
+    /// Only meaningful together with `tools`.
+    pub require_grounded: bool,
 }
 
 impl InferenceRequest {
@@ -55,6 +79,7 @@ impl InferenceRequest {
             request_id: None,
             tools: false,
             max_steps: 0,
+            require_grounded: false,
         }
     }
 }
@@ -74,6 +99,47 @@ pub struct InferenceResponse {
     pub tool_trace: Vec<ToolCallRecord>,
     /// Why the agentic loop stopped, when it ran.
     pub stop_reason: Option<String>,
+    /// Whether the stated answer was actually produced by a tool.
+    /// `None` when tools were not used, or no answer line was found.
+    pub grounded: Option<bool>,
+}
+
+/// Outcome of comparing a stated answer against what the tools returned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Grounding {
+    /// The stated answer appears verbatim in a tool result.
+    Grounded,
+    /// An answer was stated that no tool produced. The failure mode this
+    /// exists to catch.
+    Ungrounded,
+    /// No answer line to check.
+    NoAnswer,
+}
+
+/// Compare the last `A: <value>` line against successful tool results.
+///
+/// Exact match on the trimmed value: for the Phase 23 format an answer is a
+/// single scalar that the model copies from the tool, so anything else is
+/// either invention or arithmetic the tool did not do. See the module docs on
+/// why that is a format-bound rule rather than a general one.
+pub fn assess_grounding(final_text: &str, trace: &[ToolCallRecord]) -> Grounding {
+    let Some(answer) = final_text
+        .lines()
+        .rfind(|l| l.trim_start().starts_with("A:"))
+        .map(|l| l.trim_start().trim_start_matches("A:").trim())
+        .filter(|a| !a.is_empty())
+    else {
+        return Grounding::NoAnswer;
+    };
+    let produced = trace
+        .iter()
+        .filter_map(|c| c.result.as_ref().ok())
+        .any(|r| r.trim() == answer);
+    if produced {
+        Grounding::Grounded
+    } else {
+        Grounding::Ungrounded
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -150,7 +216,7 @@ where
             })
             .map_err(|e| anyhow::anyhow!("send Run: {e:?}"))?;
         let report = timeout(self.per_request_timeout, rx).await???;
-        let tool_trace = report
+        let tool_trace: Vec<ToolCallRecord> = report
             .trace
             .iter()
             .filter_map(|s| {
@@ -162,6 +228,15 @@ where
                 })
             })
             .collect();
+        let grounding = assess_grounding(&report.final_text, &tool_trace);
+        if req.require_grounded && grounding != Grounding::Grounded {
+            // Deliberately an error, not a response with a flag the caller
+            // might not read. The request asked for a tool-backed answer.
+            anyhow::bail!(
+                "answer is not grounded in a tool result ({grounding:?}); tools ran: {}",
+                report.tool_calls
+            );
+        }
         Ok(InferenceResponse {
             request_id: req.request_id,
             completion: report.final_text,
@@ -172,6 +247,11 @@ where
             tool_calls: report.tool_calls,
             tool_trace,
             stop_reason: Some(format!("{:?}", report.stop_reason)),
+            grounded: match grounding {
+                Grounding::Grounded => Some(true),
+                Grounding::Ungrounded => Some(false),
+                Grounding::NoAnswer => None,
+            },
         })
     }
 
@@ -194,6 +274,7 @@ where
             tool_calls: 0,
             tool_trace: Vec::new(),
             stop_reason: None,
+            grounded: None,
         })
     }
 }
@@ -230,5 +311,96 @@ where
                 }
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ok(tool: &str, args: &str, result: &str) -> ToolCallRecord {
+        ToolCallRecord {
+            tool: tool.into(),
+            args: args.into(),
+            result: Ok(result.into()),
+        }
+    }
+    fn err(tool: &str, args: &str, e: &str) -> ToolCallRecord {
+        ToolCallRecord {
+            tool: tool.into(),
+            args: args.into(),
+            result: Err(e.into()),
+        }
+    }
+
+    /// The measured failure this check exists for. On Collatz n=27 the python
+    /// call raised `NameError` and the model stated `A: 111` — the correct
+    /// answer, produced by the model rather than the tool. Being right is not
+    /// being grounded.
+    #[test]
+    fn the_collatz_case_is_ungrounded() {
+        let trace = [err(
+            "python",
+            "print(sum(1 for i in itertools.takewhile(...)))",
+            "NameError: name 'itertools' is not defined",
+        )];
+        let text = "Q: how many steps ...?\n(python ...\u{2192}ERR:...)\nA: 111\n";
+        assert_eq!(assess_grounding(text, &trace), Grounding::Ungrounded);
+    }
+
+    #[test]
+    fn an_answer_copied_from_the_tool_is_grounded() {
+        let trace = [ok("python", "print(sum(...))", "30")];
+        let text = "Q: how many divisors does 720 have?\n(python ...\u{2192}30)\nA: 30\n";
+        assert_eq!(assess_grounding(text, &trace), Grounding::Grounded);
+    }
+
+    /// The loop can revise: a first call answers the wrong question, a second
+    /// answers the right one. Grounding must follow the LAST answer, not the
+    /// first — taking the first would mark a successful self-correction as
+    /// ungrounded.
+    #[test]
+    fn grounding_follows_the_final_answer() {
+        let trace = [
+            ok("python", "count primes below 1000", "168"),
+            ok("python", "[...][14]", "47"),
+        ];
+        let text = "Q: what is the 15th prime number?\nA: 168\nA: 47\n";
+        assert_eq!(assess_grounding(text, &trace), Grounding::Grounded);
+    }
+
+    /// A value no tool returned, even though tools ran and succeeded.
+    #[test]
+    fn an_invented_value_is_ungrounded() {
+        let trace = [ok("python", "print(sum(...))", "17575")];
+        let text = "A: 20826\n";
+        assert_eq!(assess_grounding(text, &trace), Grounding::Ungrounded);
+    }
+
+    #[test]
+    fn no_answer_line_is_neither() {
+        let trace = [ok("python", "x", "1")];
+        assert_eq!(
+            assess_grounding("(python x\u{2192}1)\n", &trace),
+            Grounding::NoAnswer
+        );
+        // An empty `A:` is not an answer either.
+        assert_eq!(assess_grounding("A:   \n", &trace), Grounding::NoAnswer);
+    }
+
+    #[test]
+    fn no_tools_at_all_cannot_be_grounded() {
+        assert_eq!(assess_grounding("A: 30\n", &[]), Grounding::Ungrounded);
+    }
+
+    /// Float formatting is preserved end to end, so an answer the tool really
+    /// produced still matches.
+    #[test]
+    fn float_results_match_verbatim() {
+        let trace = [ok("python", "print(60*(60/45))", "80.0")];
+        assert_eq!(assess_grounding("A: 80.0\n", &trace), Grounding::Grounded);
+        // ...but a reformatted value is not a verbatim match, and the module
+        // docs say so: this is a format-bound check, not a numeric one.
+        assert_eq!(assess_grounding("A: 80\n", &trace), Grounding::Ungrounded);
     }
 }
