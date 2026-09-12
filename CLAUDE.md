@@ -238,20 +238,27 @@ in-domain compression, HF wins on coverage).
    recipe to Pekko, START by byte-comparing the inner training loop,
    not the orchestration layer.
 
-10. **BF16 silently corrupts `QwenModelActor` generation on LONG prompts.**
-    Past ~500 total tokens, greedy/sampled output degenerates into
-    token-doubling garbage after a few dozen clean tokens (`"return
-    return"`, `"== =="`, `"stripstripstrip"`). BF16's 7-bit mantissa
-    loses too much rotary/attention precision at length. It went
-    unnoticed through all of Phase 22 because HumanEval/MBPP prompts are
-    ~150 tokens with `max_new 192`; **LiveCodeBench/BigCodeBench prompts
-    (500–1000+ tokens) are the first to hit it.** Isolation proof: a
-    *diverse* (non-repetitive) long prompt corrupts in BF16 but is CLEAN
-    in F32, temperature- and prefill-independent. Fix: run long-prompt
-    generation in **F32** (`phase22_dump_completions --dtype f32`,
-    default; 7B F32 = 28GB, fits a 40GB card for inference). Proper
-    follow-up: F32 rotary in a vendored `candle-transformers` qwen2 to
-    keep BF16 weights (found `39f038e`).
+10. **F16 and BF16 fail DIFFERENTLY, and only one of them is about
+    rotary.** Both were once filed as "low precision corrupts
+    generation"; measured separately on the same greedy prompt they are
+    unrelated bugs.
+    **F16 overflows.** It emits garbage even on a 40-token prompt, and
+    the tell is token id 152063 — the last id in a 152064 vocab — which
+    is `argmax` over a row that went to `inf`. F16's max is 65504. BF16
+    shares F32's exponent range and cannot fail this way, so **F32
+    rotary would not fix F16.** Do not serve F16.
+    **BF16 fails by position.** Clean at ~40 and ~150 tokens, broken at
+    **~300** (`24 divisorsisors`), worse at 600 (`1111111111…`) and 1000
+    (`of of 00, 0,`), while F32 stays clean to 1000. Getting worse with
+    index is what a position encoding losing resolution looks like —
+    rotary angles grow, an 8-bit mantissa runs out of sin/cos precision.
+    That is the evidence for the vendored-qwen2 F32-rotary fix, and it
+    also **corrects the old threshold: 300, not 500.**
+    Consequences for serving: tool-use prompts (40–150 tokens) are
+    already safe in BF16, which halves memory (28 GB → 15 GB) and roughly
+    doubles decode — but only behind an *enforced* input-length ceiling,
+    because past it BF16 returns fluent wrong text with no error
+    anywhere. Full numbers: `docs/phase23-serving-economics.md`.
 
 11. **Precision failures are not only a long-prompt problem — dense
     code generation breaks too, and at F16, not just BF16.** Gotcha #10
@@ -268,7 +275,11 @@ in-domain compression, HF wins on coverage).
     when an SFT'd model produces garbage at a loss that says it
     memorised, test held-IN before touching the recipe — a
     train/inference mismatch and an overfitting story look identical
-    from the held-out number alone.
+    from the held-out number alone. (Refined by #10: this case was F16,
+    and its mechanism is overflow rather than the completion *density*
+    guessed here. BF16 handles the same dense short completions cleanly.
+    The density story was inferred from one dtype; the dtype was the
+    variable.)
 
 12. **The agentic loop must truncate at the tool-call boundary.** The
     model does not stop when it finishes a call: it emits the call and
