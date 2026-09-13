@@ -96,9 +96,26 @@ fi
 
 shm_guard "${#SEED_ARR[@]}"
 
-gpu=0
+# GPU_PAIRS lets the caller name the cards, e.g. GPU_PAIRS="1:2,3:4,5:7".
+# The old behaviour assumed consecutive pairs from 0, which silently lands a
+# run on a card another job already holds — the run then OOMs minutes in,
+# after the wave looks launched. Default keeps the historical assignment.
+if [ -n "${GPU_PAIRS:-}" ]; then
+  IFS=, read -r -a PAIR_ARR <<< "$GPU_PAIRS"
+  if [ "${#PAIR_ARR[@]}" -lt "${#SEED_ARR[@]}" ]; then
+    echo "⚠ ${#SEED_ARR[@]} seeds but only ${#PAIR_ARR[@]} GPU pair(s) in GPU_PAIRS." ; exit 1
+  fi
+else
+  PAIR_ARR=()
+  for i in $(seq 0 $(( ${#SEED_ARR[@]} - 1 ))); do
+    PAIR_ARR+=("$(( i * 2 )):$(( i * 2 + 1 ))")
+  done
+fi
+
+pair_idx=0
 for seed in "${SEED_ARR[@]}"; do
-  gpu_m=$gpu; gpu_t=$((gpu + 1)); gpu=$((gpu + 2))
+  gpu_m=${PAIR_ARR[$pair_idx]%%:*}; gpu_t=${PAIR_ARR[$pair_idx]##*:}
+  pair_idx=$((pair_idx + 1))
   SYNC=/dev/shm/rlvar_${tag}_seed${seed}.safetensors
   ( CUDA_VISIBLE_DEVICES=$gpu_m,$gpu_t $BIN \
     --model-id Qwen2.5-Coder-7B --train-bf16 --trainer-gpu 1 \
