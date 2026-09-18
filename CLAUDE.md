@@ -268,10 +268,16 @@ in-domain compression, HF wins on coverage).
     *toward* the published 0.280. That bias is an order below the effects
     Phase 22 rests on (+0.2070 posonly, +0.0148 per harvest doubling),
     and Phase 22's claims are arm-vs-arm with the same code on both
-    sides, so a common bias largely cancels. **Not re-measured**: the K
-    sweep, the posonly replication, RL-vs-SFT — weeks of A100 time. Most
-    exposed are the K=4−K=2 and K=8−K=4 steps, already non-significant
-    at t≈1.5 and the same order as the bias. Also note F16 position
+    sides, so a common bias largely cancels. **The exposed region was then
+    re-measured and the slope holds**: K=2 and K=8 re-trained with the
+    fix on fresh seeds 901-903, evaluated on the published LCB slice,
+    give K=2 0.0688±0.0349 → K=8 0.1123±0.0226, a gap of **+0.0435**
+    against the published +0.027 (3/3 same sign, t=2.62 df=2, so p≈0.12
+    — three seeds cannot reach significance and were not expected to).
+    K=8 reproduces almost exactly (0.1123 vs 0.111). The gap widened
+    rather than shrank, the opposite of "the bug made the slope".
+    **Still not re-measured**: the individual K=4−K=2 / K=8−K=4 steps
+    (only the endpoints were run), the posonly replication, RL-vs-SFT. Also note F16 position
     rounding starts at 2048, so the F16 0.5B work of Phase 14–20 is
     untouched. Full numbers: `docs/phase23-serving-economics.md`.
 

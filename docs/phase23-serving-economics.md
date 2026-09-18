@@ -187,6 +187,46 @@ as the bug's bias of up to +0.018. CLAUDE.md already says only the trend is
 significant, not the steps, so the conclusion does not change — but anyone
 quoting an individual step should know both facts.
 
+### The exposed region was then re-measured, and the slope holds
+
+K=2 and K=8 re-trained with the fix on **fresh seeds** (901–903; reusing the
+original six would turn a replication into a confirmation), then evaluated on
+the published LCB slice — 120 problems, F32 generation, `lcb_score.py`.
+
+| | published (6 seeds, buggy training) | re-measured (3 seeds, fixed) |
+|---|---|---|
+| K=2 | 0.084 | **0.0688** ± 0.0349 |
+| K=8 | 0.111 | **0.1123** ± 0.0226 |
+| **gap** | **+0.027** | **+0.0435** |
+
+Paired by seed:
+
+```
+901   0.1087 -> 0.1304   +0.0217
+902   0.0435 -> 0.1196   +0.0761
+903   0.0543 -> 0.0870   +0.0327
+                mean     +0.0435    3/3 same sign, t=2.62, df=2
+```
+
+All six seeds matched 120 problems; the completeness gate passed.
+
+**K=8 reproduces almost exactly** — 0.1123 against a published 0.111, on
+different seeds with corrected code. That is the strongest single result here.
+K=2 came out lower (0.0688 vs 0.084), but at σ=0.0349 the published value sits
+within 0.5σ of the new mean, so it is not distinguishable from noise. The gap
+did not shrink; it widened, which is the opposite of what "the bug manufactured
+the slope" predicts.
+
+**t=2.62 at df=2 is p≈0.12 — not significant.** The 5% critical value at df=2
+is 4.30, so three seeds could not have produced significance regardless; that
+was stated before the run, not after. What this establishes is that the gap did
+not disappear, not a new estimate of its size.
+
+So the slope over the most exposed region is **not an artifact of the rotary
+bug**. Still not re-measured: the individual K=4−K=2 and K=8−K=4 steps (only
+the endpoints were run), the pre-registered `posonly` replication, and
+RL-vs-SFT.
+
 ## What this licenses
 
 - **The current product shape can run BF16 today.** Tool-use prompts are
