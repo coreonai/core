@@ -127,6 +127,23 @@ where
     pub stop_sequences: Vec<String>,
     /// Consecutive failed dispatches tolerated before giving up.
     pub max_consecutive_errors: usize,
+    /// Retry a call once with the missing import prepended, when it failed
+    /// with `NameError` on a known standard-library name.
+    ///
+    /// Half of the residual transfer failures are exactly this: the model
+    /// writes `itertools.takewhile(...)` with no import and the call raises.
+    /// It is not a reasoning failure and training did not fix it — a harvest
+    /// containing `math` and `functools` taught neither the rule nor a third
+    /// module. A deterministic repair costs one extra dispatch and covers the
+    /// whole class.
+    ///
+    /// This makes the SYSTEM robust, not the model: nothing here teaches the
+    /// model to import. The repaired call is what gets spliced into the
+    /// transcript, and both attempts appear in the trace, so nothing is
+    /// hidden — a tool that silently fixed the snippet would make the
+    /// transcript claim something ran that never did, and grounding checks
+    /// are built on that transcript.
+    pub auto_import: bool,
 }
 
 impl<M> AgenticGeneratorActor<M>
@@ -145,6 +162,7 @@ where
             per_request_timeout: Duration::from_secs(60),
             stop_sequences: Vec::new(),
             max_consecutive_errors: 2,
+            auto_import: true,
         }
     }
 
@@ -168,6 +186,12 @@ where
     /// Consecutive failed dispatches tolerated before the loop gives up.
     pub fn with_max_consecutive_errors(mut self, n: usize) -> Self {
         self.max_consecutive_errors = n;
+        self
+    }
+
+    /// Retry once with a missing import prepended. See [`Self::auto_import`].
+    pub fn with_auto_import(mut self, on: bool) -> Self {
+        self.auto_import = on;
         self
     }
 
@@ -240,12 +264,43 @@ where
             };
 
             if let Some((range, call)) = parse_first_tool_call(&full) {
-                let res = self.dispatch_tool(&call).await?;
+                let mut call = call;
+                let mut res = self.dispatch_tool(&call).await?;
+
+                // Deterministic repair for a missing standard-library import.
+                // The failed attempt stays in the trace and the REWRITTEN call
+                // is what gets spliced, so the transcript records what really
+                // executed — a silent fix would leave the model's broken
+                // snippet next to a working result, and every grounding check
+                // reads that transcript.
+                if self.auto_import {
+                    if let Some(imp) = res
+                        .as_ref()
+                        .err()
+                        .and_then(|e| missing_import_for(e))
+                        .filter(|_| !call.args.contains("import "))
+                    {
+                        trace.push(StepRecord {
+                            step,
+                            generated_tokens: new_tokens,
+                            tool_called: Some(call.name.clone()),
+                            tool_args: Some(call.args.clone()),
+                            tool_result: Some(res.clone()),
+                        });
+                        info!(step, imp, "missing import; retrying once");
+                        call.args = format!("{imp}\n{}", call.args);
+                        res = self.dispatch_tool(&call).await?;
+                    }
+                }
+
                 let inserted = match &res {
                     Ok(s) => s.clone(),
                     Err(e) => format!("ERR:{e}"),
                 };
-                buffer = resolve_call(&full, range, &inserted, buffer.len());
+                // Splice the call AS RUN, not as written.
+                let rewritten = format!("({} {})\n", call.name, call.args);
+                let full = format!("{}{rewritten}{}", &full[..range.start], &full[range.end..]);
+                let range = range.start..(range.start + rewritten.len());
                 tool_calls += 1;
                 let failed = res.is_err();
                 trace.push(StepRecord {
@@ -255,6 +310,7 @@ where
                     tool_args: Some(call.args.clone()),
                     tool_result: Some(res),
                 });
+                buffer = resolve_call(&full, range, &inserted, buffer.len());
                 info!(step, tool = %call.name, inserted = %inserted, "tool call resolved");
 
                 if failed {
@@ -299,6 +355,59 @@ where
             stop_reason,
         })
     }
+}
+
+/// Names the model reaches for without importing, and where they come from.
+///
+/// Deliberately a fixed table rather than "import whatever the NameError
+/// mentions": the repair rewrites code that then executes, so the set of
+/// things it may introduce has to be enumerable and reviewable. A typo
+/// (`raange`) must stay an error, not become an import attempt.
+const AUTO_IMPORTS: &[(&str, &str)] = &[
+    // module name -> the import statement that provides it
+    ("math", "import math"),
+    ("itertools", "import itertools"),
+    ("functools", "import functools"),
+    ("collections", "import collections"),
+    ("statistics", "import statistics"),
+    ("datetime", "import datetime"),
+    ("re", "import re"),
+    ("json", "import json"),
+    ("heapq", "import heapq"),
+    ("bisect", "import bisect"),
+    ("string", "import string"),
+    ("fractions", "import fractions"),
+    ("decimal", "import decimal"),
+    ("random", "import random"),
+    ("operator", "import operator"),
+    ("cmath", "import cmath"),
+    // bare names the model uses as if they were builtins
+    ("reduce", "from functools import reduce"),
+    ("Counter", "from collections import Counter"),
+    ("defaultdict", "from collections import defaultdict"),
+    ("deque", "from collections import deque"),
+    ("permutations", "from itertools import permutations"),
+    ("combinations", "from itertools import combinations"),
+    ("accumulate", "from itertools import accumulate"),
+    ("takewhile", "from itertools import takewhile"),
+    ("gcd", "from math import gcd"),
+    ("factorial", "from math import factorial"),
+    ("sqrt", "from math import sqrt"),
+];
+
+/// The import statement for a `NameError` the repair is willing to fix.
+///
+/// Returns `None` for anything not in [`AUTO_IMPORTS`], so an undefined
+/// helper the model invented (`fibonacci(40)` — measured) stays an error
+/// rather than turning into a bogus import.
+fn missing_import_for(error: &str) -> Option<&'static str> {
+    let rest = error.split("NameError: name ").nth(1)?;
+    let name = rest.trim_start().trim_start_matches(['\'', '"']);
+    let name = name.split(['\'', '"']).next()?;
+    AUTO_IMPORTS
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, imp)| *imp)
 }
 
 /// Splice a tool result in, dropping whatever the model generated after the
@@ -479,6 +588,43 @@ mod tests {
             next,
             "use the tool: (arith add 5 5\u{2192}10)\nthen answer.\n"
         );
+    }
+
+    /// The measured failure this repair exists for: the model writes
+    /// `itertools.takewhile(...)` with no import on all four Collatz
+    /// problems, and training never fixed it.
+    #[test]
+    fn missing_import_is_recognised() {
+        let e = "tool execution failed: NameError: name 'itertools' is not defined";
+        assert_eq!(missing_import_for(e), Some("import itertools"));
+        let e = "tool execution failed: NameError: name 'reduce' is not defined";
+        assert_eq!(missing_import_for(e), Some("from functools import reduce"));
+        let e = "tool execution failed: NameError: name 'datetime' is not defined";
+        assert_eq!(missing_import_for(e), Some("import datetime"));
+    }
+
+    /// A name the model invented must stay an error. `print(fibonacci(40))`
+    /// is measured, and importing something for it would turn a wrong answer
+    /// into a differently wrong answer.
+    #[test]
+    fn an_invented_name_is_not_imported() {
+        for e in [
+            "NameError: name 'fibonacci' is not defined",
+            "NameError: name 'raange' is not defined",
+            "NameError: name 'nope' is not defined",
+        ] {
+            assert_eq!(missing_import_for(e), None, "{e}");
+        }
+    }
+
+    #[test]
+    fn a_non_nameerror_is_not_a_missing_import() {
+        assert_eq!(missing_import_for("SyntaxError: unexpected EOF"), None);
+        assert_eq!(
+            missing_import_for("ZeroDivisionError: division by zero"),
+            None
+        );
+        assert_eq!(missing_import_for(""), None);
     }
 
     #[test]

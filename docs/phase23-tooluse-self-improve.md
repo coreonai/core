@@ -452,6 +452,65 @@ self-correction read as a wrong answer. It now takes the last. Answers can
 also arrive as floats (`80.0`), which matters if something downstream
 compares strings.
 
+## Deterministic import repair — it works, and it bought no accuracy
+
+Half the residual transfer failures were `NameError` on a standard-library
+name: the model writes `itertools.takewhile(...)` with no import, on all four
+Collatz problems. Training did not fix this — a harvest containing `math` and
+`functools` taught neither the rule nor a third module — so the loop now
+repairs it deterministically. On a `NameError` matching a fixed table it
+prepends the import and re-dispatches once.
+
+Two design constraints, both about not lying in the transcript:
+
+- The repair lives in the **loop**, not the tool. A tool that silently fixed
+  the snippet would leave the model's broken call sitting next to a working
+  result, and every grounding check reads that transcript. The loop rewrites
+  the call, so what is spliced is what ran, and the failed first attempt stays
+  in the trace.
+- The table is **fixed and enumerable**, not "import whatever the NameError
+  names". `print(fibonacci(40))` — measured — must stay an error; importing
+  something for an invented helper turns a wrong answer into a differently
+  wrong one. Tested.
+
+Measured on the transfer set:
+
+| | before | after |
+|---|---|---|
+| snippet ran clean | 8/12 | **10/12** |
+| **computed the right answer** | **4/12** | **4/12** |
+
+**Accuracy did not move.** The repair does what it targets and buys nothing
+here, because the same four problems were wrong twice over:
+
+```
+(python import itertools
+print(sum(1 for i in itertools.takewhile(lambda x: x>1,
+  itertools.accumulate([27]+[x//2 if x%2==0 else 3*x+1 for x in [27]],lambda x,y:y))))→2)
+A: 111
+```
+
+The import lands and the call executes — returning **2** where the answer is
+111. Accumulating over a two-element list does not produce a Collatz sequence.
+The algorithm was always wrong; the `NameError` was in front of it.
+
+(Note the `A: 111` next to a tool result of 2: the model ignoring its tool and
+answering anyway. `require_grounded` rejects exactly this.)
+
+### The estimate was wrong, and why
+
+Failures were classified by error message, which said half were addressable.
+Measured, the addressable share of *accuracy* was zero, because the two
+classes **overlapped on the same problems** — the first error hid the second.
+
+Counting what a fix will buy from error messages alone does not work: it
+assumes one cause per failure. The only way to size the next class is to fix
+the first and re-count, which is what happened here — estimate 50%, measured 0%.
+
+The repair still earns its place. The `NameError` class is real and shows up
+alone elsewhere (`reduce`, `datetime`, `math.factorial` in the ask probe);
+Collatz simply happened to be broken on both axes.
+
 ## What to reuse
 
 - **A free verifier does not make a harvest safe.** It checks the answer, not
@@ -489,6 +548,11 @@ compares strings.
   the transfer failures here were wrong mathematics on code that ran cleanly
   — nothing a tool-contract loop was ever going to fix, and averaging them
   into one "transfer" number hides that.
+- **But do not size a fix from error messages.** That assumes one cause per
+  failure. Repairing the missing imports moved "ran clean" 8/12 → 10/12 and
+  accuracy 4/12 → 4/12, because the same problems were also algorithmically
+  wrong. Estimate 50% addressable, measured 0%. Fix the first class, then
+  re-count.
 
 ## Reproducing
 
