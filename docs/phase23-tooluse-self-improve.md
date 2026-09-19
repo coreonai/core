@@ -511,6 +511,74 @@ The repair still earns its place. The `NameError` class is real and shows up
 alone elsewhere (`reduce`, `datetime`, `math.factorial` in the ask probe);
 Collatz simply happened to be broken on both axes.
 
+## When there is no verifier
+
+Everything above rests on a free verifier. Real domains rarely have one — the
+HBM service-report case that prompted this is free-form text with no automatic
+grader — and without one the loop cannot filter a harvest or measure anything.
+
+A substitute can only be trusted if it has been scored **where ground truth
+exists**. `phase23_proxy_verifier` does that: eight samples per prompt on
+`ToolUsePythonDomain`, three verifier-free signals, checked against the real
+verdict. Run on families the model was trained on, and separately on family 6
+(largest prime factor, still at 0.500) because a real unverifiable domain looks
+more like the hard case than the easy one.
+
+| signal | trained families (3,5,8,9) | unsolved family (6) |
+|---|---|---|
+| no filter (baseline) | 0.617 | 0.594 |
+| **self-consistency** | **0.842** | **0.783** |
+| P(correct \| ran clean) | 0.795 | 0.824 |
+| top-logprob | 0.609 | 0.625 |
+| **log-prob AUC** | 0.649 | **0.503** |
+
+### Self-consistency is the one that works
+
+0.617 → **0.842**, and on the hard family 0.594 → **0.783**. It needs nothing
+but generation — no second model, no extra forward pass — which is why it is
+the first thing to reach for when there is no grader.
+
+The caveat is in the denominators: only 57 of 64 prompts had a modal value at
+all (23 of 32 on the hard family). For 7–28% of prompts every sample failed or
+every sample disagreed, and there is no signal to use. Those have to be dropped
+or escalated, not squeezed.
+
+### The model's own confidence does not transfer
+
+Phase 6/7's Shape C measured sum-AUC 0.727 on K9 and 0.702 on Qwen-0.5B. Here
+the same signal gives **0.649**, and on the hard family **0.503** — a coin
+flip. `top-logprob` is indistinguishable from the unfiltered baseline (0.609 vs
+0.617), so it spends a forward pass per sample to learn nothing.
+
+This does not overturn Shape C; it shows the signal is domain-bound, the same
+direction as Phase 9 S4 where 1.5B-Coder fell to 0.474 (risk #10). Confidence
+calibration measured in one domain does not carry to another, and the failure
+mode is quiet: 0.503 still *looks* like a filter if only the accuracy column is
+read.
+
+### Execution success is half a filter
+
+0.795 / 0.824 — above baseline, below self-consistency, and **it does not mean
+correct**. The measured Collatz case ran clean and returned 2 where the answer
+was 111. A precision of 0.8 means one in five harvested snippets is wrong code,
+and harvesting those teaches wrong methods — the same hazard as the family-6
+snippet that computed the largest *divisor* and passed for n=14 and 15.
+
+### What to do in a domain with no verifier
+
+Ordered by what the measurement supports:
+
+1. **Self-consistency as the default filter.** Take the modal answer over K
+   samples; drop or escalate the prompts with no mode rather than inventing a
+   signal for them.
+2. **Measure the model's confidence in *that* domain before relying on it.**
+   It was 0.503 here. Importing a calibration result from another domain is how
+   a coin flip gets called a filter.
+3. **Prefer any structural check you can get.** Executability, format
+   conformance and arithmetic consistency land around 0.8 — worse than
+   self-consistency, but they compose with it, and they are what the HBM design
+   classified as fully verifiable (throughput, cycle time, thermal ramp).
+
 ## What to reuse
 
 - **A free verifier does not make a harvest safe.** It checks the answer, not
@@ -532,6 +600,11 @@ Collatz simply happened to be broken on both axes.
   the loop taught the model multi-line calls, then it truncated them and
   reported "emitted no call". It bit only the checkpoint whose behaviour had
   changed, and it moved the number the way the hypothesis predicted.
+- **Score a proxy verifier where ground truth exists, never where you need
+  it.** Self-consistency recovered 0.617 → 0.842; the model's own log-prob
+  scored 0.503 on the hard family, a coin flip that still reads like a filter
+  if you only look at accuracy. Both were only knowable by checking against a
+  real verdict.
 - **Replay is free wherever verification is free.** Harvesting saturated
   tasks costs only generation, and it bought back 0.19 of retention and
   7/12 of transfer emission here.
