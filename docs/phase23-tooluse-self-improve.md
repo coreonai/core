@@ -511,6 +511,82 @@ The repair still earns its place. The `NameError` class is real and shows up
 alone elsewhere (`reduce`, `datetime`, `math.factorial` in the ask probe);
 Collatz simply happened to be broken on both axes.
 
+## Training self-correction — measured by injecting the failure
+
+The model self-corrects unprompted (the 15th-prime case above), and
+`--harvest-repair-context` harvests that as second-turn pairs: prompt carrying
+the failed call, completion the corrected one. Does it actually make the model
+better at correcting?
+
+The first attempt at measuring it collapsed on its own success. Waiting for the
+model to fail left ~30 repair opportunities in 192 attempts where the untrained
+one left 189, and 2/32 against 0/30 decides nothing. `--inject` builds the
+failed call and its spliced result directly, so the sample size is fixed.
+
+Two kinds, because they are different abilities:
+
+```
+nameerror   (python print(nope(42))→ERR:NameError…)   the error says what broke
+literal     (python print(42)→42)                      runs clean, answers the
+                                                       wrong question
+```
+
+`literal` is the hard one and is the 15th-prime case: nothing is broken, so the
+model has to notice the result does not answer the question.
+
+Three checkpoints. `rc` is the correction-trained model and `ctl` is the same
+recipe with only the context pairs removed, so **`rc` > `ctl` is the claim** —
+`rc` > `sft` alone would only say the model got better in general.
+
+| | corrected by a new call | answered right WITHOUT a call | imports |
+|---|---|---|---|
+| **nameerror** | | | |
+| sft | 3/192 | 13/192 | 15/192 |
+| ctl | 24/192 | 12/192 | 33/192 |
+| **rc** | **69/192** | **1/192** | 137/192 |
+| **literal** | | | |
+| sft | 2/192 | 41/192 | 4/192 |
+| ctl | 7/192 | 43/192 | 28/192 |
+| **rc** | **31/192** | **1/192** | 87/192 |
+
+**It works, on both axes.** Corrected calls go 24 → 69 on `nameerror` (2.9×)
+and 7 → 31 on `literal` (4.4×). The two checkpoints differ only in the context
+pairs, so that is the pairs' effect. The hard axis moves most in relative
+terms, which is the interesting part: there the error message carries no
+information about what was wrong.
+
+### The side effect: tool-bypassing almost disappears
+
+```
+answered right WITHOUT a call:   sft 41  →  ctl 43  →  rc 1
+```
+
+The correction-trained model stops answering from its own knowledge and
+rewrites the call instead. That was not the target. It is the direction
+grounding wants — the property `--sabotage` established gets stronger — and it
+is the reason the two columns must stay separate.
+
+**Summed, `ctl` wins the literal axis 50 to 32.** Counting only "got the right
+number", the control looks better. But 43 of its 50 are values no tool
+produced; `require_grounded` rejects them. Merging "was right" with "had
+grounds" erases the distinction the whole serving path is built on.
+
+### Why the first numbers were wrong
+
+An earlier pass reported sft 0/192, ctl 1/192, rc 21/192 by counting corrected
+calls only. `sft` and `ctl` were in fact getting ~40 right by bypassing the
+tool, scored as total failures, which inflated `rc`'s margin. `rc` still wins
+under the fixed metric, but **the reason changes**: not "the control cannot do
+it" but "the control uses a different strategy, and that strategy is
+ungrounded".
+
+### One apparent contradiction, resolved
+
+`rc` writes imports 137/192 while the section above concludes the import rule
+was not learned. Different situations: that was **first-turn, previously unseen
+module**; this is **after seeing an error**. In the repair context the model
+does reach for an import.
+
 ## When there is no verifier
 
 Everything above rests on a free verifier. Real domains rarely have one — the
@@ -600,6 +676,13 @@ Ordered by what the measurement supports:
   the loop taught the model multi-line calls, then it truncated them and
   reported "emitted no call". It bit only the checkpoint whose behaviour had
   changed, and it moved the number the way the hypothesis predicted.
+- **Do not merge "was right" with "had grounds".** The control answered ~40 of
+  192 correctly by ignoring its tool. Counting only correctness made it look
+  better than the correction-trained model on the hard axis (50 vs 32); split
+  out, its wins are values no tool produced.
+- **When an ability only shows up on failures, inject the failures.** Waiting
+  for the model to fail left 30 opportunities where the baseline had 189, and
+  the comparison became undecidable at exactly the point the training worked.
 - **Score a proxy verifier where ground truth exists, never where you need
   it.** Self-consistency recovered 0.617 → 0.842; the model's own log-prob
   scored 0.503 on the hard family, a coin flip that still reads like a filter
