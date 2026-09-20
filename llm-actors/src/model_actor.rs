@@ -44,6 +44,26 @@ pub enum ModelMessage {
     /// normalized so callers don't have to). Used by GeneratorActor's
     /// oversample-and-rerank path: generate F candidates per prompt,
     /// score each via this, keep the highest.
+    /// Phase 23 — generate `n_samples` completions of ONE prompt in a single
+    /// batched decode.
+    ///
+    /// Not general request batching. Harvest and pass@k both draw K samples
+    /// from the same prompt, so every sequence in the batch has identical
+    /// length and there is no padding and no attention-mask problem — the two
+    /// things that make cross-request batching a much larger job. Decode is
+    /// memory-bandwidth-bound on the weights, so a batch of K costs close to
+    /// what one sequence costs, and harvest is where this repo's GPU time
+    /// actually goes (3920 generations per self-improve round).
+    ///
+    /// Each sample gets its own RNG stream, seeded from `cfg.seed` plus its
+    /// index, so the K draws differ. Returns prompt+completion per sample, in
+    /// the same shape `GenerateTokens` returns.
+    GenerateBatch {
+        prompt_ids: Vec<u32>,
+        n_samples: usize,
+        cfg: GenerateConfig,
+        reply: oneshot::Sender<anyhow::Result<Vec<Vec<u32>>>>,
+    },
     ScoreLogProb {
         prompt_ids: Vec<u32>,
         completion_ids: Vec<u32>,
@@ -121,6 +141,32 @@ impl Actor for ModelActor {
                     let result = generate(&self.model, &prompt_ids, &cfg, &self.device)
                         .map_err(anyhow::Error::from);
                     log_send(reply, result, "generate_tokens");
+                }
+                ModelMessage::GenerateBatch {
+                    prompt_ids,
+                    n_samples,
+                    cfg,
+                    reply,
+                } => {
+                    // No batched path for the nanogpt model: it exists for the
+                    // 7B harvest, and looping here keeps the message usable
+                    // from generic code without silently changing sampling.
+                    // Per-sample seeds match QwenModelActor's, so the two
+                    // backends draw the same way.
+                    let mut out = Vec::with_capacity(n_samples.max(1));
+                    let mut err = None;
+                    for i in 0..n_samples.max(1) {
+                        let mut c = cfg.clone();
+                        c.seed = cfg.seed.map(|s| s.wrapping_add(i as u64));
+                        match generate(&self.model, &prompt_ids, &c, &self.device) {
+                            Ok(t) => out.push(t),
+                            Err(e) => {
+                                err = Some(anyhow::Error::from(e));
+                                break;
+                            }
+                        }
+                    }
+                    log_send(reply, err.map_or(Ok(out), Err), "generate_batch");
                 }
                 ModelMessage::ReloadCheckpoint { path, reply } => {
                     let result = self.handle_reload(&path);

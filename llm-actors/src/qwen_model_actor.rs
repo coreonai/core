@@ -223,6 +223,15 @@ impl Actor for QwenModelActor {
                     let result = self.handle_loss_on(&x, &y);
                     log_send(reply, result, "qwen_loss_on");
                 }
+                ModelMessage::GenerateBatch {
+                    prompt_ids,
+                    n_samples,
+                    cfg,
+                    reply,
+                } => {
+                    let result = self.generate_batch(&prompt_ids, n_samples.max(1), &cfg);
+                    log_send(reply, result, "qwen_generate_batch");
+                }
                 ModelMessage::ScoreLogProb {
                     prompt_ids,
                     completion_ids,
@@ -452,6 +461,83 @@ impl QwenModelActor {
             seqlen_offset += 1;
         }
         Ok(tokens)
+    }
+
+    /// Decode `n` completions of one prompt in a single batched pass.
+    ///
+    /// Every sequence shares the prompt, so all `n` are the same length at
+    /// every step: no padding, no attention mask beyond the causal one the
+    /// model already builds per batch size. That is what makes this tractable
+    /// where general cross-request batching is not.
+    ///
+    /// Sequences that finish early (EOS, or a stop sequence) keep being fed
+    /// their own last token and their extra output is trimmed at the end.
+    /// Compacting the batch mid-flight would mean rebuilding the KV cache,
+    /// which costs more than the wasted tokens.
+    fn generate_batch(
+        &mut self,
+        prompt_ids: &[u32],
+        n: usize,
+        cfg: &GenerateConfig,
+    ) -> anyhow::Result<Vec<Vec<u32>>> {
+        if prompt_ids.is_empty() {
+            return Ok(vec![Vec::new(); n]);
+        }
+        self.model_mut()?.clear_kv_cache();
+        // One RNG per sample, offset from the base seed, so the draws differ.
+        // Matches how `GeneratorActor` seeds its K samples and how the
+        // ModelActor fallback seeds its loop.
+        let mut rngs: Vec<StdRng> = (0..n)
+            .map(|i| match cfg.seed {
+                Some(s) => StdRng::seed_from_u64(s.wrapping_add(i as u64)),
+                None => StdRng::from_entropy(),
+            })
+            .collect();
+
+        let t = prompt_ids.len();
+        let mut flat: Vec<u32> = Vec::with_capacity(n * t);
+        for _ in 0..n {
+            flat.extend_from_slice(prompt_ids);
+        }
+        let input = Tensor::from_vec(flat, (n, t), &self.device)?;
+        let mut logits = self.forward_batch(&input, 0)?; // (n, vocab)
+        let mut seqlen_offset = t;
+
+        let mut seqs: Vec<Vec<u32>> = vec![prompt_ids.to_vec(); n];
+        let mut done = vec![false; n];
+        for _ in 0..cfg.max_new_tokens {
+            let mut next = Vec::with_capacity(n);
+            for (i, rng) in rngs.iter_mut().enumerate() {
+                let row = logits.narrow(0, i, 1)?.squeeze(0)?;
+                let tok = sample_logits(&row, cfg, &self.suppress_tokens, rng)?;
+                if !done[i] {
+                    if tok == 151_643 {
+                        done[i] = true;
+                    } else {
+                        seqs[i].push(tok);
+                        if !self.stop_sequences.is_empty() && self.hits_stop(&seqs[i][t..]) {
+                            done[i] = true;
+                        }
+                    }
+                }
+                // A finished sequence still needs a token to feed forward, or
+                // the batch dimension changes and the cache no longer lines up.
+                next.push(*seqs[i].last().unwrap_or(&tok));
+            }
+            if done.iter().all(|d| *d) {
+                break;
+            }
+            let step = Tensor::from_vec(next, (n, 1), &self.device)?;
+            logits = self.forward_batch(&step, seqlen_offset)?;
+            seqlen_offset += 1;
+        }
+        Ok(seqs)
+    }
+
+    /// Batched forward returning last-position logits as `(batch, vocab)`.
+    fn forward_batch(&mut self, input: &Tensor, seqlen_offset: usize) -> anyhow::Result<Tensor> {
+        let logits = self.model_mut()?.forward(input, seqlen_offset)?; // (b, 1, vocab)
+        Ok(logits.squeeze(1)?.to_dtype(DType::F32)?)
     }
 
     fn forward_chunk(&mut self, chunk: &[u32], seqlen_offset: usize) -> anyhow::Result<Tensor> {
