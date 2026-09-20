@@ -132,6 +132,11 @@ struct Args {
     /// *some* sample succeeds.
     #[arg(long, default_value_t = 1)]
     baseline_k: usize,
+    /// Draw K samples per prompt sequentially instead of in one batched
+    /// decode. Only for bisecting a suspected difference — the batched path
+    /// is verified token-identical.
+    #[arg(long)]
+    no_batched_harvest: bool,
     /// Inject a deliberately wrong first call instead of waiting for the
     /// model to produce one, then measure whether turn 2 corrects it.
     ///
@@ -610,6 +615,7 @@ async fn main() -> Result<()> {
                 None,
                 "qwen".to_string(),
             )
+            .with_batched_harvest(!args.no_batched_harvest)
             .with_repair_failures(args.harvest_repair)
             .with_repair_context_pairs(args.harvest_repair_context),
             "generator",

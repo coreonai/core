@@ -102,6 +102,13 @@ where
     /// target; what is learned is "this result does not answer the question,
     /// write a better call". Off by default.
     pub repair_context_pairs: bool,
+    /// Draw the K samples of a prompt in one batched decode.
+    ///
+    /// On by default: `phase23_batch_check` verifies the batched draws are
+    /// token-identical to the sequential ones at K = 4/8/16/32, and harvest
+    /// is where the GPU time goes (2.0-3.2x depending on K). Turn it off to
+    /// bisect a suspected difference, not as a routine setting.
+    pub batched_harvest: bool,
 }
 
 impl<M> GeneratorActor<M>
@@ -112,6 +119,12 @@ where
     /// [`Self::repair_failures`].
     pub fn with_repair_failures(mut self, on: bool) -> Self {
         self.repair_failures = on;
+        self
+    }
+
+    /// Draw K samples in one batched decode. See [`Self::batched_harvest`].
+    pub fn with_batched_harvest(mut self, on: bool) -> Self {
+        self.batched_harvest = on;
         self
     }
 
@@ -183,6 +196,7 @@ where
             per_request_timeout: Duration::from_secs(60),
             repair_failures: false,
             repair_context_pairs: false,
+            batched_harvest: true,
         }
     }
 
@@ -201,9 +215,24 @@ where
             })
             .map_err(|e| anyhow::anyhow!("send GenerateTokens: {e:?}"))?;
         let tokens = timeout(self.per_request_timeout, rx).await???;
-        // Decode just the completion (tokens after the prompt).
-        let comp_ids = if tokens.len() > prompt_ids.len() {
-            &tokens[prompt_ids.len()..]
+        self.trajectory_from_tokens(prompt, prompt_ids.len(), &tokens)
+    }
+
+    /// Tokens -> `Trajectory`, shared by the single and batched paths.
+    ///
+    /// Factored out rather than duplicated: the stop-char cut and the
+    /// domain's `truncate_completion` decide what gets harvested and trained
+    /// on, so a batched path with its own copy would drift from the
+    /// sequential one and the drift would show up as a quiet change in
+    /// harvest quality rather than as a failure.
+    fn trajectory_from_tokens(
+        &self,
+        prompt: String,
+        prompt_len: usize,
+        tokens: &[u32],
+    ) -> anyhow::Result<Trajectory> {
+        let comp_ids = if tokens.len() > prompt_len {
+            &tokens[prompt_len..]
         } else {
             &[][..]
         };
@@ -222,6 +251,36 @@ where
             completion,
             source: self.source.clone(),
         })
+    }
+
+    /// K samples of one prompt in a single batched decode.
+    ///
+    /// `sampling.seed` must already carry the per-prompt offset: the model
+    /// seeds sample `j` as `seed + j`, and the systematic loop's scheme is
+    /// `base + i*10000 + j`, so passing `base + i*10000` reproduces it
+    /// exactly. That is what keeps existing harvests bit-identical —
+    /// `phase23_batch_check` verifies the batched and sequential draws agree
+    /// token for token at K = 4/8/16/32.
+    async fn generate_batch(
+        &self,
+        prompt: String,
+        sampling: GenerateConfig,
+        n: usize,
+    ) -> anyhow::Result<Vec<Trajectory>> {
+        let prompt_ids = self.tokenizer.encode(&prompt)?;
+        let (tx, rx) = oneshot::channel();
+        self.model
+            .tell(ModelMessage::GenerateBatch {
+                prompt_ids: prompt_ids.clone(),
+                n_samples: n,
+                cfg: sampling,
+                reply: tx,
+            })
+            .map_err(|e| anyhow::anyhow!("send GenerateBatch: {e:?}"))?;
+        let seqs = timeout(self.per_request_timeout, rx).await???;
+        seqs.iter()
+            .map(|t| self.trajectory_from_tokens(prompt.clone(), prompt_ids.len(), t))
+            .collect()
     }
 
     /// Phase 6 Shape C: generate `oversample` candidates for the same
@@ -340,6 +399,24 @@ where
                             warn!(index = i, "nth_prompt returned None; skipping");
                             continue;
                         };
+                        // One batched decode per prompt when enabled. The
+                        // seed carries the prompt offset so the K draws are
+                        // the same ones the sequential path produced.
+                        let batched: Option<Vec<Trajectory>> = if self.batched_harvest && k > 1 {
+                            let mut s = sampling.clone();
+                            let base = sampling.seed.unwrap_or(seed);
+                            s.seed = Some(base.wrapping_add((i as u64).wrapping_mul(10_000)));
+                            match self.generate_batch(prompt.clone(), s, k).await {
+                                Ok(v) => Some(v),
+                                Err(e) => {
+                                    warn!(error = %e, prompt_index = i,
+                                          "generate_batch failed; falling back to sequential");
+                                    None
+                                }
+                            }
+                        } else {
+                            None
+                        };
                         for j in 0..k {
                             // Distinct per-(prompt, sample) seed so the K
                             // draws differ. Mirrors Phase 17's
@@ -353,7 +430,13 @@ where
                                 base.wrapping_add((i as u64).wrapping_mul(10_000))
                                     .wrapping_add(j as u64),
                             );
-                            match self.generate_one(prompt.clone(), s.clone()).await {
+                            let drawn = match &batched {
+                                Some(v) => v.get(j).cloned().ok_or_else(|| {
+                                    anyhow::anyhow!("batched decode returned {} of {k}", v.len())
+                                }),
+                                None => self.generate_one(prompt.clone(), s.clone()).await,
+                            };
+                            match drawn {
                                 Ok(t) => {
                                     if self.repair_failures {
                                         // Offset the repair seed so the retry
