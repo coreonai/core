@@ -42,6 +42,19 @@ struct Args {
     seed: u64,
     #[arg(long, default_value = "Q: how many divisors does 720 have?\n")]
     prompt: String,
+    /// Also check the VARIABLE-LENGTH path: several different prompts, left
+    /// padded, in one batch. That is the harder case — padding means a mask,
+    /// and a mask that drops causality produces fluent wrong text rather than
+    /// an error.
+    #[arg(long)]
+    varlen: bool,
+    /// Same as --varlen but with prompts chosen to tokenize to EQUAL length,
+    /// so nothing is padded. Separates two candidate causes of a late
+    /// divergence: the pad mask, or the rotary position shift that left
+    /// padding imposes. If this is exact and --varlen is not, the shift is
+    /// the cause and padded batching cannot be bit-identical by construction.
+    #[arg(long)]
+    varlen_equal: bool,
 }
 
 fn pick_device() -> Device {
@@ -165,6 +178,97 @@ async fn main() -> Result<()> {
              implementation, not an optimisation",
             args.k
         );
+    }
+    if args.varlen || args.varlen_equal {
+        // Deliberately different lengths, and deliberately different content:
+        // equal-length prompts would pass even if the pad mask were ignored.
+        let prompts: [&str; 4] = if args.varlen_equal {
+            // Same shape, same digit count -> same token count, no padding.
+            [
+                "Q: how many divisors does 720 have?\n",
+                "Q: how many divisors does 360 have?\n",
+                "Q: how many divisors does 480 have?\n",
+                "Q: how many divisors does 840 have?\n",
+            ]
+        } else {
+            [
+                "Q: how many divisors does 720 have?\n",
+                "Q: what is the sum of all primes below 200?\n",
+                "Q: how many numbers from 1 to 45 are coprime to 45?\n",
+                "Q: how many trailing zeros does 100! have?\n",
+            ]
+        };
+        let ids: Vec<Vec<u32>> = prompts
+            .iter()
+            .map(|p| tk.encode(p))
+            .collect::<Result<_, _>>()?;
+        let lens: Vec<usize> = ids.iter().map(|v| v.len()).collect();
+        let seeds: Vec<u64> = (0..prompts.len())
+            .map(|i| args.seed.wrapping_add(i as u64))
+            .collect();
+
+        let t2 = Instant::now();
+        let mut seq2 = Vec::new();
+        for (p, sd) in ids.iter().zip(seeds.iter()) {
+            let mut c = cfg.clone();
+            c.seed = Some(*sd);
+            let (tx, rx) = oneshot::channel();
+            model_ref
+                .tell(ModelMessage::GenerateTokens {
+                    prompt_ids: p.clone(),
+                    cfg: c,
+                    reply: tx,
+                })
+                .map_err(|e| anyhow!("{e:?}"))?;
+            seq2.push(tokio::time::timeout(std::time::Duration::from_secs(300), rx).await???);
+        }
+        let seq2_ms = t2.elapsed().as_millis();
+
+        let t3 = Instant::now();
+        let (tx, rx) = oneshot::channel();
+        model_ref
+            .tell(ModelMessage::GenerateBatchPrompts {
+                prompts: ids.clone(),
+                seeds: seeds.clone(),
+                cfg: cfg.clone(),
+                reply: tx,
+            })
+            .map_err(|e| anyhow!("{e:?}"))?;
+        let bat2 = tokio::time::timeout(std::time::Duration::from_secs(600), rx).await???;
+        let bat2_ms = t3.elapsed().as_millis();
+
+        println!("\n[BatchCheck] === variable length ===");
+        println!("  prompt lengths {lens:?}");
+        let mut bad = 0usize;
+        for i in 0..ids.len() {
+            let a = &seq2[i];
+            let b = bat2.get(i).map(|v| v.as_slice()).unwrap_or(&[]);
+            if a.as_slice() != b {
+                bad += 1;
+                println!(
+                    "  prompt {i}: DIFFERS  seq_len={} batch_len={}",
+                    a.len(),
+                    b.len()
+                );
+                println!("    seq   {:?}", tk.decode(&a[ids[i].len()..])?);
+                println!(
+                    "    batch {:?}",
+                    tk.decode(&b[ids[i].len().min(b.len())..])?
+                );
+            }
+        }
+        println!("  identical prompts   {}/{}", ids.len() - bad, ids.len());
+        println!("  sequential  {seq2_ms:>6} ms");
+        println!("  batched     {bat2_ms:>6} ms");
+        if bat2_ms > 0 {
+            println!("  speedup     {:.2}x", seq2_ms as f64 / bat2_ms as f64);
+        }
+        if bad > 0 {
+            anyhow::bail!(
+                "variable-length batch disagrees on {bad}/{} prompts",
+                ids.len()
+            );
+        }
     }
     println!("\nphase23_batch_check: PASS");
     Ok(())

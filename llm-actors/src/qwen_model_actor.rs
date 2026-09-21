@@ -232,6 +232,15 @@ impl Actor for QwenModelActor {
                     let result = self.generate_batch(&prompt_ids, n_samples.max(1), &cfg);
                     log_send(reply, result, "qwen_generate_batch");
                 }
+                ModelMessage::GenerateBatchPrompts {
+                    prompts,
+                    seeds,
+                    cfg,
+                    reply,
+                } => {
+                    let result = self.generate_batch_prompts(&prompts, &seeds, &cfg);
+                    log_send(reply, result, "qwen_generate_batch_prompts");
+                }
                 ModelMessage::ScoreLogProb {
                     prompt_ids,
                     completion_ids,
@@ -529,6 +538,136 @@ impl QwenModelActor {
             }
             let step = Tensor::from_vec(next, (n, 1), &self.device)?;
             logits = self.forward_batch(&step, seqlen_offset)?;
+            seqlen_offset += 1;
+        }
+        Ok(seqs)
+    }
+
+    /// Decode one completion for each of `prompts`, which may differ in
+    /// length, in a single batched pass.
+    ///
+    /// Left-padded to the longest prompt. Left rather than right because RoPE
+    /// encodes *relative* position: shifting a whole sequence by its pad count
+    /// leaves every real-token distance unchanged, and all sequences then
+    /// share one `seqlen_offset` at every step. Right padding would put the
+    /// generated tokens at different offsets per row, which the shared KV
+    /// cache cannot express.
+    ///
+    /// Pad columns are masked to `-inf` at every step, so no real token ever
+    /// attends to one. The prefill mask is causal AND padding together —
+    /// supplying only the padding part would silently drop causality, since
+    /// the model's own `prepare_attention_mask` expands a keep/drop mask and
+    /// never ANDs the causal term in.
+    ///
+    /// This is what batching the repair turns needs: each failed sample has
+    /// its own repair prompt, containing its own failed call, so the prompts
+    /// genuinely differ.
+    fn generate_batch_prompts(
+        &mut self,
+        prompts: &[Vec<u32>],
+        seeds: &[u64],
+        cfg: &GenerateConfig,
+    ) -> anyhow::Result<Vec<Vec<u32>>> {
+        let n = prompts.len();
+        if n == 0 {
+            return Ok(Vec::new());
+        }
+        if prompts.iter().any(|p| p.is_empty()) {
+            anyhow::bail!("generate_batch_prompts: empty prompt");
+        }
+        self.model_mut()?.clear_kv_cache();
+        let mut rngs: Vec<StdRng> = (0..n)
+            .map(|i| match seeds.get(i) {
+                Some(s) => StdRng::seed_from_u64(*s),
+                None => StdRng::from_entropy(),
+            })
+            .collect();
+
+        let max_len = prompts.iter().map(|p| p.len()).max().unwrap_or(0);
+        let pads: Vec<usize> = prompts.iter().map(|p| max_len - p.len()).collect();
+        // Pad id is never attended to; EOS is used so a bug that leaks it into
+        // the output is visible rather than looking like ordinary text.
+        const PAD: u32 = 151_643;
+        let mut flat = Vec::with_capacity(n * max_len);
+        for (p, &pad) in prompts.iter().zip(pads.iter()) {
+            flat.extend(std::iter::repeat(PAD).take(pad));
+            flat.extend_from_slice(p);
+        }
+        let input = Tensor::from_vec(flat, (n, max_len), &self.device)?;
+
+        // Prefill mask: (n, 1, T, T), -inf where j > i (causal) or column j is
+        // a pad for that row.
+        let mut m = vec![0f32; n * max_len * max_len];
+        for (b, &pad) in pads.iter().enumerate() {
+            for i in 0..max_len {
+                for j in 0..max_len {
+                    // Causal always. The pad columns are blocked only for
+                    // REAL rows: masking a pad row's entire line leaves a
+                    // softmax over all -inf, which is NaN, and a real query
+                    // then multiplies that NaN value by a zero weight — 0 *
+                    // NaN is NaN, so one padded row poisons the whole batch.
+                    // The first version did exactly that and produced empty
+                    // output for every padded sequence while the one
+                    // unpadded sequence was correct.
+                    //
+                    // Pad rows are free to attend to earlier pads; their
+                    // outputs are never read, and as keys they are masked out
+                    // of every real query.
+                    let blocked = j > i || (i >= pad && j < pad);
+                    if blocked {
+                        m[(b * max_len + i) * max_len + j] = f32::NEG_INFINITY;
+                    }
+                }
+            }
+        }
+        let mask = Tensor::from_vec(m, (n, 1, max_len, max_len), &self.device)?;
+        let mut logits = {
+            let l = self
+                .model_mut()?
+                .forward_with_mask(&input, 0, Some(&mask))?;
+            l.squeeze(1)?.to_dtype(DType::F32)?
+        };
+        let mut seqlen_offset = max_len;
+
+        let mut seqs: Vec<Vec<u32>> = prompts.to_vec();
+        let mut done = vec![false; n];
+        for _ in 0..cfg.max_new_tokens {
+            let mut next = Vec::with_capacity(n);
+            for (i, rng) in rngs.iter_mut().enumerate() {
+                let row = logits.narrow(0, i, 1)?.squeeze(0)?;
+                let tok = sample_logits(&row, cfg, &self.suppress_tokens, rng)?;
+                if !done[i] {
+                    if tok == PAD {
+                        done[i] = true;
+                    } else {
+                        seqs[i].push(tok);
+                        if !self.stop_sequences.is_empty()
+                            && self.hits_stop(&seqs[i][prompts[i].len()..])
+                        {
+                            done[i] = true;
+                        }
+                    }
+                }
+                next.push(*seqs[i].last().unwrap_or(&tok));
+            }
+            if done.iter().all(|d| *d) {
+                break;
+            }
+            // Decode mask: (n, 1, 1, kv_len), blocking only the pads.
+            let kv = seqlen_offset + 1;
+            let mut dm = vec![0f32; n * kv];
+            for (b, &pad) in pads.iter().enumerate() {
+                for j in 0..pad {
+                    dm[b * kv + j] = f32::NEG_INFINITY;
+                }
+            }
+            let dmask = Tensor::from_vec(dm, (n, 1, 1, kv), &self.device)?;
+            let step = Tensor::from_vec(next, (n, 1), &self.device)?;
+            logits = self
+                .model_mut()?
+                .forward_with_mask(&step, seqlen_offset, Some(&dmask))?
+                .squeeze(1)?
+                .to_dtype(DType::F32)?;
             seqlen_offset += 1;
         }
         Ok(seqs)

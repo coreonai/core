@@ -64,6 +64,22 @@ pub enum ModelMessage {
         cfg: GenerateConfig,
         reply: oneshot::Sender<anyhow::Result<Vec<Vec<u32>>>>,
     },
+    /// Phase 23 — one completion for each of several DIFFERENT prompts, in a
+    /// single batched pass.
+    ///
+    /// `GenerateBatch` handles K samples of one prompt, where equal lengths
+    /// make padding unnecessary. This is the variable-length case: the repair
+    /// turns each carry their own failed call, so the prompts differ in
+    /// content and length. Left-padded with a causal+padding mask.
+    ///
+    /// `seeds[i]` seeds prompt `i`, so the caller keeps whatever scheme it
+    /// already uses rather than inheriting one from the batch position.
+    GenerateBatchPrompts {
+        prompts: Vec<Vec<u32>>,
+        seeds: Vec<u64>,
+        cfg: GenerateConfig,
+        reply: oneshot::Sender<anyhow::Result<Vec<Vec<u32>>>>,
+    },
     ScoreLogProb {
         prompt_ids: Vec<u32>,
         completion_ids: Vec<u32>,
@@ -167,6 +183,29 @@ impl Actor for ModelActor {
                         }
                     }
                     log_send(reply, err.map_or(Ok(out), Err), "generate_batch");
+                }
+                ModelMessage::GenerateBatchPrompts {
+                    prompts,
+                    seeds,
+                    cfg,
+                    reply,
+                } => {
+                    // Sequential fallback, same per-prompt seeding, so generic
+                    // callers get identical draws on either backend.
+                    let mut out = Vec::with_capacity(prompts.len());
+                    let mut err = None;
+                    for (i, p) in prompts.iter().enumerate() {
+                        let mut c = cfg.clone();
+                        c.seed = seeds.get(i).copied().or(cfg.seed);
+                        match generate(&self.model, p, &c, &self.device) {
+                            Ok(t) => out.push(t),
+                            Err(e) => {
+                                err = Some(anyhow::Error::from(e));
+                                break;
+                            }
+                        }
+                    }
+                    log_send(reply, err.map_or(Ok(out), Err), "generate_batch_prompts");
                 }
                 ModelMessage::ReloadCheckpoint { path, reply } => {
                     let result = self.handle_reload(&path);

@@ -240,10 +240,95 @@ RL-vs-SFT.
   tokens, and serving runs BF16 at half the memory. The input-length gate
   discussed above is no longer needed.
 
+## Batching: two shapes, one of which cannot be exact
+
+General cross-request batching needs padding masks, continuous batching and a
+scheduler. It was not the place to start, because the GPU time does not go to
+serving — it goes to harvest, 3920 generations per self-improve round. Harvest
+has a shape that makes batching easy, and the repair turns have one that makes
+it hard.
+
+### Same prompt, K samples — exact
+
+Harvest and pass@k both draw K samples from one prompt, so every sequence has
+identical length: no padding, no mask beyond the causal one. Agreement was
+checked before speed, and exactly: each sample `i` is seeded `seed + i` in both
+paths, so batch sample `i` must equal the `i`-th sequential draw token for
+token. `phase23_batch_check` fails on a single mismatch.
+
+| K | sequential | batched | speedup | identical |
+|---|---|---|---|---|
+| 4 | 6386 ms | 3147 ms | 2.03× | 4/4 |
+| 8 | 12617 ms | 5363 ms | 2.35× | 8/8 |
+| 16 | 24847 ms | 8618 ms | 2.88× | 16/16 |
+| 32 | 48658 ms | 15312 ms | 3.18× | 32/32 |
+
+End to end on a self-improve round (490 prompts × K=8, two rounds): 7.07 h →
+4.35 h, **1.62×**. Less than the microbenchmark because the repair turns were
+still sequential — 94 of round 0's 138 minutes.
+
+### Different prompts — padding works, and is not bit-identical
+
+The repair turns each carry their own failed call, so their prompts differ in
+content *and length*. Batching them needs left padding plus a mask.
+
+That was built and it runs, but it cannot be exact, and the reason is not a
+bug:
+
+| | identical |
+|---|---|
+| 4 prompts, different lengths (padded) | 3/4 — one diverged at token ~70 |
+| 4 prompts, different content, **equal** lengths (unpadded) | 4/4 |
+
+Left padding puts a sequence's real tokens at positions `p..max_len` instead of
+`0..len`. RoPE is relative, so that shift is a no-op in exact arithmetic — but
+not in floating point, where cos/sin at different absolute positions round
+differently. The error is tiny and compounds until a near-tie flips. Right
+padding is worse: generated tokens would sit at different offsets per row,
+which one shared KV cache cannot express.
+
+One real bug surfaced on the way, worth recording because its symptom pointed
+elsewhere. Masking a pad **row** entirely leaves a softmax over all `-inf`,
+which is NaN; a real query then multiplies that NaN value by a zero weight, and
+`0 * NaN` is NaN. Every padded sequence returned empty output while the single
+unpadded one was correct. Pad rows must be allowed to attend to earlier pads —
+their outputs are never read, and as keys they are masked out of every real
+query anyway.
+
+### Length grouping: exact, and 2.06×
+
+Since equal lengths are exact and padding is not, the repairs are grouped by
+exact token length and each group is batched. The distribution makes this work
+— measured over 256 repairs on families 3 and 5:
+
+```
+lengths 37..70, 14 distinct
+top three lengths cover 236/256
+92% of repairs sit in a group of 8 or more
+```
+
+The failed calls are near-identical templates, so their lengths collapse onto a
+few values.
+
+A/B on one round, 32 prompts × K=8:
+
+| | time | repaired | accepted | harvest |
+|---|---|---|---|---|
+| grouped | **619 s** | 3 | 2 | 3/256 |
+| sequential | 1273 s | 3 | 2 | 3/256 |
+
+**2.06×, every counter identical.**
+
+One limit to state plainly: repairs are grouped *within a prompt*, so a group
+is at most K. The 18× implied by the length distribution is what grouping
+across the whole run would give; reaching it needs the harvest loop
+restructured into two phases (draw everything, then repair everything), which
+is a larger change and has not been done.
+
 ## Still open
 
-- **No batching.** Concurrent requests serialise; `GenerateTokens` takes one
-  prompt.
+- **No general request batching.** Concurrent requests still serialise, and
+  making them batch is the padding problem above — workable, but not exact.
 - **The agentic loop re-prefills.** Each step regenerates against the whole
   running buffer. Cheap at 150 tokens, not at 1000.
 - **Load time.** Minutes per replica, no warm pool.

@@ -371,6 +371,11 @@ impl Model {
     ) -> Result<Tensor> {
         let (b_size, seq_len) = input_ids.dims2()?;
         let attention_mask: Option<Tensor> = match attn_mask {
+            // Already additive and already the right rank: the caller built
+            // causal+padding together. Re-deriving it here would drop
+            // causality, which is what `prepare_attention_mask` does — it
+            // expands a 2-D keep/drop mask and never ANDs in the causal part.
+            Some(mask) if mask.rank() == 4 => Some(mask.to_dtype(self.dtype)?),
             Some(mask) => Some(self.prepare_attention_mask(mask)?),
             None => {
                 if seq_len <= 1 {
@@ -415,9 +420,29 @@ impl ModelForCausalLM {
     }
 
     pub fn forward(&mut self, input_ids: &Tensor, seqlen_offset: usize) -> Result<Tensor> {
+        self.forward_with_mask(input_ids, seqlen_offset, None)
+    }
+
+    /// Forward with an explicit additive attention mask.
+    ///
+    /// Needed for variable-length batching: the caller left-pads to a common
+    /// length and supplies a mask that is `-inf` on the pad columns. Upstream
+    /// only exposes the `None` path, which is why the repair turns could not
+    /// be batched — their prompts differ in length.
+    ///
+    /// Shape must broadcast against `(batch, heads, q_len, kv_len)`, so
+    /// `(batch, 1, q_len, kv_len)`. During prefill that is the causal mask
+    /// combined with the pad mask; during decode, `q_len` is 1 and only the
+    /// pad columns need blocking.
+    pub fn forward_with_mask(
+        &mut self,
+        input_ids: &Tensor,
+        seqlen_offset: usize,
+        mask: Option<&Tensor>,
+    ) -> Result<Tensor> {
         let (_b_size, seq_len) = input_ids.dims2()?;
         self.base_model
-            .forward(input_ids, seqlen_offset, None)?
+            .forward(input_ids, seqlen_offset, mask)?
             .narrow(1, seq_len - 1, 1)?
             .apply(&self.lm_head)
     }
