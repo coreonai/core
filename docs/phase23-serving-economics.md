@@ -346,6 +346,53 @@ Two things this needed:
   trajectories in, so reordering would change which duplicate survives and
   therefore the harvest itself.
 
+### On a full self-improve round
+
+Same configuration all three times — 490 prompts × K=8, two rounds,
+`--harvest-repair`:
+
+| | round 0 generation | whole run | r0 harvest | r0 accepted |
+|---|---|---|---|---|
+| sequential | 220.9 min | 7.07 h | 1979 | 376 |
+| same-prompt batching | 138.0 min | 4.35 h | 1979 | 376 |
+| **two-phase** | **89.0 min** | **3.04 h** | **1979** | **376** |
+
+**2.48× on generation, 2.33× end to end**, and the harvest reproduces for the
+third time — which is the number that matters, since it is what training
+consumes.
+
+Grouping at this scale:
+
+```
+round 0   repair_candidates 1949   distinct_lengths 52   repair_batches 88
+round 1   repair_candidates 1127   distinct_lengths 34   repair_batches 56
+```
+
+1949 sequential generations became 88 batched calls.
+
+**A correction to the earlier distribution claim.** "Top three lengths cover
+236/256" was measured on families 3 and 5 alone. Across all ten the lengths
+spread much further — 13 distinct became 52 — because each family has its own
+code template. The grouping still pays (1949 → 88), but the tight concentration
+was a property of that two-family sample, not of the domain.
+
+### What cannot be compared across these runs
+
+`pass@1` cannot. The three runs read 0.542 / 0.542 / **0.531** at eval-*before*
+— the same checkpoint, the same configuration, before any training. Evaluation
+samples at temperature 0.8, and the batching changes the order in which the
+model actor consumes its RNG, so the eval draws differ even when every
+harvested trajectory is identical.
+
+One problem of difference at round 0 then compounds: the three runs finish at
+0.927 / 0.865 / 0.833. It would be easy to read that as batching degrading
+quality. It is not evidence of that, and it is not evidence against it either —
+each configuration was run once, and the divergence starts before training does.
+
+So on this axis, **compare harvest counts, not pass rates**. The harvest is
+bit-identical and is what the training consumes; the eval number carries the
+sampling noise of the harness.
+
 ## Still open
 
 - **No general request batching.** Concurrent requests still serialise, and
