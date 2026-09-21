@@ -110,6 +110,11 @@ where
     /// is where the GPU time goes (2.0-3.2x depending on K). Turn it off to
     /// bisect a suspected difference, not as a routine setting.
     pub batched_harvest: bool,
+    /// Largest grouped-repair batch. A run-wide length group can hold
+    /// hundreds; batching all of them at once is an OOM, not a speedup.
+    /// 32 is the largest size measured (3.18x), and the curve is flat past it
+    /// because decode is bandwidth-bound on the weights.
+    pub max_repair_batch: usize,
 }
 
 impl<M> GeneratorActor<M>
@@ -232,6 +237,7 @@ where
             repair_failures: false,
             repair_context_pairs: false,
             batched_harvest: true,
+            max_repair_batch: 32,
         }
     }
 
@@ -429,14 +435,29 @@ where
                     let mut errs = 0usize;
                     let mut repaired = 0usize;
                     let mut context_pairs = 0usize;
+                    // Two phases: draw everything, then repair everything.
+                    //
+                    // Grouping repairs within a prompt caps a group at K. The
+                    // length distribution says the ceiling is far higher —
+                    // 256 repairs fell into 14 distinct lengths with the top
+                    // three covering 236 — but only if repairs from different
+                    // prompts can share a batch. They can: a repair depends
+                    // on its own draw and nothing else.
+                    struct Draw {
+                        prompt: String,
+                        seed: u64,
+                        traj: Option<Trajectory>,
+                    }
+                    let mut all: Vec<Draw> = Vec::with_capacity(n_prompts * k);
+
                     for i in 0..n_prompts {
                         let Some(prompt) = self.domain.nth_prompt(i) else {
                             warn!(index = i, "nth_prompt returned None; skipping");
                             continue;
                         };
-                        // One batched decode per prompt when enabled. The
-                        // seed carries the prompt offset so the K draws are
-                        // the same ones the sequential path produced.
+                        // One batched decode per prompt. The seed carries the
+                        // prompt offset so the K draws are the ones the
+                        // sequential path produced.
                         let batched: Option<Vec<Trajectory>> = if self.batched_harvest && k > 1 {
                             let mut s = sampling.clone();
                             let base = sampling.seed.unwrap_or(seed);
@@ -452,75 +473,82 @@ where
                         } else {
                             None
                         };
-                        // Draw all K first, then repair the failures in
-                        // length-grouped batches. Repairing inside the draw
-                        // loop forces one sequential generation per failure,
-                        // and that is where the time goes once the first turn
-                        // is batched.
-                        let mut draws: Vec<Option<Trajectory>> = Vec::with_capacity(k);
-                        let mut seeds_j: Vec<u64> = Vec::with_capacity(k);
                         for j in 0..k {
-                            // Distinct per-(prompt, sample) seed so the K
-                            // draws differ. Mirrors Phase 17's
-                            // `seed_base + ci*10000 + j`.
+                            // Distinct per-(prompt, sample) seed. Mirrors
+                            // Phase 17's `seed_base + ci*10000 + j`.
                             let mut s = sampling.clone();
                             let base = sampling.seed.unwrap_or(seed);
                             let sd = base
                                 .wrapping_add((i as u64).wrapping_mul(10_000))
                                 .wrapping_add(j as u64);
                             s.seed = Some(sd);
-                            seeds_j.push(sd);
                             let drawn = match &batched {
                                 Some(v) => v.get(j).cloned().ok_or_else(|| {
                                     anyhow::anyhow!("batched decode returned {} of {k}", v.len())
                                 }),
                                 None => self.generate_one(prompt.clone(), s).await,
                             };
-                            match drawn {
-                                Ok(t) => draws.push(Some(t)),
+                            let traj = match drawn {
+                                Ok(t) => Some(t),
                                 Err(e) => {
                                     warn!(error = %e, prompt_index = i, sample = j,
                                           "generate_one (systematic) failed");
                                     errs += 1;
-                                    draws.push(None);
+                                    None
                                 }
-                            }
+                            };
+                            all.push(Draw {
+                                prompt: prompt.clone(),
+                                seed: sd,
+                                traj,
+                            });
                         }
+                    }
 
-                        // Group the repair prompts by EXACT token length.
-                        // Equal lengths mean no padding, and no padding is
-                        // what keeps a batched draw bit-identical to the
-                        // sequential one. Measured on this domain: 92% of
-                        // repairs fall in groups of 8 or more, because the
-                        // failed calls are near-identical templates.
-                        let mut fixes: HashMap<usize, (Trajectory, Option<Trajectory>)> =
+                    // Repairs for every failed draw in the run, grouped by
+                    // EXACT token length so the model's padding path is never
+                    // taken — padding shifts rotary positions, and floating
+                    // point does not treat that as a no-op.
+                    let mut fixes: HashMap<usize, (Trajectory, Option<Trajectory>)> =
+                        HashMap::new();
+                    if self.repair_failures {
+                        let mut groups: HashMap<usize, Vec<(usize, Vec<u32>, String, u64)>> =
                             HashMap::new();
-                        if self.repair_failures {
-                            let mut groups: HashMap<usize, Vec<(usize, Vec<u32>, String, u64)>> =
-                                HashMap::new();
-                            for (j, d) in draws.iter().enumerate() {
-                                let Some(t) = d else { continue };
-                                let Some(np) = self.repair_request(&prompt, t) else {
-                                    continue;
-                                };
-                                let Ok(ids) = self.tokenizer.encode(&np) else {
-                                    continue;
-                                };
-                                // Offset so the retry is not a re-draw of the
-                                // attempt that just failed.
-                                let rs = seeds_j[j].wrapping_add(0x5eed);
-                                groups.entry(ids.len()).or_default().push((j, ids, np, rs));
-                            }
-                            let mut lens: Vec<usize> = groups.keys().copied().collect();
-                            lens.sort_unstable();
-                            for len in lens {
-                                let g = groups.get(&len).expect("key from keys()").clone();
-                                let outs = if g.len() > 1 && self.batched_harvest {
+                        for (idx, d) in all.iter().enumerate() {
+                            let Some(t) = &d.traj else { continue };
+                            let Some(np) = self.repair_request(&d.prompt, t) else {
+                                continue;
+                            };
+                            let Ok(ids) = self.tokenizer.encode(&np) else {
+                                continue;
+                            };
+                            // Offset so the retry is not a re-draw of the
+                            // attempt that just failed.
+                            let rs = d.seed.wrapping_add(0x5eed);
+                            groups
+                                .entry(ids.len())
+                                .or_default()
+                                .push((idx, ids, np, rs));
+                        }
+                        let mut lens: Vec<usize> = groups.keys().copied().collect();
+                        lens.sort_unstable();
+                        let mut repair_batches = 0usize;
+                        for len in lens {
+                            let g = groups.get(&len).expect("key from keys()").clone();
+                            // Chunked: a run-wide group can hold hundreds, and
+                            // one batch of that size is an OOM rather than a
+                            // speedup. The cap is the largest size measured
+                            // (3.18x at 32); beyond it the curve is flat
+                            // anyway because decode is bandwidth-bound.
+                            for chunk in g.chunks(self.max_repair_batch.max(1)) {
+                                let outs = if chunk.len() > 1 && self.batched_harvest {
                                     let ids: Vec<Vec<u32>> =
-                                        g.iter().map(|(_, i, _, _)| i.clone()).collect();
-                                    let sd: Vec<u64> = g.iter().map(|(_, _, _, s)| *s).collect();
+                                        chunk.iter().map(|(_, i, _, _)| i.clone()).collect();
+                                    let sd: Vec<u64> =
+                                        chunk.iter().map(|(_, _, _, s)| *s).collect();
                                     let mut rs = sampling.clone();
                                     rs.seed = sd.first().copied();
+                                    repair_batches += 1;
                                     match self.generate_batch_prompts(&ids, &sd, rs).await {
                                         Ok(v) => Some(v),
                                         Err(e) => {
@@ -532,7 +560,7 @@ where
                                 } else {
                                     None
                                 };
-                                for (gi, (j, ids, np, sd)) in g.iter().enumerate() {
+                                for (gi, (idx, ids, np, sd)) in chunk.iter().enumerate() {
                                     let rep = match outs.as_ref().and_then(|v| v.get(gi)) {
                                         Some(toks) => self
                                             .trajectory_from_tokens(np.clone(), ids.len(), toks)
@@ -544,30 +572,38 @@ where
                                         }
                                     };
                                     let Some(rep) = rep else { continue };
-                                    let first = draws[*j].as_ref().expect("checked above");
-                                    if let Some(pair) = self.repair_accept(&prompt, np, &rep, first)
+                                    let d = &all[*idx];
+                                    let first = d.traj.as_ref().expect("checked above");
+                                    if let Some(pair) =
+                                        self.repair_accept(&d.prompt, np, &rep, first)
                                     {
-                                        fixes.insert(*j, pair);
+                                        fixes.insert(*idx, pair);
                                     }
                                 }
                             }
                         }
+                        info!(
+                            repair_candidates = groups.values().map(|v| v.len()).sum::<usize>(),
+                            distinct_lengths = groups.len(),
+                            repair_batches,
+                            "grouped repairs across the run"
+                        );
+                    }
 
-                        // Emit in sample order, so the curator sees the same
-                        // sequence it did before grouping was introduced.
-                        for (j, d) in draws.into_iter().enumerate() {
-                            let Some(t) = d else { continue };
-                            if let Some((fixed, ctx)) = fixes.remove(&j) {
-                                repaired += 1;
-                                out.push(fixed);
-                                if let Some(c) = ctx {
-                                    context_pairs += 1;
-                                    out.push(c);
-                                }
-                                continue;
+                    // Emit in draw order, so the curator sees the sequence it
+                    // saw before any of this existed — its dedup depends on it.
+                    for (idx, d) in all.into_iter().enumerate() {
+                        let Some(t) = d.traj else { continue };
+                        if let Some((fixed, ctx)) = fixes.remove(&idx) {
+                            repaired += 1;
+                            out.push(fixed);
+                            if let Some(c) = ctx {
+                                context_pairs += 1;
+                                out.push(c);
                             }
-                            out.push(t);
+                            continue;
                         }
+                        out.push(t);
                     }
                     info!(
                         generated = out.len(),

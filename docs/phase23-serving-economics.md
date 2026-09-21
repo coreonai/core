@@ -319,11 +319,32 @@ A/B on one round, 32 prompts × K=8:
 
 **2.06×, every counter identical.**
 
-One limit to state plainly: repairs are grouped *within a prompt*, so a group
-is at most K. The 18× implied by the length distribution is what grouping
-across the whole run would give; reaching it needs the harvest loop
-restructured into two phases (draw everything, then repair everything), which
-is a larger change and has not been done.
+### Two phases: draw everything, then repair everything
+
+Grouping within a prompt caps a group at K, which wastes most of what the
+length distribution offers — 236 of 256 repairs share three lengths, but split
+across 32 prompts those become a handful each. A repair depends only on its own
+draw, so they can be collected across the whole run.
+
+| | time | repair batches | repaired | accepted | harvest |
+|---|---|---|---|---|---|
+| sequential | 1273 s | — | 3 | 2 | 3/256 |
+| grouped within a prompt | 619 s | — | 3 | 2 | 3/256 |
+| **two-phase, run-wide** | **531 s** | **11** | 3 | 2 | 3/256 |
+
+**2.40×**, every counter identical. The diagnostic line is the evidence:
+`repair_candidates=256 distinct_lengths=13 repair_batches=11` — 256 sequential
+generations became 11 batched calls.
+
+Two things this needed:
+
+- **A batch cap.** A run-wide length group can hold hundreds; batching all of
+  them at once is an OOM rather than a speedup. `max_repair_batch` defaults to
+  32, the largest size measured (3.18×), and the curve is flat past it because
+  decode is bandwidth-bound on the weights.
+- **Emission in draw order.** The curator's dedup depends on the order it sees
+  trajectories in, so reordering would change which duplicate survives and
+  therefore the harvest itself.
 
 ## Still open
 
