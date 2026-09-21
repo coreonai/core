@@ -379,19 +379,38 @@ was a property of that two-family sample, not of the domain.
 ### What cannot be compared across these runs
 
 `pass@1` cannot. The three runs read 0.542 / 0.542 / **0.531** at eval-*before*
-— the same checkpoint, the same configuration, before any training. Evaluation
-samples at temperature 0.8, and the batching changes the order in which the
-model actor consumes its RNG, so the eval draws differ even when every
-harvested trajectory is identical.
+— the same checkpoint, the same configuration, before any training.
 
-One problem of difference at round 0 then compounds: the three runs finish at
-0.927 / 0.865 / 0.833. It would be easy to read that as batching degrading
-quality. It is not evidence of that, and it is not evidence against it either —
-each configuration was run once, and the divergence starts before training does.
+**The evaluation is nondeterministic, and batching is not why.** Run twice with
+the same binary, checkpoint and seed, it gives 51/96 and then 52/96. The three
+figures above are three draws from that, not an effect of anything that
+differed between the runs.
+
+What has been ruled out:
+
+- **The sampler.** `EvaluatorActor` seeds every draw as
+  `(seed + prompt_idx) * passk + k`, and picks prompts from an RNG seeded by
+  `seed`. Nothing there depends on how generation was batched.
+- **The verifier.** No timeouts and no sandbox spawn failures in any of the
+  three runs, so no snippet flipped verdict under load.
+- **The rotary fix.** This binary runs inference in F32, where the position
+  indices were always exact — which is why the pre-fix and post-fix runs both
+  read 52/96.
+
+An earlier version of this section claimed batching changed the order the model
+actor consumes its RNG. That was wrong: the variation reproduces with batching
+held constant. What remains is nondeterminism below the actor — CUDA kernels
+that reduce with atomics or pick a split-k give slightly different logits for
+the same input, and a near-tie then flips one problem in 96.
+
+One problem of difference at round 0 compounds: the runs finish at 0.927 /
+0.865 / 0.833. That is not evidence batching degrades quality, and not evidence
+against it — each configuration ran once, and the divergence starts before
+training does.
 
 So on this axis, **compare harvest counts, not pass rates**. The harvest is
-bit-identical and is what the training consumes; the eval number carries the
-sampling noise of the harness.
+bit-identical and is what the training consumes; the eval number carries
+nondeterminism that does not come from the harness's seeding.
 
 ## Still open
 
