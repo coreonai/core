@@ -229,6 +229,27 @@ where
                 }
                 let completion = self.domain.truncate_completion(&completion);
                 let v = self.domain.verify(&prompt, &completion);
+                // Per-problem trace, gated on an env var. Two processes
+                // running the same eval have disagreed by one problem in 96
+                // while generation was byte-identical across processes and
+                // the verifier's interpreter was pinned; guessing at the
+                // cause has been wrong twice, so this makes the two runs
+                // directly diffable.
+                if std::env::var_os("EVAL_TRACE").is_some() {
+                    let d = completion.bytes().fold(1469598103934665603u64, |h, b| {
+                        (h ^ b as u64).wrapping_mul(1099511628211)
+                    });
+                    info!(
+                        eval_trace = true,
+                        idx = prompt_idx,
+                        k,
+                        correct = v.is_correct(),
+                        completion_digest = format!("{d:016x}"),
+                        completion = completion.replace('\n', "\\n"),
+                        verdict = format!("{v:?}"),
+                        "eval item"
+                    );
+                }
                 if v.is_correct() {
                     any_pass = true;
                 }

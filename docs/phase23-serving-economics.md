@@ -378,50 +378,61 @@ was a property of that two-family sample, not of the domain.
 
 ### What cannot be compared across these runs
 
-`pass@1` cannot. The three runs read 0.542 / 0.542 / **0.531** at eval-*before*
-— the same checkpoint, the same configuration, before any training.
+`pass@1` could not, until the cause was found. The three runs read 0.542 /
+0.542 / **0.531** at eval-*before* — same checkpoint, same configuration,
+before any training.
 
-**The evaluation is nondeterministic, and batching is not why.** Run twice with
-the same binary, checkpoint and seed, it gives 51/96 and then 52/96. The three
-figures above are three draws from that, not an effect of anything that
-differed between the runs.
+**The cause was Python hash randomisation in the verifier.** The interpreter
+randomises string hashing per process, so a snippet that iterates a set or dict
+of strings returns a different answer each run — no error, just a different
+number:
 
-What has been ruled out:
+```
+list(set(['a','b','c','d','e']))[0]   ->  a / e / b   on three runs
+```
 
-- **The sampler.** `EvaluatorActor` seeds every draw as
-  `(seed + prompt_idx) * passk + k`, and picks prompts from an RNG seeded by
-  `seed`. Nothing there depends on how generation was batched.
-- **The verifier.** No timeouts and no sandbox spawn failures in any of the
-  three runs, so no snippet flipped verdict under load.
-- **The rotary fix.** This binary runs inference in F32, where the position
-  indices were always exact — which is why the pre-fix and post-fix runs both
-  read 52/96.
+Fixed by pinning `PYTHONHASHSEED=0`. Six consecutive runs now give 52/96, and
+the problem that used to flip (`idx=86`) verifies Correct every time.
 
-An earlier version of this section claimed batching changed the order the model
-actor consumes its RNG. That was wrong: the variation reproduces with batching
-held constant. What remains is nondeterminism below the actor — CUDA kernels
-that reduce with atomics or pick a split-k give slightly different logits for
-the same input, and a near-tie then flips one problem in 96.
+A second fact fell out of fixing it: setting the variable had no effect at
+first, because **`-I` implies `-E`, which discards `PYTHON*` variables** —
+including that one. The interpreter now runs `-s`. Dropping `-E` costs nothing
+because bwrap already starts from a cleared environment, and `-s` still keeps
+the user site directory out. That combination — an isolation flag quietly
+cancelling a determinism flag — is the kind of thing only a test catches, so
+`same_snippet_gives_the_same_answer` and `the_flipping_snippet_never_flips` now
+pin it.
 
-One problem of difference at round 0 compounds: the runs finish at 0.927 /
-0.865 / 0.833. That is not evidence batching degrades quality, and not evidence
-against it — each configuration ran once, and the divergence starts before
-training does.
+### Two wrong explanations, and how they were killed
 
-So on this axis, **compare harvest counts, not pass rates**. The harvest is
-bit-identical and is what the training consumes; the eval number carries
-nondeterminism that does not come from the harness's seeding.
+Both were inference dressed as diagnosis, and both cost a documentation
+correction:
 
-## Still open
+1. **"Batching changes the order the model actor consumes its RNG."** Killed by
+   holding batching constant and running twice: 51/96 then 52/96.
+2. **"CUDA kernels reduce with atomics, so logits differ."** Killed by
+   `phase23_determinism`: five draws inside one loaded model are token
+   identical, and two separate processes print the same token digest
+   (`6559cc909121f31d`) at both temperature 0 and 0.8.
 
-- **No general request batching.** Concurrent requests still serialise, and
-  making them batch is the padding problem above — workable, but not exact.
-- **The agentic loop re-prefills.** Each step regenerates against the whole
-  running buffer. Cheap at 150 tokens, not at 1000.
-- **Load time.** Minutes per replica, no warm pool.
-- **Response shape is inconsistent**: the non-tool path returns the completion
-  alone, the agentic path returns prompt+completion as `completion`. Caught
-  while writing a probe against it, which is how long it takes to bite.
+The instrumentation that actually settled it logs a digest and verdict per
+problem. It showed exactly one problem differing out of 96, with a
+**byte-identical completion and an inverted verdict** — which rules out
+generation entirely and points at the verifier, where the answer was.
+
+One self-inflicted detour worth recording: after the fix, a re-check still
+showed 51/52 and was reported as "the fix did not work". It had run the
+*previous* binary — built 18:22, fix built 19:50. Timestamps on the artifact
+would have caught it, the same discipline CLAUDE.md gotcha #8 already demands
+for CUDA builds.
+
+### What this means for the three runs
+
+The pass rates in the table above (0.927 / 0.865 / 0.833) were measured under
+the nondeterministic verifier and cannot be compared with each other. Harvest
+counts were and remain identical at 1979, which is what training consumes.
+Future comparisons on this axis can use pass rates, now that the verifier is
+reproducible.
 
 ## Reproducing
 

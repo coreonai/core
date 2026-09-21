@@ -62,6 +62,7 @@
 //! | processes bounded | `ulimit -u` | `sandbox_blocks_a_fork_bomb` |
 //! | file size bounded | `ulimit -f` | `sandbox_blocks_a_huge_write` |
 //! | wall clock bounded | kill after [`PythonTool::timeout`] | `kills_a_runaway_snippet` |
+//! | reproducible | `PYTHONHASHSEED=0` | `same_snippet_gives_the_same_answer` |
 //!
 //! **It fails closed.** If `bwrap` is missing the call errors rather than
 //! running unconfined, because the alternative is a security boundary that
@@ -194,7 +195,9 @@ impl PythonTool {
         let (asz, nproc, fsz) = match &self.sandbox {
             Sandbox::Disabled => {
                 let mut c = Command::new(&self.interpreter);
-                c.arg("-I").arg("-c").arg(code);
+                // Same reason as the sandboxed branch: without this the
+                // interpreter is a nondeterministic verifier.
+                c.env("PYTHONHASHSEED", "0").arg("-I").arg("-c").arg(code);
                 return Ok(c);
             }
             Sandbox::Bubblewrap {
@@ -222,7 +225,26 @@ impl PythonTool {
                 c.arg("--ro-bind").arg(dir).arg(dir);
             }
         }
-        c.arg("--proc")
+        // Pin the string-hash seed. Python randomises it per process, and
+        // `-I` does not change that — it only ignores PYTHON* env vars and the
+        // user site dir. A snippet that iterates a set or dict of strings then
+        // returns a different answer every run, which is how a verifier that
+        // executes code becomes nondeterministic without ever erroring.
+        //
+        // Measured: `list(set(['a','b','c','d','e']))[0]` gave a, e, b on
+        // three consecutive runs, and the self-improve eval moved 51/96 ->
+        // 52/96 across processes while generation was byte-identical.
+        //
+        // Set via --setenv because bwrap starts from a clean environment, and
+        // the interpreter runs `-s` rather than `-I`: `-I` implies `-E`, which
+        // DISCARDS PYTHON* variables including this one. Measured — under
+        // `-I` the seed had no effect at all. Dropping `-E` costs nothing
+        // here because bwrap has already cleared the environment; `-s` still
+        // keeps the user site directory out.
+        c.arg("--setenv")
+            .arg("PYTHONHASHSEED")
+            .arg("0")
+            .arg("--proc")
             .arg("/proc")
             .arg("--dev")
             .arg("/dev")
@@ -233,7 +255,7 @@ impl PythonTool {
             .arg("/bin/bash")
             .arg("-c")
             .arg(format!(
-                "ulimit -v {asz}; ulimit -u {nproc}; ulimit -f {fsz}; exec {} -I -c \"$0\"",
+                "ulimit -v {asz}; ulimit -u {nproc}; ulimit -f {fsz}; exec {} -s -c \"$0\"",
                 shell_quote(&self.interpreter)
             ))
             // Passed as $0 rather than interpolated, so no amount of quoting
@@ -575,6 +597,42 @@ mod tests {
         // above are so small that execution fails anyway — either way the
         // call must not succeed.
         assert!(t.execute("print(1)").is_err());
+    }
+
+    /// A verifier that executes code must give the same verdict twice.
+    /// Python randomises string hashing per process, so a snippet touching a
+    /// set or dict of strings silently returns a different answer each run —
+    /// no error, just a different number. That moved the self-improve eval
+    /// 51/96 -> 52/96 across processes while generation was byte-identical.
+    #[test]
+    fn same_snippet_gives_the_same_answer() {
+        let Some(t) = sandboxed() else { return };
+        let code = "print(list(set(['a','b','c','d','e']))[0], hash('abc'))";
+        let first = t.execute(code).unwrap();
+        for _ in 0..4 {
+            assert_eq!(
+                t.execute(code).unwrap(),
+                first,
+                "verifier is not reproducible"
+            );
+        }
+    }
+
+    /// The snippet that flipped an evaluation verdict while its text was
+    /// byte-identical: `sum of cubes 1..32`, a computation that cannot vary.
+    /// If this ever errors, the verifier is failing transiently, and a
+    /// transient failure reads as "wrong answer" because `verify` turns any
+    /// `ToolError` into `Incorrect`.
+    #[test]
+    fn the_flipping_snippet_never_flips() {
+        let Some(t) = sandboxed() else { return };
+        let code = "print(sum(i**3 for i in range(1,32+1)))";
+        for i in 0..200 {
+            match t.execute(code) {
+                Ok(v) => assert_eq!(v, "278784", "iteration {i} returned {v:?}"),
+                Err(e) => panic!("iteration {i} FAILED: {e}"),
+            }
+        }
     }
 
     #[test]
