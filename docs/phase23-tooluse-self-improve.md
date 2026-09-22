@@ -655,6 +655,65 @@ Ordered by what the measurement supports:
    self-consistency, but they compose with it, and they are what the HBM design
    classified as fully verifiable (throughput, cycle time, thermal ramp).
 
+## The variance band of this substrate
+
+Every comparison in this document so far was one run against one run. That was
+unavoidable while the verifier was nondeterministic — see
+`docs/phase23-serving-economics.md` — but with `PYTHONHASHSEED` pinned the
+evaluation reproduces, so the seed variance can finally be measured on its own.
+
+Six seeds, identical configuration (490 prompts × K=8, two rounds,
+`--train-steps 800`, `--harvest-repair`), varying only `--seed`:
+
+| seed | r0 harvest | eval-before | r0 pass@1 | r1 harvest | r1 pass@1 |
+|---|---|---|---|---|---|
+| 42 | 1979 | 0.542 | 0.719 | 2795 | 0.823 |
+| 43 | 1980 | 0.562 | 0.708 | 2793 | 0.792 |
+| 44 | 1982 | 0.510 | 0.729 | 2815 | 0.865 |
+| 45 | 1978 | 0.583 | 0.760 | 2799 | 0.865 |
+| 46 | 1979 | 0.500 | 0.729 | 2803 | 0.792 |
+| 47 | 1976 | 0.562 | 0.781 | 2781 | 0.823 |
+
+| metric | mean | σ | 2σ | range |
+|---|---|---|---|---|
+| r0 harvest | 1979.0 | **2.00** | — | 1976–1982 |
+| r1 harvest | 2797.7 | **11.3** | — | 2781–2815 |
+| eval-before | 0.5432 | 0.0324 | 0.0649 | 0.500–0.583 |
+| r0 pass@1 | 0.7377 | 0.0274 | 0.0548 | 0.708–0.781 |
+| **r1 pass@1** | **0.8267** | **0.0328** | **0.0655** | 0.792–0.865 |
+
+**The two metrics are not comparably precise.** Harvest is stable to ~0.1% —
+σ=2 out of 3920 at round 0 — while pass@1 moves by 0.0655 at 2σ. Comparing
+harvests was the right instinct all along, and it now has a number behind it.
+
+**The threshold for this substrate is ≈0.066 on final pass@1.** Anything
+smaller is one seed's worth of noise. For scale, the effects this repo treats
+as established are 0.207 (`--pg-positive-only`, in-domain) and 0.0148 per
+harvest doubling — the first clears this bar three times over, the second sits
+far below it and was only ever claimed as a trend across five points.
+
+### What this retroactively settles
+
+The three batching runs finished at 0.833 / 0.865 / 0.927. Two of the three sit
+inside the band above; 0.927 is 0.10 above the mean, about 3σ. At the time it
+was tempting to read the spread as batching degrading quality, and this
+document said only that the comparison could not be made. That was right, and
+now it can be quantified: a gap of 0.094 between single runs of this pipeline
+is roughly what two seeds produce on their own.
+
+`eval-before` varies too (0.500–0.583) even though nothing has been trained
+yet. That is not instability in the model — the seed also selects which 96
+problems the evaluator samples, so each row measures the same checkpoint on a
+different subset.
+
+### Limits
+
+σ from six seeds is itself an estimate with five degrees of freedom; treat
+0.066 as the scale of the noise, not a constant. Anything landing near the
+threshold needs more seeds rather than a verdict. And the band is specific to
+this configuration — changing K, the round count or the family set will move
+it, so it is not transferable to a different recipe without re-measuring.
+
 ## What to reuse
 
 - **A free verifier does not make a harvest safe.** It checks the answer, not
@@ -683,6 +742,10 @@ Ordered by what the measurement supports:
 - **When an ability only shows up on failures, inject the failures.** Waiting
   for the model to fail left 30 opportunities where the baseline had 189, and
   the comparison became undecidable at exactly the point the training worked.
+- **Measure the substrate's noise before trusting any single comparison.** Six
+  seeds of an unchanged configuration span 0.792–0.865 on final pass@1 (2σ =
+  0.066), while harvest counts span 3 out of 3920. Which metric you compare on
+  decides whether a difference means anything.
 - **Score a proxy verifier where ground truth exists, never where you need
   it.** Self-consistency recovered 0.617 → 0.842; the model's own log-prob
   scored 0.503 on the hard family, a coin flip that still reads like a filter
