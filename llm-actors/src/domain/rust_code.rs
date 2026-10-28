@@ -266,7 +266,15 @@ impl Domain for RustCodeDomain {
     }
 
     fn truncate_completion(&self, completion: &str) -> String {
-        let stops = ["\npub ", "\nfn ", "\nuse ", "\nstruct ", "\nimpl ", "\n\n", "<|fim_prefix|>"];
+        let stops = [
+            "\npub ",
+            "\nfn ",
+            "\nuse ",
+            "\nstruct ",
+            "\nimpl ",
+            "\n\n",
+            "<|fim_prefix|>",
+        ];
         let mut cut = completion.len();
         for s in stops {
             if let Some(i) = completion.find(s) {
