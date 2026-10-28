@@ -1719,12 +1719,10 @@ mod tests {
             golds.insert(c.gold_body.trim());
         }
         assert!(golds.contains("s.to_uppercase()"));
-        assert!(golds.contains(
-            "s.split_once('=').map(|(k, v)| (k.to_string(), v.to_string()))"
-        ));
-        assert!(golds.contains(
-            r#"if score >= 90 { "A" } else if score >= 60 { "P" } else { "F" }"#
-        ));
+        assert!(golds.contains("s.split_once('=').map(|(k, v)| (k.to_string(), v.to_string()))"));
+        assert!(
+            golds.contains(r#"if score >= 90 { "A" } else if score >= 60 { "P" } else { "F" }"#)
+        );
         assert!(golds.contains("xs.iter().sum()"));
         for c in &f6 {
             if c.task_id.contains("parse_kv") {

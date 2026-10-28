@@ -19,9 +19,9 @@ pub mod human_eval;
 pub mod korean_completion;
 pub mod livecodebench;
 pub mod mbpp;
+pub mod pekko_harvest;
 pub mod python_code;
 pub mod rust_code;
-pub mod pekko_harvest;
 pub mod tool_use;
 pub mod tool_use_python;
 
